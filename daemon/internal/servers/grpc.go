@@ -17,6 +17,8 @@ package servers
 import (
 	"context"
 	"fmt"
+	libgrpc "github.com/scionproto/scion/pkg/grpc"
+	"github.com/scionproto/scion/pkg/proto/control_plane"
 	"net"
 	"time"
 
@@ -65,6 +67,7 @@ type DaemonServer struct {
 
 	foregroundPathDedupe singleflight.Group
 	backgroundPathDedupe singleflight.Group
+	Dialer               *libgrpc.TCPDialer
 }
 
 // Paths serves the paths request.
@@ -79,6 +82,25 @@ func (s *DaemonServer) Paths(ctx context.Context,
 		time.Since(start).Seconds(),
 	)
 	return response, unwrapMetricsError(err)
+}
+func (s *DaemonServer) PullPaths(ctx context.Context,
+	req *sdpb.PullPathsRequest) (*sdpb.PullPathsResponse, error) {
+	conn, err := s.Dialer.Dial(ctx, addr.SvcCS)
+	if err != nil {
+		return &sdpb.PullPathsResponse{}, err
+	}
+	defer conn.Close()
+	egress_client := control_plane.NewEgressIntraServiceClient(conn)
+
+	_, err = egress_client.RequestPullBasedOrigination(ctx, &control_plane.PullPathsRequest{
+		DestinationIsdAs: req.DestinationIsdAs,
+		AlgorithmHash:    req.AlgorithmHash,
+		AlgorithmId:      req.AlgorithmId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &sdpb.PullPathsResponse{}, nil
 }
 
 func (s *DaemonServer) paths(ctx context.Context,
@@ -95,6 +117,7 @@ func (s *DaemonServer) paths(ctx context.Context,
 		s.backgroundPaths(ctx, srcIA, dstIA, req.Refresh)
 	}()
 	paths, err := s.fetchPaths(ctx, &s.foregroundPathDedupe, srcIA, dstIA, req.Refresh)
+	log.Info("Paths", "paths", paths)
 	if err != nil {
 		log.FromCtx(ctx).Debug("Fetching paths", "err", err,
 			"src", srcIA, "dst", dstIA, "refresh", req.Refresh)

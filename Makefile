@@ -22,6 +22,30 @@ bazel:
 	tar -kxf bazel-bin/scion.tar -C bin
 	tar -kxf bazel-bin/scion-ci.tar -C bin
 
+bazel-wa:
+	rm -f bin/*
+	bazel build //:scion //:scion-ci --define gotags=wa
+	tar -kxf bazel-bin/scion.tar -C bin
+	tar -kxf bazel-bin/scion-ci.tar -C bin
+
+bazel-waopt:
+	rm -f bin/*
+	bazel build //:scion //:scion-ci --define gotags=waopt
+	tar -kxf bazel-bin/scion.tar -C bin
+	tar -kxf bazel-bin/scion-ci.tar -C bin
+
+bazel-ubpfjit:
+	rm -f bin/*
+	bazel build //:scion //:scion-ci --define gotags=ubpfjit
+	tar -kxf bazel-bin/scion.tar -C bin
+	tar -kxf bazel-bin/scion-ci.tar -C bin
+
+bazel-native:
+	rm -f bin/*
+	bazel build //:scion //:scion-ci --define gotags=native
+	tar -kxf bazel-bin/scion.tar -C bin
+	tar -kxf bazel-bin/scion-ci.tar -C bin
+
 test:
 	bazel test --config=unit_all
 
@@ -59,6 +83,20 @@ mocks:
 
 gazelle:
 	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library $(GAZELLE_DIRS)
+
+
+gazelle-wa:
+	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=wa $(GAZELLE_DIRS)
+
+gazelle-waopt:
+	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=waopt $(GAZELLE_DIRS)
+
+gazelle-ubpfjit:
+	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=ubpfjit $(GAZELLE_DIRS)
+
+gazelle-native:
+	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=native $(GAZELLE_DIRS)
+
 
 licenses:
 	tools/licenses.sh

@@ -53,6 +53,7 @@ func main() {
 		command.NewVersion(cmd),
 		newPing(cmd),
 		newShowpaths(cmd),
+		newPullPaths(cmd),
 		newTraceroute(cmd),
 		newAddress(cmd),
 		newGendocs(cmd),

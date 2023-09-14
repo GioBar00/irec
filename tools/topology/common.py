@@ -29,6 +29,7 @@ COMMON_DIR = 'endhost'
 SCION_SERVICE_NAMES = (
     "control_service",
     "discovery_service",
+    "rac_service",
     "border_routers",
     "colibri_service",
 )
@@ -45,6 +46,8 @@ SIG_CONFIG_NAME = 'sig.toml'
 SD_API_PORT = 30255
 
 
+# Counter of amount of people that just wanted to add one parameter and were sent on an easter hunt
+# Increment this number: 1
 class ArgsBase:
     def __init__(self, args):
         for k, v in vars(args).items():
@@ -70,6 +73,15 @@ class ArgsTopoDicts(ArgsBase):
         super().__init__(args)
         self.topo_dicts = topo_dicts
 
+class ArgsTopoConfigDicts(ArgsBase):
+    def __init__(self, args, topo_dicts, topo_config):
+        """
+        :param object args: Contains the passed command line arguments as named attributes.
+        :param dict topo_dicts: The generated topo dicts from TopoGenerator.
+        """
+        super().__init__(args)
+        self.topo_dicts = topo_dicts
+        self.topo_config = topo_config
 
 LinkType = Enum('LinkType', ['CHILD', 'PARENT', 'PEER', 'CORE'])
 

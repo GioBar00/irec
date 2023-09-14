@@ -1,0 +1,108 @@
+--- # Default topology
+ASes:
+  "1-ff00:0:110":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    static_racs:
+        - {static_algorithm: algorithms/selectionalgo_waopt4.wasm}
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/selectionalgo_waopt4.wasm}
+  "1-ff00:0:120":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/selectionalgo_waopt4.wasm}
+  "1-ff00:0:130":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/selectionalgo_waopt4.wasm}
+  "1-ff00:0:111":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:112":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+    mtu: 1450
+  "1-ff00:0:121":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:120
+  "1-ff00:0:122":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:120
+  "1-ff00:0:131":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:130
+  "1-ff00:0:132":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:130
+    underlay: UDP/IPv6
+  "1-ff00:0:133":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:130
+  "2-ff00:0:210":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    mtu: 1280
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/selectionalgo_waopt4.wasm}
+  "2-ff00:0:220":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/selectionalgo_waopt4.wasm}
+  "2-ff00:0:211":
+    dynamic_racs: 1
+    cert_issuer: 2-ff00:0:210
+  "2-ff00:0:212":
+    dynamic_racs: 1
+    cert_issuer: 2-ff00:0:210
+  "2-ff00:0:221":
+    dynamic_racs: 1
+    cert_issuer: 2-ff00:0:220
+  "2-ff00:0:222":
+    dynamic_racs: 1
+    cert_issuer: 2-ff00:0:220
+links:
+  - {a: "1-ff00:0:110#1",     b: "1-ff00:0:120#6",   linkAtoB: CORE, groupsA: [1,2]}
+  - {a: "1-ff00:0:110#2",     b: "1-ff00:0:130#104", linkAtoB: CORE, groupsA: [1,2]}
+  - {a: "1-ff00:0:110#3",     b: "2-ff00:0:210#453",   linkAtoB: CORE, groupsA: [1]}
+  - {a: "1-ff00:0:120#1",   b: "1-ff00:0:130#105", linkAtoB: CORE, groupsA: [0]}
+  - {a: "1-ff00:0:120#2",   b: "2-ff00:0:220#501",   linkAtoB: CORE, mtu: 1350}
+  - {a: "1-ff00:0:120#3",   b: "2-ff00:0:220#502",   linkAtoB: CORE, mtu: 1400}
+  - {a: "1-ff00:0:120#4",   b: "1-ff00:0:121#3",     linkAtoB: CHILD}
+  - {a: "1-ff00:0:120#5",     b: "1-ff00:0:111#104", linkAtoB: CHILD}
+  - {a: "1-ff00:0:130#111", b: "1-ff00:0:131#479",   linkAtoB: CHILD}
+  - {a: "1-ff00:0:130#112", b: "1-ff00:0:111#105", linkAtoB: CHILD}
+  - {a: "1-ff00:0:130#113", b: "1-ff00:0:112#495",   linkAtoB: CHILD}
+  - {a: "1-ff00:0:111#103", b: "1-ff00:0:112#494",   linkAtoB: CHILD}
+  - {a: "1-ff00:0:121#2",     b: "1-ff00:0:122#2",     linkAtoB: CHILD}
+  - {a: "1-ff00:0:131#478",   b: "1-ff00:0:132#2",     linkAtoB: CHILD}
+  - {a: "1-ff00:0:132#1",     b: "1-ff00:0:133#2",     linkAtoB: CHILD}
+  - {a: "2-ff00:0:210#450",   b: "2-ff00:0:220#503",   linkAtoB: CORE}
+  - {a: "2-ff00:0:210#451",   b: "2-ff00:0:211#7",   linkAtoB: CHILD}
+  - {a: "2-ff00:0:210#452",   b: "2-ff00:0:211#8",   linkAtoB: CHILD}
+  - {a: "2-ff00:0:220#500",   b: "2-ff00:0:221#2",     linkAtoB: CHILD}
+  - {a: "2-ff00:0:211#2",   b: "2-ff00:0:212#201",   linkAtoB: CHILD}
+  - {a: "2-ff00:0:211#3",   b: "2-ff00:0:212#200",   linkAtoB: CHILD}
+  - {a: "2-ff00:0:211#4",   b: "2-ff00:0:222#301",   linkAtoB: CHILD}
+  - {a: "2-ff00:0:221#1",     b: "2-ff00:0:222#302",   linkAtoB: CHILD}

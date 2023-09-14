@@ -10,6 +10,7 @@ go_library(
         "main.go",
         "observability.go",
         "ping.go",
+        "pullpaths.go",
         "showpaths.go",
         "traceroute.go",
     ],

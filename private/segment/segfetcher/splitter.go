@@ -42,6 +42,7 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 	const Up = seg.TypeUp
 	const Down = seg.TypeDown
 	const Core = seg.TypeCore
+	const CoreR = seg.TypeCoreR
 
 	src := s.LocalIA
 	srcCore := s.Core
@@ -61,6 +62,7 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 		return Requests{
 			{Src: src, Dst: toWildCard(src), SegType: Up},
 			{Src: toWildCard(src), Dst: toWildCard(dst), SegType: Core},
+			{Src: toWildCard(dst), Dst: toWildCard(src), SegType: CoreR}, // todo(jvb); this shouldn't have wildcards?
 			{Src: toWildCard(dst), Dst: dst, SegType: Down},
 		}, nil
 	case !srcCore && dstCore:
@@ -70,6 +72,7 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 		return Requests{
 			{Src: src, Dst: toWildCard(src), SegType: Up},
 			{Src: toWildCard(src), Dst: dst, SegType: Core},
+			{Src: dst, Dst: toWildCard(src), SegType: CoreR},
 		}, nil
 	case srcCore && !dstCore:
 		if singleCore.Equal(src) {
@@ -77,10 +80,12 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 		}
 		return Requests{
 			{Src: src, Dst: toWildCard(dst), SegType: Core},
+			{Src: toWildCard(dst), Dst: src, SegType: CoreR},
 			{Src: toWildCard(dst), Dst: dst, SegType: Down},
 		}, nil
 	default:
-		return Requests{{Src: src, Dst: dst, SegType: Core}}, nil
+		return Requests{{Src: src, Dst: dst, SegType: Core}, {Src: dst, Dst: src, SegType: CoreR}},
+			nil
 	}
 }
 

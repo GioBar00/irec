@@ -30,6 +30,10 @@ type PathReqFlags struct {
 	Refresh bool
 	Hidden  bool
 }
+type PullPathReqFlags struct {
+	AlgorithmHash []byte
+	AlgorithmId   uint32
+}
 
 // ASInfo provides information about the local AS.
 type ASInfo struct {

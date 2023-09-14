@@ -254,6 +254,7 @@ func realMain(ctx context.Context) error {
 	server := grpc.NewServer(libgrpc.UnaryServerInterceptor())
 	sdpb.RegisterDaemonServiceServer(server, daemon.NewServer(
 		daemon.ServerConfig{
+			Dialer:   dialer,
 			IA:       topo.IA(),
 			MTU:      topo.MTU(),
 			Topology: topo,

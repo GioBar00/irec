@@ -25,9 +25,22 @@ message PathSegmentExtensions {
     StaticInfoExtension static_info = 1;
     // Optional hidden path extension.
     HiddenPathExtension hidden_path = 2;
-
+    // Optional IREC Extension
+    IRECExtension irec = 3;
     // Optional digests of detached extensions.
     DigestExtension digests = 1000;
+
+}
+
+message IRECExtension{
+    bytes algorithm_hash = 1;
+    uint32 algorithm_id = 2;
+    uint32 interface_group = 3;
+    bool pullbased = 4;
+    uint64 pullbasedTarget = 5; //target AS
+    uint64 pullbasedPeriod = 6; // Minimum amount of time since arrival of first beacon before starting to process.
+    uint64 pullbasedHyperPeriod = 7; // Time after which the targetAS should process, and inbetween AS'es should delete.
+    uint32 pullbasedMinBeacons = 8; // Minimum on the amount of beacons
 }
 
 message HiddenPathExtension {

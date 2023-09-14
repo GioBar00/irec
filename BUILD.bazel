@@ -56,10 +56,12 @@ config_setting(
 pkg_tar(
     name = "scion",
     srcs = [
+        "//bench",
         "//control/cmd/control",
         "//daemon/cmd/daemon",
         "//dispatcher/cmd/dispatcher",
         "//gateway/cmd/gateway",
+        "//rac/cmd/rac",
         "//router/cmd/router",
         "//scion-pki/cmd/scion-pki",
         "//scion/cmd/scion",

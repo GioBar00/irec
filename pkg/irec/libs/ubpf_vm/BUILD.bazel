@@ -1,0 +1,35 @@
+cc_library(
+    name = "ubpf_vm",
+    srcs = [
+        "ubpf_jit_x86_64.c",
+        "ubpf_loader.c",
+        "ubpf_vm.c",
+    ],
+    hdrs = [
+        "ebpf.h",
+        "inc/bpf.h",
+        "inc/context.h",
+        "inc/ubpf.h",
+        "inc/ubpf_config.h",
+        "ubpf_int.h",
+        "ubpf_jit_x86_64.h",
+        "utlist.h",
+    ],
+    copts = [
+        "-O3",
+        "-march=native",
+        "-Wall",
+        "-Wextra",
+        "-Wshadow",
+        "-Wuninitialized",
+        "-Wcast-align",
+        "-Wcast-qual",
+        "-g",
+        "-fPIC",
+    ],
+    includes = [
+        "./",
+        "inc/",
+    ],
+    visibility = ["//visibility:public"],
+)

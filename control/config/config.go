@@ -58,8 +58,11 @@ type Config struct {
 	Tracing     env.Tracing        `toml:"tracing,omitempty"`
 	QUIC        env.QUIC           `toml:"quic,omitempty"`
 	BeaconDB    storage.DBConfig   `toml:"beacon_db,omitempty"`
+	IngressDB   storage.DBConfig   `toml:"ingress_db,omitempty"`
+	EgressDB    storage.DBConfig   `toml:"egress_db,omitempty"`
 	TrustDB     storage.DBConfig   `toml:"trust_db,omitempty"`
 	PathDB      storage.DBConfig   `toml:"path_db,omitempty"`
+	IREC        IRECConfig         `toml:"irec,omitempty"`
 	BS          BSConfig           `toml:"beaconing,omitempty"`
 	PS          PSConfig           `toml:"path,omitempty"`
 	CA          CA                 `toml:"ca,omitempty"`
@@ -77,8 +80,11 @@ func (cfg *Config) InitDefaults() {
 		&cfg.API,
 		&cfg.Tracing,
 		&cfg.BeaconDB,
+		&cfg.IngressDB,
+		&cfg.EgressDB,
 		&cfg.TrustDB,
 		&cfg.PathDB,
+		&cfg.IREC,
 		&cfg.BS,
 		&cfg.PS,
 		&cfg.CA,
@@ -96,8 +102,11 @@ func (cfg *Config) Validate() error {
 		&cfg.Metrics,
 		&cfg.API,
 		&cfg.BeaconDB,
+		&cfg.IngressDB,
+		&cfg.EgressDB,
 		&cfg.TrustDB,
 		&cfg.PathDB,
+		&cfg.IREC,
 		&cfg.BS,
 		&cfg.PS,
 		&cfg.CA,
@@ -125,6 +134,20 @@ func (cfg *Config) Sample(dst io.Writer, path config.Path, _ config.CtxMap) {
 		),
 		config.OverrideName(
 			config.FormatData(
+				&cfg.IngressDB,
+				storage.SetID(storage.SampleIngressDB, idSample).Connection,
+			),
+			"ingress_db",
+		),
+		config.OverrideName(
+			config.FormatData(
+				&cfg.EgressDB,
+				storage.SetID(storage.SampleEgressDB, idSample).Connection,
+			),
+			"egress_db",
+		),
+		config.OverrideName(
+			config.FormatData(
 				&cfg.TrustDB,
 				storage.SetID(storage.SampleTrustDB, idSample).Connection,
 			),
@@ -137,12 +160,69 @@ func (cfg *Config) Sample(dst io.Writer, path config.Path, _ config.CtxMap) {
 			),
 			"path_db",
 		),
+		&cfg.IREC,
 		&cfg.BS,
 		&cfg.PS,
 		&cfg.CA,
 		&cfg.TrustEngine,
 		&cfg.DRKey,
 	)
+}
+
+var _ config.Config = (*IRECConfig)(nil)
+
+type AlgorithmInfo struct {
+	config.NoDefaulter
+	Originate bool   `toml:"originate, omitempty"`
+	ID        uint32 `toml:"id, omitempty"`
+	File      string `toml:"file, omitempty"`
+	Fallback  bool   `toml:"fallback, omitempty"`
+}
+
+func (cfg *AlgorithmInfo) Validate() error {
+	//_, err := hex.DecodeString(cfg.Originate)
+	//return err
+	return nil
+}
+
+//func (cfg *AlgorithmInfo) HashAsBytes() []byte {
+//	hash, _ := hex.DecodeString(cfg.Hash)
+//	return hash
+//}
+
+// Sample generates a sample for the beacon server specific configuration.
+func (cfg *AlgorithmInfo) Sample(dst io.Writer, _ config.Path, _ config.CtxMap) {
+}
+
+// ConfigName is the toml key for the beacon server specific configuration.
+func (cfg *AlgorithmInfo) ConfigName() string {
+	return "algorithms"
+}
+
+// IRECConfig holds the configuration specific for IREC. Currently part of the config of the beaconing server is used.
+// this should be moved over eventually.
+type IRECConfig struct {
+	config.NoDefaulter
+	config.NoValidator
+	Algorithms []AlgorithmInfo `toml:"algorithms,omitempty"`
+}
+
+// InitDefaults the default values
+func (cfg *IRECConfig) InitDefaults() {
+}
+
+// Validate validates the config
+func (cfg *IRECConfig) Validate() error {
+	return nil
+}
+
+// Sample generates a sample for the config, which is empty.
+func (cfg *IRECConfig) Sample(dst io.Writer, path config.Path, ctx config.CtxMap) {
+}
+
+// ConfigName is the toml key for the beacon server specific configuration.
+func (cfg *IRECConfig) ConfigName() string {
+	return "irec"
 }
 
 var _ config.Config = (*BSConfig)(nil)

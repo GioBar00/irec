@@ -26,7 +26,8 @@ import (
 
 type InterfaceInfo struct {
 	// ID is the interface ID.
-	ID uint16
+	ID     uint16
+	Groups []uint16
 	// IA is the remote ISD-AS.
 	IA       addr.IA
 	LinkType topology.LinkType
@@ -46,6 +47,9 @@ const (
 	// DefaultKeepaliveTimeout specifies the default for how long an interface
 	// can receive no IFID keepalive packets until it is considered expired.
 	DefaultKeepaliveTimeout = 3 * DefaultKeepaliveInterval
+	// DefaultAlgorithmId specifies the default algorithm as a fallback to remain
+	// backwards compatible
+	DefaultAlgorithmId = "DEFAULT_PLACEHOLDER"
 )
 
 // Config enables configuration of the interfaces.
@@ -114,6 +118,19 @@ func (intfs *Interfaces) Filtered(filter func(*Interface) bool) []*Interface {
 	return propagationInterfaces
 }
 
+// Filtered returns the subset of interfaces which pass the given filter function.
+func (intfs *Interfaces) FilteredMapped(filter func(*Interface) bool) []uint32 {
+	intfs.mu.RLock()
+	defer intfs.mu.RUnlock()
+	var propagationInterfaces []uint32
+	for _, intf := range intfs.intfs {
+		if filter(intf) {
+			propagationInterfaces = append(propagationInterfaces, uint32(intf.topoInfo.ID))
+		}
+	}
+	return propagationInterfaces
+}
+
 // Reset resets all interface states to inactive. This should be called
 // by the beacon server if it is elected leader.
 func (intfs *Interfaces) Reset() {
@@ -147,7 +164,7 @@ type Interface struct {
 	mu            sync.RWMutex
 	topoInfo      InterfaceInfo
 	lastOriginate time.Time
-	lastPropagate time.Time
+	lastPropagate map[string]time.Time
 	cfg           Config
 }
 
@@ -183,24 +200,31 @@ func (intf *Interface) LastOriginate() time.Time {
 }
 
 // Propagate sets the time this interface has been propagated on last.
-func (intf *Interface) Propagate(now time.Time) {
+func (intf *Interface) Propagate(now time.Time, algHashString string) {
 	intf.mu.Lock()
 	defer intf.mu.Unlock()
-	intf.lastPropagate = now
+	if intf.lastPropagate == nil {
+		intf.lastPropagate = map[string]time.Time{}
+	}
+	intf.lastPropagate[algHashString] = now
 }
 
 // LastPropagate indicates the last time this interface has been propagated on.
-func (intf *Interface) LastPropagate() time.Time {
+func (intf *Interface) LastPropagate(algHashString string) time.Time {
 	intf.mu.RLock()
 	defer intf.mu.RUnlock()
-	return intf.lastPropagate
+	if v, ok := intf.lastPropagate[algHashString]; ok {
+		return v
+	} else {
+		return time.Time{}
+	}
 }
 
 func (intf *Interface) reset() {
 	intf.mu.Lock()
 	defer intf.mu.Unlock()
 	intf.lastOriginate = time.Time{}
-	intf.lastPropagate = time.Time{}
+	intf.lastPropagate = map[string]time.Time{}
 }
 
 func (intf *Interface) updateTopoInfo(topoInfo InterfaceInfo) {

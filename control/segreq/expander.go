@@ -41,6 +41,10 @@ func (e *WildcardExpander) ExpandSrcWildcard(ctx context.Context,
 	}
 
 	switch req.SegType {
+	case seg.TypeCoreR:
+		// Reversed core segments should not use wildcards, as we do not want to fetch reversed segments from other Core
+		// ASes
+		return segfetcher.Requests{segfetcher.Request{Src: req.Src, Dst: req.Dst, SegType: req.SegType}}, nil
 	case seg.TypeCore:
 		cores, err := e.providerCoreASes(ctx)
 		if err != nil {

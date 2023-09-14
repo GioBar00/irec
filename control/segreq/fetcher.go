@@ -139,7 +139,7 @@ type localInfo struct {
 //
 // In summary, these are exactly the segments starting at the local AS.
 func (l *localInfo) IsSegLocal(req segfetcher.Request) bool {
-	return req.Src == l.localIA
+	return req.Src == l.localIA || (req.SegType == seg.TypeCoreR && req.Dst == l.localIA)
 }
 
 // dstProvider provides the address of and the path to the authoritative server
@@ -168,6 +168,9 @@ type dstProvider struct {
 // this request.
 func (p *dstProvider) Dst(ctx context.Context, req segfetcher.Request) (net.Addr, error) {
 
+	if req.SegType == seg.TypeCoreR {
+		return nil, serrors.New("Cannot fetch core reverse segments.")
+	}
 	// The request is directed to the AS at the start of the requested segment:
 	dst := req.Src
 

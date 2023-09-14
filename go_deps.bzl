@@ -98,6 +98,12 @@ def go_deps():
         version = "v0.0.0-20160522181843-27f122750802",
     )
     go_repository(
+        name = "com_github_bytecodealliance_wasmtime_go_v12",
+        importpath = "github.com/bytecodealliance/wasmtime-go/v12",
+        sum = "h1:Wga02UaZXYF3p0LIeL5xFp09/RI7UhjfT2uB0mLrwlw=",
+        version = "v12.0.0",
+    )
+    go_repository(
         name = "com_github_cenkalti_backoff",
         importpath = "github.com/cenkalti/backoff",
         sum = "h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=",
@@ -456,6 +462,12 @@ def go_deps():
         importpath = "github.com/google/btree",
         sum = "h1:0udJVsspx3VBr5FwtLhQQtuAsVc79tTq0ocGIPAU6qo=",
         version = "v1.0.0",
+    )
+    go_repository(
+        name = "com_github_google_flatbuffers",
+        importpath = "github.com/google/flatbuffers",
+        sum = "h1:M9dgRyhJemaM4Sw8+66GHBu8ioaQmyPLg1b8VwK5WJg=",
+        version = "v23.5.26+incompatible",
     )
     go_repository(
         name = "com_github_google_go_cmp",

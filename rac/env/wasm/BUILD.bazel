@@ -1,0 +1,23 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "environment.go",
+        "environment_wa.go",
+        "util.go",
+    ],
+    importpath = "github.com/scionproto/scion/rac/env/wasm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/addr:go_default_library",
+        "//pkg/log:go_default_library",
+        "//pkg/proto/control_plane:go_default_library",
+        "//pkg/proto/rac:go_default_library",
+        "//private/topology:go_default_library",
+        "//rac:go_default_library",
+        "//rac/config:go_default_library",
+        "@com_github_bytecodealliance_wasmtime_go_v12//:go_default_library",
+        "@org_golang_google_protobuf//proto:go_default_library",
+    ],
+)

@@ -67,11 +67,6 @@ func (f ForwardingLookup) classify(ctx context.Context,
 		return 0, serrors.WithCtx(segfetcher.ErrInvalidRequest,
 			"src", src, "dst", dst, "reason", "zero ISD src or dst")
 	}
-	if dst == f.LocalIA {
-		// this could be an otherwise valid request, but probably the requester switched Src and Dst
-		return 0, serrors.WithCtx(segfetcher.ErrInvalidRequest,
-			"src", src, "dst", dst, "reason", "dst is local AS, confusion?")
-	}
 	srcCore, err := f.CoreChecker.IsCore(ctx, src)
 	if err != nil {
 		return 0, err
@@ -79,6 +74,16 @@ func (f ForwardingLookup) classify(ctx context.Context,
 	dstCore, err := f.CoreChecker.IsCore(ctx, dst)
 	if err != nil {
 		return 0, err
+	}
+
+	if dst == f.LocalIA {
+		// This is likely a reverse core request;
+		if src != f.LocalIA && dstCore && srcCore {
+			return seg.TypeCoreR, nil
+		}
+		// this could be an otherwise valid request, but probably the requester switched Src and Dst
+		return 0, serrors.WithCtx(segfetcher.ErrInvalidRequest,
+			"src", src, "dst", dst, "reason", "dst is local AS, confusion?")
 	}
 	switch {
 	case srcCore && dstCore:

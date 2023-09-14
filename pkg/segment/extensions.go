@@ -17,6 +17,7 @@ package segment
 import (
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
 	"github.com/scionproto/scion/pkg/segment/extensions/digest"
+	"github.com/scionproto/scion/pkg/segment/extensions/irec"
 	"github.com/scionproto/scion/pkg/segment/extensions/staticinfo"
 )
 
@@ -24,6 +25,7 @@ type Extensions struct {
 	HiddenPath HiddenPathExtension
 	StaticInfo *staticinfo.Extension
 	Digests    *digest.Extension
+	Irec       *irec.Irec
 }
 
 func extensionsFromPB(pb *cppb.PathSegmentExtensions) Extensions {
@@ -36,10 +38,12 @@ func extensionsFromPB(pb *cppb.PathSegmentExtensions) Extensions {
 	}
 	staticInfo := staticinfo.FromPB(pb.StaticInfo)
 	digest := digest.ExtensionFromPB(pb.Digests)
+	irec := irec.ExtensionFromPB(pb.Irec)
 	return Extensions{
 		HiddenPath: hiddenPath,
 		StaticInfo: staticInfo,
 		Digests:    digest,
+		Irec:       irec,
 	}
 }
 
@@ -50,12 +54,13 @@ func extensionsToPB(ext Extensions) *cppb.PathSegmentExtensions {
 	}
 	staticInfo := staticinfo.ToPB(ext.StaticInfo)
 	digest := digest.ExtensionToPB(ext.Digests)
-
-	if hiddenPath != nil || staticInfo != nil || digest != nil {
+	irec := irec.ExtensionToPB(ext.Irec)
+	if hiddenPath != nil || staticInfo != nil || digest != nil || irec != nil {
 		return &cppb.PathSegmentExtensions{
 			HiddenPath: hiddenPath,
 			StaticInfo: staticInfo,
 			Digests:    digest,
+			Irec:       irec,
 		}
 	}
 	return nil

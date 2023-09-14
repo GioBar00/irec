@@ -1,0 +1,41 @@
+filegroup(
+    name = "srcs",
+    srcs = [
+        "tommyalloc.c",
+        "tommyarray.c",
+        "tommyarrayblk.c",
+        "tommyarrayblkof.c",
+        "tommyarrayof.c",
+        "tommyhash.c",
+        "tommyhashdyn.c",
+        "tommyhashlin.c",
+        "tommyhashtbl.c",
+        "tommylist.c",
+        "tommytrie.c",
+        "tommytrieinp.c",
+    ],
+    visibility = ["//pkg/irec:__subpackages__"],
+)
+
+filegroup(
+    name = "hdrs",
+    srcs = [
+        "tommy.h",
+        "tommyalloc.h",
+        "tommyarray.h",
+        "tommyarrayblk.h",
+        "tommyarrayblkof.h",
+        "tommyarrayof.h",
+        "tommychain.h",
+        "tommyhash.h",
+        "tommyhashdyn.h",
+        "tommyhashlin.h",
+        "tommyhashtbl.h",
+        "tommylist.h",
+        "tommytree.h",
+        "tommytrie.h",
+        "tommytrieinp.h",
+        "tommytypes.h",
+    ],
+    visibility = ["//pkg/irec:__subpackages__"],
+)

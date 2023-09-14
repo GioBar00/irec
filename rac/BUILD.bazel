@@ -1,0 +1,16 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "algorithmcache.go",
+        "writer.go",
+    ],
+    importpath = "github.com/scionproto/scion/rac",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/grpc:go_default_library",
+        "//pkg/proto/control_plane:go_default_library",
+        "@org_golang_google_grpc//:go_default_library",
+    ],
+)

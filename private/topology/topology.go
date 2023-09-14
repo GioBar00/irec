@@ -106,6 +106,7 @@ type (
 		// ID is the interface ID. It is unique per AS.
 		ID           common.IFIDType
 		BRName       string
+		Groups       []uint16
 		Underlay     underlay.Type
 		InternalAddr *net.UDPAddr
 		Local        *net.UDPAddr
@@ -238,6 +239,10 @@ func (t *RWTopology) populateBR(raw *jsontopo.Topology) error {
 				BRName:       name,
 				InternalAddr: intAddr,
 				MTU:          rawIntf.MTU,
+				Groups:       rawIntf.Groups,
+			}
+			if len(ifinfo.Groups) == 0 {
+				ifinfo.Groups = []uint16{0}
 			}
 			if ifinfo.IA, err = addr.ParseIA(rawIntf.IA); err != nil {
 				return err
@@ -570,6 +575,7 @@ func (i *IFInfo) copy() *IFInfo {
 		BRName:       i.BRName,
 		Underlay:     i.Underlay,
 		InternalAddr: copyUDPAddr(i.InternalAddr),
+		Groups:       copyGroups(i.Groups),
 		Local:        copyUDPAddr(i.Local),
 		Remote:       copyUDPAddr(i.Remote),
 		RemoteIFID:   i.RemoteIFID,
@@ -623,6 +629,13 @@ func (s ServiceNames) GetRandom() (string, error) {
 		return "", serrors.New("No names present")
 	}
 	return s[rand.Intn(numServers)], nil
+}
+
+func copyGroups(grps []uint16) []uint16 {
+	copyArray := make([]uint16, len(grps))
+
+	copy(copyArray, grps)
+	return copyArray
 }
 
 func copyUDPAddr(a *net.UDPAddr) *net.UDPAddr {

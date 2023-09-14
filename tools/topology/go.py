@@ -76,6 +76,34 @@ class GoGenerator(object):
         self.certs_dir = '/share/crypto' if args.docker else 'gen-certs'
         self.log_level = 'debug'
 
+    def generate_rac(self):
+        for topo_id, topo in self.args.topo_dicts.items():
+            ctrl_addr = ""
+            for elem_id, elem in topo.get("control_service", {}).items():
+                # only a single Go-BS per AS is currently supported
+                if elem_id.endswith("-1"):
+                    ctrl_addr = elem.get("addr", "").split(":")[0] + ":32768"
+
+            for k, v in topo.get("rac_service", {}).items():
+                base = topo_id.base_dir(self.args.output_dir)
+                rac_conf = self.build_rac_conf(topo_id, topo["isd_as"], base, k, v, ctrl_addr)
+                write_file(os.path.join(base, "%s.toml" % k), toml.dumps(rac_conf))
+
+    def build_rac_conf(self, topo_id, ia, base, name, v, ctrl_addr):
+        config_dir = '/share/conf' if self.args.docker else base
+        raw_entry = {
+            'general': {
+                'id': name,
+                'config_dir': config_dir,
+            },
+
+            'log': self._log_entry(name),
+            # TODO(jvb): remove hardcoded algorithm.
+            'rac': {'ctrl_addr' : ctrl_addr, 'addr': v.get("addr", ""), 'static': v.get("static", False), 'static_algorithm': {'file': v.get("static_algorithm", "")}}
+        }
+        return raw_entry
+
+
     def generate_br(self):
         for topo_id, topo in self.args.topo_dicts.items():
             for k, v in topo.get("border_routers", {}).items():
@@ -125,6 +153,14 @@ class GoGenerator(object):
             'trust_db': {
                 'connection': os.path.join(self.db_dir, '%s.trust.db' % name),
             },
+
+            'ingress_db':     {
+                'connection': os.path.join(self.db_dir, '%s.ingress.db' % name),
+            },
+            'egress_db':     {
+                'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
+            },
+
             'beacon_db':     {
                 'connection': os.path.join(self.db_dir, '%s.beacon.db' % name),
             },
@@ -135,10 +171,23 @@ class GoGenerator(object):
             'metrics': self._metrics_entry(infra_elem, CS_PROM_PORT),
             'api': self._api_entry(infra_elem, CS_PROM_PORT+700),
             'features': translate_features(self.args.features),
+
         }
         if ca:
             raw_entry['ca'] = {'mode': 'in-process'}
+        if self.args.config["ASes"][str(topo_id)].get("irec", None):
+            raw_entry['irec'] = self.generate_irec(topo_id)
         return raw_entry
+
+    def generate_irec(self, topo_id):
+        algs = self.args.config["ASes"][str(topo_id)].get("irec", {}).get("algorithms", [])
+        sanitized_list = []
+        # Only copy the options we currently accept: hexhash, file and id, ideally this should be identical
+        # to the variable algs.
+        for alg in algs:
+            if 'originate' in alg and 'file' in alg and 'id' in alg:
+                sanitized_list.append({'originate': alg['originate'], 'file': alg['file'], 'id': alg['id'], 'fallback': alg['fallback'] if 'fallback' in alg else False})
+        return {"algorithms": sanitized_list}
 
     def generate_co(self):
         if not self.args.colibri:

@@ -56,10 +56,10 @@ import (
 //
 // If Combine cannot extract a hop field or info field from the segments, it
 // panics.
-func Combine(src, dst addr.IA, ups, cores, downs []*seg.PathSegment,
+func Combine(src, dst addr.IA, ups, cores, corers, downs []*seg.PathSegment,
 	findAllIdentical bool) []Path {
 
-	solutions := newDMG(ups, cores, downs).GetPaths(vertexFromIA(src), vertexFromIA(dst))
+	solutions := newDMG(ups, cores, corers, downs).GetPaths(vertexFromIA(src), vertexFromIA(dst))
 	paths := make([]Path, len(solutions))
 	for i, solution := range solutions {
 		paths[i] = solution.Path()

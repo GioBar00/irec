@@ -15,6 +15,7 @@
 package beacon
 
 import (
+	"github.com/scionproto/scion/pkg/segment"
 	"os"
 
 	yaml "gopkg.in/yaml.v2"
@@ -293,6 +294,16 @@ func FilterLoop(beacon Beacon, next addr.IA, allowIsdLoop bool) error {
 	return filterLoops(hops, allowIsdLoop)
 }
 
+func FilterLoopSeg(seg *segment.PathSegment, next addr.IA, allowIsdLoop bool) error {
+	hops := make([]addr.IA, 0, len(seg.ASEntries)+1)
+	for _, asEntry := range seg.ASEntries {
+		hops = append(hops, asEntry.Local)
+	}
+	if !next.IsZero() {
+		hops = append(hops, next)
+	}
+	return filterLoops(hops, allowIsdLoop)
+}
 func buildHops(beacon Beacon) []addr.IA {
 	hops := make([]addr.IA, 0, len(beacon.Segment.ASEntries)+1)
 	for _, asEntry := range beacon.Segment.ASEntries {

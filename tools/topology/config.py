@@ -127,6 +127,7 @@ class ConfigGenerator(object):
     def _generate_go(self, topo_dicts):
         args = self._go_args(topo_dicts)
         go_gen = GoGenerator(args)
+        go_gen.generate_rac()
         go_gen.generate_br()
         go_gen.generate_sciond()
         go_gen.generate_control_service()
@@ -155,7 +156,7 @@ class ConfigGenerator(object):
         super_gen.generate()
 
     def _supervisor_args(self, topo_dicts):
-        return SupervisorGenArgs(self.args, topo_dicts)
+        return SupervisorGenArgs(self.args, topo_dicts, self.topo_config)
 
     def _generate_docker(self, topo_dicts):
         args = self._docker_args(topo_dicts)

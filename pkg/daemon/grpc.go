@@ -93,6 +93,21 @@ func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
 	return paths, err
 }
 
+func (c grpcConn) PullPaths(ctx context.Context, dst, src addr.IA, f PullPathReqFlags) error {
+
+	client := sdpb.NewDaemonServiceClient(c.conn)
+	_, err := client.PullPaths(ctx, &sdpb.PullPathsRequest{
+		SourceIsdAs:      uint64(src),
+		DestinationIsdAs: uint64(dst),
+		AlgorithmHash:    f.AlgorithmHash,
+		AlgorithmId:      f.AlgorithmId,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c grpcConn) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 	client := sdpb.NewDaemonServiceClient(c.conn)
 	response, err := client.AS(ctx, &sdpb.ASRequest{IsdAs: uint64(ia)})

@@ -150,7 +150,7 @@ func (p *Propagator) needsBeacons() []*ifstate.Interface {
 	}
 	stale := make([]*ifstate.Interface, 0, len(intfs))
 	for _, intf := range intfs {
-		if p.Tick.Overdue(intf.LastPropagate()) {
+		if p.Tick.Overdue(intf.LastPropagate("")) {
 			stale = append(stale, intf)
 		}
 	}
@@ -320,7 +320,7 @@ func (p *propagator) Propagate(ctx context.Context) error {
 
 			setSuccess()
 			p.incMetric(b.Segment.FirstIA(), b.InIfId, egress, prom.Success)
-			p.intf.Propagate(p.now)
+			p.intf.Propagate(p.now, "")
 
 			if debugEnabled {
 				logger.Debug("Propagated beacon",

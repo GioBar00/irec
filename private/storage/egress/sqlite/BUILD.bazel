@@ -1,0 +1,17 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "db.go",
+        "schema.go",
+    ],
+    importpath = "github.com/scionproto/scion/private/storage/egress/sqlite",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//control/ifstate:go_default_library",
+        "//pkg/addr:go_default_library",
+        "//private/storage/db:go_default_library",
+        "@com_github_mattn_go_sqlite3//:go_default_library",
+    ],
+)

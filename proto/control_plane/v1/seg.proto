@@ -30,6 +30,8 @@ enum SegmentType {
     SEGMENT_TYPE_DOWN = 2;
     // Core segment.
     SEGMENT_TYPE_CORE = 3;
+    // Reversed Core segment.
+    SEGMENT_TYPE_CORER = 4;
   }
 
 

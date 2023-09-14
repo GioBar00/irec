@@ -95,11 +95,11 @@ func (p *Pather) GetPaths(ctx context.Context, dst addr.IA,
 }
 
 func (p *Pather) buildAllPaths(src, dst addr.IA, segs Segments) []combinator.Path {
-	up, core, down := categorizeSegs(segs)
-	destinations := p.findDestinations(dst, up, core)
+	up, core, corer, down := categorizeSegs(segs)
+	destinations := p.findDestinations(dst, up, core, corer)
 	var paths []combinator.Path
 	for dst := range destinations {
-		paths = append(paths, combinator.Combine(src, dst, up, core, down, false)...)
+		paths = append(paths, combinator.Combine(src, dst, up, core, corer, down, false)...)
 	}
 	// Filter expired paths
 	now := time.Now()
@@ -112,7 +112,7 @@ func (p *Pather) buildAllPaths(src, dst addr.IA, segs Segments) []combinator.Pat
 	return validPaths
 }
 
-func (p *Pather) findDestinations(dst addr.IA, ups, cores seg.Segments) map[addr.IA]struct{} {
+func (p *Pather) findDestinations(dst addr.IA, ups, cores, corers seg.Segments) map[addr.IA]struct{} {
 	if !dst.IsWildcard() {
 		return map[addr.IA]struct{}{dst: {}}
 	}
@@ -121,6 +121,7 @@ func (p *Pather) findDestinations(dst addr.IA, ups, cores seg.Segments) map[addr
 		// for isd local wildcard we want to reach cores, they are at the end of the up segs.
 		all = append(all, ups.FirstIAs()...)
 	}
+	all = append(all, corers.LastIAs()...)
 	destinations := make(map[addr.IA]struct{})
 	for _, dst := range all {
 		destinations[dst] = struct{}{}
@@ -209,13 +210,15 @@ func (p *Pather) translatePath(comb combinator.Path) (snet.Path, error) {
 
 // categorizeSegs splits a flat list of segments with type info into one
 // separate list per segment type.
-func categorizeSegs(segs Segments) (up, core, down seg.Segments) {
+func categorizeSegs(segs Segments) (up, core, corer, down seg.Segments) {
 	for _, s := range segs {
 		switch s.Type {
 		case seg.TypeUp:
 			up = append(up, s.Segment)
 		case seg.TypeCore:
 			core = append(core, s.Segment)
+		case seg.TypeCoreR:
+			corer = append(corer, s.Segment)
 		case seg.TypeDown:
 			down = append(down, s.Segment)
 		}

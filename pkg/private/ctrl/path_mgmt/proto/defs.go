@@ -79,6 +79,7 @@ const (
 	PathSegType_up    PathSegType = 1
 	PathSegType_down  PathSegType = 2
 	PathSegType_core  PathSegType = 3
+	PathSegType_corer PathSegType = 4
 )
 
 // String returns the enum's constant name.
@@ -93,6 +94,8 @@ func (c PathSegType) String() string {
 	case PathSegType_core:
 		return "core"
 
+	case PathSegType_corer:
+		return "corer"
 	default:
 		return ""
 	}
