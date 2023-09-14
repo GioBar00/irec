@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/private/pathdb"
@@ -47,6 +48,8 @@ func (a AuthoritativeLookup) LookupSegments(ctx context.Context, src,
 		return getDownSegments(ctx, a.PathDB, a.LocalIA, dst)
 	case seg.TypeCore:
 		return getCoreSegments(ctx, a.PathDB, a.LocalIA, dst)
+	case seg.TypeCoreR:
+		return getCoreSegments(ctx, a.PathDB, dst, a.LocalIA)
 	default:
 		panic("unexpected segType")
 	}
@@ -55,7 +58,7 @@ func (a AuthoritativeLookup) LookupSegments(ctx context.Context, src,
 // classify validates the request and determines the segment type for the request
 func (a AuthoritativeLookup) classify(ctx context.Context,
 	src, dst addr.IA) (seg.Type, error) {
-
+	log.Info("CLASSIFY REQUEST", src.String(), dst)
 	switch {
 	case src != a.LocalIA:
 		return 0, serrors.WithCtx(segfetcher.ErrInvalidRequest,
@@ -68,7 +71,15 @@ func (a AuthoritativeLookup) classify(ctx context.Context,
 		if err != nil {
 			return 0, err
 		}
-		if dstCore {
+
+		srcCore, err := a.CoreChecker.IsCore(ctx, src)
+		if err != nil {
+			return 0, err
+		}
+		if dstCore && srcCore && dst == a.LocalIA && src != a.LocalIA {
+			log.Info("Reverse core segment; ", src.String(), dst)
+			return seg.TypeCoreR, nil
+		} else if dstCore {
 			return seg.TypeCore, nil
 		}
 		return seg.TypeDown, nil

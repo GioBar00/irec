@@ -1,0 +1,16 @@
+filegroup(
+    name = "srcs",
+    srcs = ["malloc.c"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "hdrs",
+    srcs = [
+        "malloc-private.h",
+        "sysdeps/generic/atomic.h",
+        "sysdeps/generic/malloc-machine.h",
+        "sysdeps/generic/thread-st.h",
+    ],
+    visibility = ["//visibility:public"],
+)

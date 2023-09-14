@@ -1,0 +1,32 @@
+cc_library(
+    name = "irec",
+    srcs = [
+        "irec_lib.c",
+        "irec_vm_fns.c",
+        "memory.c",
+    ],
+    hdrs = [
+        "irec_lib.h",
+        "irec_vm_fns.h",
+        "memory.h",
+        "//pkg/irec/includes/irec:public_headers",
+    ],
+    copts = [
+        "-fPIC",
+        "-O3",
+        "-march=native",
+        "-mtune=native",
+        "-DFLATCC_PORTABLE",
+    ],
+    includes = [
+        "./",
+        "./includes/irec/",
+    ],
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/irec/libs/memalloc",
+        "//pkg/irec/libs/tommyds",
+        "//pkg/irec/libs/ubpf_vm",
+    ],
+)

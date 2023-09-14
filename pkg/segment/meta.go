@@ -32,9 +32,10 @@ type Type int
 
 // Path segment types.
 const (
-	TypeUp   = Type(cppb.SegmentType_SEGMENT_TYPE_UP)
-	TypeDown = Type(cppb.SegmentType_SEGMENT_TYPE_DOWN)
-	TypeCore = Type(cppb.SegmentType_SEGMENT_TYPE_CORE)
+	TypeUp    = Type(cppb.SegmentType_SEGMENT_TYPE_UP)
+	TypeDown  = Type(cppb.SegmentType_SEGMENT_TYPE_DOWN)
+	TypeCore  = Type(cppb.SegmentType_SEGMENT_TYPE_CORE)
+	TypeCoreR = Type(cppb.SegmentType_SEGMENT_TYPE_CORER)
 )
 
 func (t Type) String() string {
@@ -45,6 +46,8 @@ func (t Type) String() string {
 		return "down"
 	case TypeCore:
 		return "core"
+	case TypeCoreR:
+		return "corer"
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", t)
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/scionproto/scion/daemon/fetcher"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/drkey"
+	libgrpc "github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/common"
 	"github.com/scionproto/scion/pkg/private/ctrl/path_mgmt"
@@ -36,6 +37,7 @@ import (
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/private/util"
+	"github.com/scionproto/scion/pkg/proto/control_plane"
 	pb_daemon "github.com/scionproto/scion/pkg/proto/daemon"
 	sdpb "github.com/scionproto/scion/pkg/proto/daemon"
 	"github.com/scionproto/scion/pkg/snet"
@@ -65,6 +67,7 @@ type DaemonServer struct {
 
 	foregroundPathDedupe singleflight.Group
 	backgroundPathDedupe singleflight.Group
+	Dialer               *libgrpc.TCPDialer
 }
 
 // Paths serves the paths request.
@@ -80,6 +83,25 @@ func (s *DaemonServer) Paths(ctx context.Context,
 	)
 	return response, unwrapMetricsError(err)
 }
+func (s *DaemonServer) PullPaths(ctx context.Context,
+	req *sdpb.PullPathsRequest) (*sdpb.PullPathsResponse, error) {
+	conn, err := s.Dialer.Dial(ctx, addr.SvcCS)
+	if err != nil {
+		return &sdpb.PullPathsResponse{}, err
+	}
+	defer conn.Close()
+	egress_client := control_plane.NewEgressIntraServiceClient(conn)
+
+	_, err = egress_client.RequestPullBasedOrigination(ctx, &control_plane.PullPathsRequest{
+		DestinationIsdAs: req.DestinationIsdAs,
+		AlgorithmHash:    req.AlgorithmHash,
+		AlgorithmId:      req.AlgorithmId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &sdpb.PullPathsResponse{}, nil
+}
 
 func (s *DaemonServer) paths(ctx context.Context,
 	req *sdpb.PathsRequest) (*sdpb.PathsResponse, error) {
@@ -92,9 +114,10 @@ func (s *DaemonServer) paths(ctx context.Context,
 	srcIA, dstIA := addr.IA(req.SourceIsdAs), addr.IA(req.DestinationIsdAs)
 	go func() {
 		defer log.HandlePanic()
-		s.backgroundPaths(ctx, srcIA, dstIA, req.Refresh)
+		s.backgroundPaths(ctx, srcIA, dstIA, req.Refresh, req.AlgorithmHash)
 	}()
-	paths, err := s.fetchPaths(ctx, &s.foregroundPathDedupe, srcIA, dstIA, req.Refresh)
+	paths, err := s.fetchPaths(ctx, &s.foregroundPathDedupe, srcIA, dstIA, req.Refresh, req.AlgorithmHash)
+	log.Info("Paths", "paths", paths)
 	if err != nil {
 		log.FromCtx(ctx).Debug("Fetching paths", "err", err,
 			"src", srcIA, "dst", dstIA, "refresh", req.Refresh)
@@ -107,16 +130,11 @@ func (s *DaemonServer) paths(ctx context.Context,
 	return reply, nil
 }
 
-func (s *DaemonServer) fetchPaths(
-	ctx context.Context,
-	group *singleflight.Group,
-	src, dst addr.IA,
-	refresh bool,
-) ([]snet.Path, error) {
+func (s *DaemonServer) fetchPaths(ctx context.Context, group *singleflight.Group, src, dst addr.IA, refresh bool, hash []byte) ([]snet.Path, error) {
 
 	r, err, _ := group.Do(fmt.Sprintf("%s%s%t", src, dst, refresh),
 		func() (interface{}, error) {
-			return s.Fetcher.GetPaths(ctx, src, dst, refresh)
+			return s.Fetcher.GetPaths(ctx, src, dst, refresh, hash)
 		},
 	)
 	// just cast to the correct type, ignore the "ok", since that can only be
@@ -201,7 +219,7 @@ func linkTypeToPB(lt snet.LinkType) sdpb.LinkType {
 	}
 }
 
-func (s *DaemonServer) backgroundPaths(origCtx context.Context, src, dst addr.IA, refresh bool) {
+func (s *DaemonServer) backgroundPaths(origCtx context.Context, src, dst addr.IA, refresh bool, hash []byte) {
 	backgroundTimeout := 5 * time.Second
 	deadline, ok := origCtx.Deadline()
 	if !ok || time.Until(deadline) > backgroundTimeout {
@@ -216,7 +234,7 @@ func (s *DaemonServer) backgroundPaths(origCtx context.Context, src, dst addr.IA
 	}
 	span, ctx := opentracing.StartSpanFromContext(ctx, "fetch.paths.background", spanOpts...)
 	defer span.Finish()
-	if _, err := s.fetchPaths(ctx, &s.backgroundPathDedupe, src, dst, refresh); err != nil {
+	if _, err := s.fetchPaths(ctx, &s.backgroundPathDedupe, src, dst, refresh, hash); err != nil {
 		log.FromCtx(ctx).Debug("Error fetching paths (background)", "err", err,
 			"src", src, "dst", dst, "refresh", refresh)
 	}

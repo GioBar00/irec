@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,6 +44,7 @@ func newShowpaths(pather CommandPather) *cobra.Command {
 		logLevel string
 		noColor  bool
 		tracer   string
+		hash     string
 		format   string
 	}
 
@@ -74,6 +76,15 @@ On other errors, showpaths will exit with code 2.
 			if err != nil {
 				return serrors.WrapStr("invalid destination ISD-AS", err)
 			}
+			var algHash []byte = nil
+			if flags.hash != "" {
+				algHash, err = hex.DecodeString(flags.hash)
+				if err != nil {
+					return serrors.WrapStr("invalid destination ISD-AS", err)
+				}
+
+			}
+
 			if err := app.SetupLog(flags.logLevel); err != nil {
 				return serrors.WrapStr("setting up logging", err)
 			}
@@ -112,7 +123,7 @@ On other errors, showpaths will exit with code 2.
 
 			ctx, cancel := context.WithTimeout(traceCtx, flags.timeout)
 			defer cancel()
-			res, err := showpaths.Run(ctx, dst, flags.cfg)
+			res, err := showpaths.Run(ctx, dst, algHash, flags.cfg)
 			if err != nil {
 				return err
 			}
@@ -161,6 +172,8 @@ On other errors, showpaths will exit with code 2.
 		"Write the output as machine readable json")
 	cmd.Flags().StringVar(&flags.format, "format", "human",
 		"Specify the output format (human|json|yaml)")
+	cmd.Flags().StringVar(&flags.hash, "hash", "",
+		"Specify the algorithm hash for the path segments")
 	cmd.Flags().BoolVar(&flags.noColor, "no-color", false, "disable colored output")
 	cmd.Flags().StringVar(&flags.logLevel, "log.level", "", app.LogLevelUsage)
 	cmd.Flags().StringVar(&flags.tracer, "tracing.agent", "", "Tracing agent address")

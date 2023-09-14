@@ -86,7 +86,7 @@ type dmg struct {
 // current ASEntry in the ASEntries array. The direction of the edge is from
 // pinnedIA to the peering vertex for up-segments, and the reverse for
 // down-segments. PeerID is set to the index of the current hop entry.
-func newDMG(ups, cores, downs []*seg.PathSegment) *dmg {
+func newDMG(ups, cores, corers, downs []*seg.PathSegment) *dmg {
 	g := &dmg{
 		Adjacencies: make(map[vertex]vertexInfo),
 	}
@@ -96,6 +96,10 @@ func newDMG(ups, cores, downs []*seg.PathSegment) *dmg {
 	for _, segment := range cores {
 		g.traverseSegment(&inputSegment{PathSegment: segment, Type: proto.PathSegType_core})
 	}
+
+	for _, segment := range corers {
+		g.traverseSegment(&inputSegment{PathSegment: segment, Type: proto.PathSegType_corer})
+	}
 	for _, segment := range downs {
 		g.traverseSegment(&inputSegment{PathSegment: segment, Type: proto.PathSegType_down})
 	}
@@ -104,13 +108,22 @@ func newDMG(ups, cores, downs []*seg.PathSegment) *dmg {
 
 func (g *dmg) traverseSegment(segment *inputSegment) {
 	asEntries := segment.ASEntries
-
 	// Directly process core segments, because we're not interested in
 	// shortcuts. Add edge from last entry IA to first entry IA.
 	if segment.Type == proto.PathSegType_core {
 		g.AddEdge(
 			vertexFromIA(asEntries[len(asEntries)-1].Local),
 			vertexFromIA(asEntries[0].Local),
+			segment,
+			&edge{Weight: len(asEntries) - 1},
+		)
+
+		return
+	}
+	if segment.Type == proto.PathSegType_corer {
+		g.AddEdge(
+			vertexFromIA(asEntries[0].Local),
+			vertexFromIA(asEntries[len(asEntries)-1].Local),
 			segment,
 			&edge{Weight: len(asEntries) - 1},
 		)
@@ -337,7 +350,7 @@ func (solution *pathSolution) Path() Path {
 					Mac:         entry.HopField.MAC,
 				}
 				forwardingLinkMtu = entry.IngressMTU
-				epicAuth = getAuth(&asEntry)
+				epicAuth = GetAuth(&asEntry)
 			} else {
 				// We've reached the ASEntry where we want to switch
 				// segments on a peering link.
@@ -384,12 +397,17 @@ func (solution *pathSolution) Path() Path {
 			reverseASEntries(pathASEntries)
 			reverseEpicAuths(epicSegAuths)
 		}
-
+		if solEdge.segment.Type == proto.PathSegType_corer {
+			reverseHops(hops)
+			reverseIntfs(intfs)
+			reverseASEntries(pathASEntries)
+			reverseEpicAuths(epicSegAuths)
+		}
 		segments = append(segments, segment{
 			InfoField: path.InfoField{
 				Timestamp: util.TimeToSecs(solEdge.segment.Info.Timestamp),
 				SegID:     calculateBeta(solEdge),
-				ConsDir:   solEdge.segment.IsDownSeg(),
+				ConsDir:   solEdge.segment.IsDownSeg() || solEdge.segment.Type == proto.PathSegType_corer,
 				Peer:      solEdge.edge.Peer != 0,
 			},
 			HopFields:  hops,
@@ -401,7 +419,7 @@ func (solution *pathSolution) Path() Path {
 
 	interfaces := segments.Interfaces()
 	asEntries := segments.ASEntries()
-	staticInfo := collectMetadata(interfaces, asEntries)
+	staticInfo := CollectMetadata(interfaces, asEntries)
 
 	path := Path{
 		SCIONPath: segments.ScionPath(),
@@ -429,7 +447,7 @@ func (solution *pathSolution) Path() Path {
 	return path
 }
 
-func getAuth(a *seg.ASEntry) []byte {
+func GetAuth(a *seg.ASEntry) []byte {
 	if a.UnsignedExtensions.EpicDetached == nil {
 		return nil
 	}
@@ -488,7 +506,7 @@ func reverseEpicAuths(s [][]byte) {
 
 func calculateBeta(se *solutionEdge) uint16 {
 	var index int
-	if se.segment.IsDownSeg() {
+	if se.segment.IsDownSeg() || se.segment.Type == proto.PathSegType_corer {
 		index = se.edge.Shortcut
 		// If this is a peer, we need to set beta i+1.
 		if se.edge.Peer != 0 {
@@ -580,6 +598,8 @@ func validNextSeg(currSeg, nextSeg *inputSegment) bool {
 		return nextSeg.Type == proto.PathSegType_down
 	case proto.PathSegType_down:
 		return false
+	case proto.PathSegType_corer:
+		return false
 	default:
 		panic(fmt.Sprintf("Invalid segment type: %v", currSeg.Type))
 	}
@@ -670,4 +690,114 @@ func (s segmentList) ScionPath() snetpath.SCION {
 		panic(err)
 	}
 	return snetpath.SCION{Raw: raw}
+}
+
+func ReverseSegments(ps *seg.PathSegment) Path {
+	mtu := ^uint16(0)
+	var epicPathAuths [][]byte
+	var hops []path.HopField
+	var intfs []snet.PathInterface
+	var pathASEntries []seg.ASEntry // ASEntries that on the path, eventually in path order.
+	var epicSegAuths [][]byte
+
+	// Go through each ASEntry, starting from the last one, until we
+	// find a shortcut (which can be 0, meaning the end of the segment).
+	for _, asEntry := range ps.ASEntries {
+
+		var hopField path.HopField
+		var forwardingLinkMtu int
+		var epicAuth []byte
+
+		entry := asEntry.HopEntry
+		hopField = path.HopField{
+			ExpTime:     entry.HopField.ExpTime,
+			ConsIngress: entry.HopField.ConsIngress,
+			ConsEgress:  entry.HopField.ConsEgress,
+			Mac:         entry.HopField.MAC,
+		}
+		forwardingLinkMtu = entry.IngressMTU
+		epicAuth = GetAuth(&asEntry)
+
+		// Segment is traversed in reverse construction direction.
+		// Only include non-zero interfaces.
+		if hopField.ConsEgress != 0 {
+			intfs = append(intfs, snet.PathInterface{
+				IA: asEntry.Local,
+				ID: common.IFIDType(hopField.ConsEgress),
+			})
+		}
+		hops = append(hops, hopField)
+		pathASEntries = append(pathASEntries, asEntry)
+		epicSegAuths = append(epicSegAuths, epicAuth)
+		if uint16(asEntry.MTU) < mtu {
+			mtu = uint16(asEntry.MTU)
+		}
+		if forwardingLinkMtu != 0 {
+			// The first HE in a segment has MTU 0, so we ignore those
+			if uint16(forwardingLinkMtu) < mtu {
+				mtu = uint16(forwardingLinkMtu)
+			}
+		}
+	}
+
+	beta := ps.Info.SegmentID
+	for i := 0; i < len(ps.ASEntries)-1; i++ {
+		hop := ps.ASEntries[i].HopEntry
+		beta = beta ^ binary.BigEndian.Uint16(hop.HopField.MAC[:])
+	}
+	epicPathAuths = append(epicPathAuths, epicSegAuths...)
+
+	//interfaces := segments.Interfaces()
+	//asEntries := segments.ASEntries()
+	staticInfo := CollectMetadata(intfs, ps.ASEntries)
+
+	sp := scion.Decoded{
+		Base: scion.Base{
+			PathMeta: scion.MetaHdr{SegLen: [3]uint8{0, 0, uint8(len(hops))}},
+			NumHops:  len(hops),
+			NumINF:   1,
+		},
+		InfoFields: []path.InfoField{{
+			Timestamp: util.TimeToSecs(ps.Info.Timestamp),
+			SegID:     beta,
+			ConsDir:   false,
+			Peer:      false,
+		}},
+		HopFields: hops,
+	}
+	raw := make([]byte, sp.Len())
+	if err := sp.SerializeTo(raw); err != nil {
+		panic(err)
+	}
+	minTTL := time.Duration(path.MaxTTL) * time.Second
+	for _, hf := range hops {
+		offset := path.ExpTimeToDuration(hf.ExpTime)
+		if minTTL > offset {
+			minTTL = offset
+		}
+	}
+
+	path := Path{
+		SCIONPath: snetpath.SCION{Raw: raw},
+		Metadata: snet.PathMetadata{
+			Interfaces:   intfs,
+			MTU:          mtu,
+			Expiry:       ps.Info.Timestamp.Add(minTTL),
+			Latency:      staticInfo.Latency,
+			Bandwidth:    staticInfo.Bandwidth,
+			Geo:          staticInfo.Geo,
+			LinkType:     staticInfo.LinkType,
+			InternalHops: staticInfo.InternalHops,
+			Notes:        staticInfo.Notes,
+		},
+	}
+
+	if authPHVF, authLHVF, ok := isEpicAvailable(epicPathAuths); ok {
+		path.Metadata.EpicAuths = snet.EpicAuths{
+			AuthPHVF: authPHVF,
+			AuthLHVF: authLHVF,
+		}
+	}
+
+	return path
 }

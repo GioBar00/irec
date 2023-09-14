@@ -116,7 +116,7 @@ func TestStaticinfo(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			metadata := collectMetadata(tc.Path, tc.ASEntries)
+			metadata := CollectMetadata(tc.Path, tc.ASEntries)
 			checkLatency(t, g, tc.Path, metadata.Latency)
 			checkGeo(t, g, tc.Path, metadata.Geo)
 			checkLinkType(t, g, tc.Path, metadata.LinkType)

@@ -27,8 +27,13 @@ import (
 )
 
 type PathReqFlags struct {
-	Refresh bool
-	Hidden  bool
+	Refresh       bool
+	Hidden        bool
+	AlgorithmHash []byte
+}
+type PullPathReqFlags struct {
+	AlgorithmHash []byte
+	AlgorithmId   uint32
 }
 
 // ASInfo provides information about the local AS.

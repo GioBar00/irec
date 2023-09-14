@@ -1,0 +1,44 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["environment.go"],
+    cdeps = [
+        "//pkg/irec",
+    ],
+    cgo = True,
+    importpath = "github.com/scionproto/scion/rac/env/ebpf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/log:go_default_library",
+        "//pkg/proto/control_plane:go_default_library",
+        "//rac:go_default_library",
+        "//rac/config:go_default_library",
+    ],
+)
+#
+# go_binary(
+#     name = "go_default_bin",
+#     cdeps = [
+#         "",
+#     ],
+#     embed = [":project_lib"],
+#     importpath = "github.com/example/project",
+#     visibility = ["//visibility:public"],
+# )
+#
+# go_library(
+#     name = "project_lib",
+#     srcs = [
+#         "main.go",
+#     ],
+#     cgo = True,
+#     copts = ["-g -Wall -Iincl", "-O3"],
+#     importpath = "github.com/example/project",
+#     visibility = ["//visibility:private"],
+#     deps = [
+#         "//includes/flatbuffers-go/irec",
+#         "@com_github_google_flatbuffers//go",
+#     ],
+# )
+#

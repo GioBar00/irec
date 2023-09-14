@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	Up   = seg.TypeUp
-	Down = seg.TypeDown
-	Core = seg.TypeCore
+	Up    = seg.TypeUp
+	Down  = seg.TypeDown
+	Core  = seg.TypeCore
+	CoreR = seg.TypeCoreR
 )
 
 var (

@@ -42,7 +42,7 @@ type TrustStore interface {
 }
 
 type Fetcher interface {
-	GetPaths(ctx context.Context, src, dst addr.IA, refresh bool) ([]snet.Path, error)
+	GetPaths(ctx context.Context, src, dst addr.IA, refresh bool, hash []byte) ([]snet.Path, error)
 }
 
 type fetcher struct {
@@ -108,7 +108,7 @@ func NewFetcher(cfg FetcherConfig) Fetcher {
 // GetPaths uses the pather to get paths from src to dst.
 // src may be either zero or the local IA (nothing else).
 func (f *fetcher) GetPaths(ctx context.Context, src, dst addr.IA,
-	refresh bool) ([]snet.Path, error) {
+	refresh bool, hash []byte) ([]snet.Path, error) {
 
 	// Check context
 	if _, ok := ctx.Deadline(); !ok {
@@ -119,7 +119,7 @@ func (f *fetcher) GetPaths(ctx context.Context, src, dst addr.IA,
 	if !src.IsZero() && !src.Equal(local) {
 		return nil, serrors.New("bad source AS", "src", src)
 	}
-	return f.pather.GetPaths(ctx, dst, refresh)
+	return f.pather.GetPaths(ctx, dst, refresh, hash)
 }
 
 type dstProvider struct {

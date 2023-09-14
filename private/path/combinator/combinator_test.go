@@ -83,7 +83,7 @@ func TestBadPeering(t *testing.T) {
 	t.Log("TestBadPeering")
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, tc.Downs, false)
+			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, []*seg.PathSegment{}, tc.Downs, false)
 			txtResult := writePaths(result)
 			if *update {
 				err := os.WriteFile(xtest.ExpandPath(tc.FileName), txtResult.Bytes(), 0644)
@@ -129,7 +129,7 @@ func TestMultiPeering(t *testing.T) {
 	t.Log("TestMultiPeering")
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, tc.Downs, false)
+			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, []*seg.PathSegment{}, tc.Downs, false)
 			txtResult := writePaths(result)
 			if *update {
 				err := os.WriteFile(xtest.ExpandPath(tc.FileName), txtResult.Bytes(), 0644)
@@ -172,7 +172,7 @@ func TestSameCoreParent(t *testing.T) {
 	t.Log("TestSameCoreParent")
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, tc.Downs, false)
+			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, []*seg.PathSegment{}, tc.Downs, false)
 			txtResult := writePaths(result)
 			if *update {
 				err := os.WriteFile(xtest.ExpandPath(tc.FileName), txtResult.Bytes(), 0644)
@@ -223,7 +223,7 @@ func TestLoops(t *testing.T) {
 	t.Log("TestLoops")
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, tc.Downs, false)
+			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, []*seg.PathSegment{}, tc.Downs, false)
 			txtResult := writePaths(result)
 			if *update {
 				err := os.WriteFile(xtest.ExpandPath(tc.FileName), txtResult.Bytes(), 0644)
@@ -530,7 +530,7 @@ func TestComputePath(t *testing.T) {
 	t.Log("TestComputePath")
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, tc.Downs, false)
+			result := combinator.Combine(tc.SrcIA, tc.DstIA, tc.Ups, tc.Cores, []*seg.PathSegment{}, tc.Downs, false)
 			txtResult := writePaths(result)
 			if *update {
 				err := os.WriteFile(xtest.ExpandPath(tc.FileName), txtResult.Bytes(), 0644)

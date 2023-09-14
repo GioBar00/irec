@@ -1,0 +1,76 @@
+--- # Tiny Topology, IPv4 Only
+ASes:
+  "1-ff00:0:109":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    mtu: 1400
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/deadbeef.wasm}
+  "1-ff00:0:110":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    mtu: 1400
+    dynamic_racs: 1
+    irec:
+      algorithms:
+        - {originate: true, id: 0, file: algorithms/deadbeef.wasm, fallback: true}
+        - {originate: true, id: 1, file: algorithms/deadbeef.wasm}
+  "2-ff00:0:210":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    mtu: 1400
+    dynamic_racs: 1
+  "2-ff00:0:211":
+    core: true
+    voting: true
+    authoritative: true
+    issuing: true
+    mtu: 1400
+    dynamic_racs: 1
+  "1-ff00:0:111":
+    dynamic_racs: 4
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:112":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:113":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:114":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:115":
+    dynamic_racs: 1
+    static_racs:
+        - {static_algorithm: algorithms/deadbeef.wasm}
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:116":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:117":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+  "1-ff00:0:118":
+    dynamic_racs: 1
+    cert_issuer: 1-ff00:0:110
+links:
+  - {a: "1-ff00:0:109#1", b: "1-ff00:0:110#44", linkAtoB: CORE, mtu: 1280, groupsA: [1,2]}
+  - {a: "1-ff00:0:110#1", b: "1-ff00:0:111#41", linkAtoB: CHILD, mtu: 1280, groupsA: [1,2]}
+  - {a: "1-ff00:0:110#2", b: "2-ff00:0:210#1", linkAtoB: CORE, mtu: 1280}
+  - {a: "2-ff00:0:210#2", b: "2-ff00:0:211#1", linkAtoB: CORE, mtu: 1280}
+  - {a: "1-ff00:0:111#42", b: "1-ff00:0:112#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:111#44", b: "1-ff00:0:113#2", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:112#42", b: "1-ff00:0:113#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:113#42", b: "1-ff00:0:114#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:114#42", b: "1-ff00:0:115#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:115#42", b: "1-ff00:0:116#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:116#42", b: "1-ff00:0:117#1", linkAtoB: CHILD, bw: 500}
+  - {a: "1-ff00:0:117#42", b: "1-ff00:0:118#1", linkAtoB: CHILD, bw: 500}

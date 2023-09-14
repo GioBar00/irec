@@ -56,8 +56,8 @@ type splitter struct {
 
 // Split splits a path request from the local AS to dst into a set of segment
 // requests.
-func (s *splitter) Split(ctx context.Context, dst addr.IA) (segfetcher.Requests, error) {
-	wcReqs, err := s.Splitter.Split(ctx, dst)
+func (s *splitter) Split(ctx context.Context, dst addr.IA, hash []byte) (segfetcher.Requests, error) {
+	wcReqs, err := s.Splitter.Split(ctx, dst, hash)
 	if err != nil {
 		return nil, err
 	}

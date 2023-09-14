@@ -1,0 +1,5 @@
+[general]
+id = "bench"
+
+[log.console]
+level = "debug"

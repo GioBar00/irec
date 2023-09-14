@@ -43,3 +43,5 @@ Join us on our [slack workspace](https://scionproto.slack.com) with this invite 
 ## License
 
 [![License](https://img.shields.io/github/license/scionproto/scion.svg?maxAge=2592000)](https://github.com/scionproto/scion/blob/master/LICENSE)
+
+./scion.sh stop && ./scion.sh topology -c topology/default-rac.topo && rm -rf logs/ && make gazelle-ubpfjit && make bazel-ubpfjit && ./scion.sh start && sleep 10 && bin/end2end_integration

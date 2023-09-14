@@ -30,12 +30,13 @@ type IntfSpec struct {
 }
 
 type Params struct {
-	SegIDs     [][]byte
-	SegTypes   []seg.Type
-	HPGroupIDs []uint64
-	Intfs      []*IntfSpec
-	StartsAt   []addr.IA
-	EndsAt     []addr.IA
+	SegIDs        [][]byte
+	SegTypes      []seg.Type
+	HPGroupIDs    []uint64
+	Intfs         []*IntfSpec
+	StartsAt      []addr.IA
+	EndsAt        []addr.IA
+	AlgorithmHash []byte
 }
 
 type Result struct {

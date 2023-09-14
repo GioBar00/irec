@@ -1,0 +1,27 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "ASEntry.go",
+        "BandwidthInfo.go",
+        "Beacon.go",
+        "BeaconBytesWrapper.go",
+        "Execution.go",
+        "GeoCoordinates.go",
+        "HiddenPathExt.go",
+        "HopField.go",
+        "Interface.go",
+        "IrecExt.go",
+        "LatencyInfo.go",
+        "MapEntryUlongUint.go",
+        "MapEntryUlongUlong.go",
+        "PeerEntry.go",
+        "SignedExtensions.go",
+        "StaticInfoExt.go",
+        "UnsignedExtensions.go",
+    ],
+    importpath = "github.com/scionproto/scion/pkg/irec/includes/flatbuffers-go/irec",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_flatbuffers//go:go_default_library"],
+)

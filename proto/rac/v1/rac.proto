@@ -1,0 +1,67 @@
+syntax = "proto3";
+import "proto/control_plane/v1/seg.proto";
+import "proto/control_plane/v1/irec.proto";
+import "proto/control_plane/v1/seg_extensions.proto";
+
+option go_package = "github.com/scionproto/scion/pkg/proto/rac";
+
+package proto.rac.v1;
+
+service RACService {
+    rpc Execute(ExecutionRequest) returns (ExecutionResponse) {}
+}
+
+message InterfaceInfo {
+    uint32 ID = 1;
+    uint64 IA = 2;
+    uint32 LinkType = 3;
+    uint32 RemoteID = 4;
+    uint32 MTU = 5;
+}
+message ExecutionRequest {
+    repeated proto.control_plane.v1.IRECBeacon beacons = 1;
+    bytes algorithmHash = 2;
+    repeated InterfaceInfo intfs = 3;
+    repeated uint32 propIntfs = 4;
+}
+
+message ExecutionResponse {
+
+}
+
+
+
+message RACRequest {
+    repeated IRECBeaconSB beacons = 1;
+    repeated uint32 egress_intfs = 2;
+    repeated  proto.control_plane.v1.IRECBeacon_unopt beacons_unopt = 3;
+}
+
+// Special IREC Beacon that has a preparsed signed body.
+message IRECBeaconSB {
+    // Beacon in form of a partial path segment.
+    IRECPathSegment segment = 1;
+    uint32 id = 2;
+}
+
+message RACResponse {
+    repeated RACResponseInner selected = 1;
+}
+message RACResponseInner {
+    uint32 id = 1;
+    repeated uint32 egress_intfs = 2;
+}
+
+message IRECPathSegment {
+    // The encoded SegmentInformation. It is used for signature input.
+    bytes segment_info = 1;
+    // Entries of ASes on the path.
+    repeated IRECASEntry as_entries = 2;
+}
+
+message IRECASEntry {
+    proto.control_plane.v1.ASEntrySignedBody signed = 3; //NOTE: Small deviation from scionproto, scionproto has signedmessage here. See under.
+    // The unsigned part of the AS entry.
+    proto.control_plane.v1.PathSegmentUnsignedExtensions unsigned = 2;
+}
+

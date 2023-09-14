@@ -25,6 +25,7 @@ import "proto/drkey/v1/drkey.proto";
 service DaemonService {
     // Return a set of paths to the requested destination.
     rpc Paths(PathsRequest) returns (PathsResponse) {}
+    rpc PullPaths(PullPathsRequest) returns (PullPathsResponse) {}
     // Return information about an AS.
     rpc AS(ASRequest) returns (ASResponse) {}
     // Return the underlay addresses associated with
@@ -43,6 +44,21 @@ service DaemonService {
     rpc DRKeyHostHost (DRKeyHostHostRequest) returns (DRKeyHostHostResponse) {}
 }
 
+message PullPathsResponse {}
+
+
+message PullPathsRequest {
+    // ISD-AS of the source of the path request.
+    uint64 source_isd_as = 1;
+    // ISD-AS of the destination of the path request.
+    uint64 destination_isd_as = 2;
+    // Choose to fetch fresh paths for this request instead
+    // of having the server reply from its cache.
+    bytes algorithmHash = 3;
+    // Request hidden paths instead of standard paths.
+    uint32 algorithmId = 4;
+}
+
 message PathsRequest {
     // ISD-AS of the source of the path request.
     uint64 source_isd_as = 1;
@@ -53,6 +69,8 @@ message PathsRequest {
     bool refresh = 3;
     // Request hidden paths instead of standard paths.
     bool hidden = 4;
+    // algorithm hash to fetch paths for
+    bytes algorithm_hash = 5;
 }
 
 message PathsResponse {

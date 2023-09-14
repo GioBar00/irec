@@ -21,9 +21,10 @@ import (
 
 // Request represents a path or segment request.
 type Request struct {
-	Src     addr.IA
-	Dst     addr.IA
-	SegType seg.Type
+	Src           addr.IA
+	Dst           addr.IA
+	SegType       seg.Type
+	AlgorithmHash []byte
 }
 
 // IsZero returns whether the request is empty.

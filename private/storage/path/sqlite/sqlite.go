@@ -22,6 +22,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/scionproto/scion/pkg/log"
 	"strings"
 	"sync"
 	"time"
@@ -299,10 +300,17 @@ func insertFull(ctx context.Context, tx *sql.Tx, pseg *seg.PathSegment, types []
 	exp := pseg.MaxExpiry().Unix()
 	// Insert path segment.
 	inst := `INSERT INTO Segments (SegID, FullID, LastUpdated, InfoTs, Segment, MaxExpiry,
-			StartIsdID, StartAsID, EndIsdID, EndAsID)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := tx.ExecContext(ctx, inst, segID, fullID, time.Now().UnixNano(),
-		pseg.Info.Timestamp.UnixNano(), packedSeg, exp, st.ISD(), st.AS(), end.ISD(), end.AS())
+			StartIsdID, StartAsID, EndIsdID, EndAsID, AlgHash)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	var res sql.Result
+	if pseg.ASEntries[0].Extensions.Irec != nil {
+		res, err = tx.ExecContext(ctx, inst, segID, fullID, time.Now().UnixNano(),
+			pseg.Info.Timestamp.UnixNano(), packedSeg, exp, st.ISD(), st.AS(), end.ISD(), end.AS(), pseg.ASEntries[0].Extensions.Irec.AlgorithmHash)
+	} else {
+		res, err = tx.ExecContext(ctx, inst, segID, fullID, time.Now().UnixNano(),
+			pseg.Info.Timestamp.UnixNano(), packedSeg, exp, st.ISD(), st.AS(), end.ISD(), end.AS(), nil)
+
+	}
 	if err != nil {
 		return serrors.WrapStr("Failed to insert path segment", err)
 	}
@@ -506,6 +514,12 @@ func (e *executor) buildQuery(params *query.Params) (string, []interface{}) {
 			}
 		}
 		where = append(where, fmt.Sprintf("(%s)", strings.Join(subQ, " OR ")))
+	}
+	log.Info(" algHash", "hash", params.AlgorithmHash)
+	//fmt.Println("", params.AlgorithmHash)
+	if params.AlgorithmHash != nil && len(params.AlgorithmHash) > 0 {
+		where = append(where, "(s.AlgHash=?)")
+		args = append(args, params.AlgorithmHash)
 	}
 	// Assemble the query.
 	if len(joins) > 0 {

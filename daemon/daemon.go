@@ -107,6 +107,7 @@ func TrustEngine(
 
 // ServerConfig is the configuration for the daemon API server.
 type ServerConfig struct {
+	Dialer      *libgrpc.TCPDialer
 	IA          addr.IA
 	MTU         uint16
 	Fetcher     fetcher.Fetcher
@@ -119,6 +120,7 @@ type ServerConfig struct {
 // NewServer constructs a daemon API server.
 func NewServer(cfg ServerConfig) *servers.DaemonServer {
 	return &servers.DaemonServer{
+		Dialer:      cfg.Dialer,
 		IA:          cfg.IA,
 		MTU:         cfg.MTU,
 		Topology:    cfg.Topology,

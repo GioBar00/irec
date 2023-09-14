@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +26,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +39,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/resolver"
 	"inet.af/netaddr"
 
 	cs "github.com/scionproto/scion/control"
@@ -46,6 +50,9 @@ import (
 	"github.com/scionproto/scion/control/drkey"
 	drkeygrpc "github.com/scionproto/scion/control/drkey/grpc"
 	"github.com/scionproto/scion/control/ifstate"
+	"github.com/scionproto/scion/control/irec/egress"
+	"github.com/scionproto/scion/control/irec/ingress"
+	storage2 "github.com/scionproto/scion/control/irec/ingress/storage"
 	api "github.com/scionproto/scion/control/mgmtapi"
 	"github.com/scionproto/scion/control/onehop"
 	segreggrpc "github.com/scionproto/scion/control/segreg/grpc"
@@ -66,7 +73,9 @@ import (
 	dpb "github.com/scionproto/scion/pkg/proto/discovery"
 	"github.com/scionproto/scion/pkg/scrypto"
 	"github.com/scionproto/scion/pkg/scrypto/cppki"
+	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/pkg/snet"
+	"github.com/scionproto/scion/pkg/snet/addrutil"
 	"github.com/scionproto/scion/private/app"
 	infraenv "github.com/scionproto/scion/private/app/appnet"
 	"github.com/scionproto/scion/private/app/command"
@@ -112,6 +121,13 @@ func main() {
 }
 
 func realMain(ctx context.Context) error {
+	port, _ := strconv.Atoi(strings.Split(globalCfg.API.Addr, ":")[1])
+	portstr := strconv.Itoa(port + 10000)
+	fmt.Println(strings.Split(globalCfg.API.Addr, ":")[0] + ":" + portstr)
+	go func() {
+		defer log.HandlePanic()
+		http.ListenAndServe(strings.Split(globalCfg.API.Addr, ":")[0]+":"+portstr, nil)
+	}()
 	metrics := cs.NewMetrics()
 
 	topo, err := topology.NewLoader(topology.LoaderCfg{
@@ -120,6 +136,8 @@ func realMain(ctx context.Context) error {
 		Validator: &topology.ControlValidator{ID: globalCfg.General.ID},
 		Metrics:   metrics.TopoLoader,
 	})
+	log.Info("IREC will orginate using the following", "algs", globalCfg.IREC.Algorithms)
+
 	if err != nil {
 		return serrors.WrapStr("creating topology loader", err)
 	}
@@ -128,6 +146,7 @@ func realMain(ctx context.Context) error {
 		defer log.HandlePanic()
 		return topo.Run(errCtx)
 	})
+
 	intfs := ifstate.NewInterfaces(adaptInterfaceMap(topo.InterfaceInfoMap()), ifstate.Config{})
 	g.Go(func() error {
 		defer log.HandlePanic()
@@ -320,17 +339,119 @@ func realMain(ctx context.Context) error {
 	}
 	cppb.RegisterTrustMaterialServiceServer(quicServer, trustServer)
 	cppb.RegisterTrustMaterialServiceServer(tcpServer, trustServer)
+	///
+	// IREC
+	// IREC
+	// IREC
 
-	// Handle beaconing.
-	cppb.RegisterSegmentCreationServiceServer(quicServer, &beaconinggrpc.SegmentCreationServer{
-		Handler: &beaconing.Handler{
-			LocalIA:        topo.IA(),
-			Inserter:       beaconStore,
-			Interfaces:     intfs,
-			Verifier:       verifier,
-			BeaconsHandled: libmetrics.NewPromCounter(metrics.BeaconingReceivedTotal),
+	ingressDB, err := storage.NewIngressStorage(globalCfg.IngressDB, topo.IA())
+	if err != nil {
+		return serrors.WrapStr("initializing beacon storage", err)
+	}
+	defer ingressDB.Close()
+	//beaconDB = beaconstoragemetrics.WrapDB(beaconDB, beaconstoragemetrics.Config{
+	//	Driver:       string(storage.BackendSqlite),
+	//	QueriesTotal: libmetrics.NewPromCounter(metrics.BeaconDBQueriesTotal),
+	//})
+	policies, err := cs.LoadNonCorePolicies(globalCfg.BS.Policies)
+	if err != nil {
+		serrors.WrapStr("policies", err)
+	}
+	db, err := storage2.NewIngressDB(policies, ingressDB)
+	if err != nil {
+		return serrors.WrapStr("initializing beacon store", err)
+	}
+
+	var propagationFilter func(intf *ifstate.Interface) bool
+	if topo.Core() {
+		propagationFilter = func(intf *ifstate.Interface) bool {
+			topoInfo := intf.TopoInfo()
+			return topoInfo.LinkType == topology.Core
+		}
+	} else {
+		propagationFilter = func(intf *ifstate.Interface) bool {
+			topoInfo := intf.TopoInfo()
+			return topoInfo.LinkType == topology.Child
+		}
+	}
+
+	staticInfoEG, err := egress.ParseStaticInfoCfg(globalCfg.General.StaticInfoConfig())
+	if err != nil {
+		log.Info("No static info file found. Static info settings disabled.", "err", err)
+	}
+
+	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
+	is := &ingress.IngressServer{
+		IncomingHandler: ingress.Handler{
+			Pather: &addrutil.Pather{
+				NextHopper: topo,
+			},
+			LocalIA:    topo.IA(),
+			IngressDB:  db,
+			Peers:      egress.SortedIntfs(intfs, topology.Peer),
+			Verifier:   verifier,
+			Interfaces: intfs,
+			Rewriter:   nc.AddressRewriter(nil),
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.PropPolicy)
+				},
+				Task:       "originator_core",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Dialer: &libgrpc.QUICDialer{
+				Rewriter: nc.AddressRewriter(nil),
+				Dialer:   quicStack.Dialer,
+			},
 		},
-	})
+		IngressDB: db,
+		Dialer: &libgrpc.TCPDialer{
+			SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+				if base := dst.Base(); base != addr.SvcCS {
+					panic("Unsupported address type, implementation error?")
+				}
+				targets := []resolver.Address{}
+				for _, entry := range topo.ControlServiceAddresses() {
+					targets = append(targets, resolver.Address{Addr: entry.String()})
+				}
+				return targets
+			},
+		},
+		PropagationInterfaces: intfs.FilteredMapped(propagationFilter),
+	}
+	is.LoadAlgorithms(context.Background(), globalCfg.IREC.Algorithms)
+	cppb.RegisterIngressInterServiceServer(quicServer, is)
+	cppb.RegisterIngressIntraServiceServer(tcpServer, is)
+	// use the inter and Intra grpc server paradigm.
+
+	// Register our legacy server;
+	cppb.RegisterSegmentCreationServiceServer(quicServer, &ingress.SegmentCreationServer{IngressServer: is})
+	egressDB, err := storage.NewEgressStorage(globalCfg.EgressDB, topo.IA())
+	if err != nil {
+		return serrors.WrapStr("initializing beacon storage", err)
+	}
+	defer egressDB.Close()
+
+	// END IREC
+	// END IREC
+	// END IREC
+	////
+	// Handle beaconing.
+	//cppb.RegisterSegmentCreationServiceServer(quicServer, &beaconinggrpc.SegmentCreationServer{
+	//	Handler: &beaconing.Handler{
+	//		LocalIA:        topo.IA(),
+	//		Inserter:       beaconStore,
+	//		Interfaces:     intfs,
+	//		Verifier:       verifier,
+	//		BeaconsHandled: libmetrics.NewPromCounter(metrics.BeaconingReceivedTotal),
+	//	},
+	//})
 
 	// Handle segment lookup
 	authLookupServer := &segreqgrpc.LookupServer{
@@ -384,7 +505,167 @@ func realMain(ctx context.Context) error {
 
 	}
 
-	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
+	intfMap := make(map[uint32]*ifstate.Interface)
+	for _, intf := range intfs.Filtered(propagationFilter) {
+		intfMap[uint32(intf.TopoInfo().ID)] = intf
+	}
+
+	internalErr := libmetrics.NewPromCounter(metrics.BeaconingRegistrarInternalErrorsTotal)
+	registered := libmetrics.NewPromCounter(metrics.BeaconingRegisteredTotal)
+	writers := make([]egress.Writer, 0)
+	if topo.Core() {
+		writers = append(writers, &egress.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCore.String()),
+			Registered:     registered,
+			Type:           seg.TypeCore,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.CoreRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+
+		writers = append(writers, &egress.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCoreR.String()),
+			Registered:     registered,
+			Type:           seg.TypeCoreR,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.CoreRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+	} else {
+		writers = append(writers, &egress.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeUp.String()),
+			Registered:     registered,
+			Type:           seg.TypeUp,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.UpRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+
+		writers = append(writers, &egress.RemoteWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeDown.String()),
+			Registered:     registered,
+			Type:           seg.TypeDown,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.DownRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			RPC: beaconinggrpc.Registrar{Dialer: dialer},
+			Pather: addrutil.Pather{
+				NextHopper: topo,
+			},
+		})
+	}
+	var originator *egress.BasicOriginator
+	if topo.Core() {
+		originationFilter := func(intf *ifstate.Interface) bool {
+			topoInfo := intf.TopoInfo()
+			return topoInfo.LinkType == topology.Core || topoInfo.LinkType == topology.Child
+		}
+		originator = &egress.BasicOriginator{
+			OriginatePerIntfGroup: true,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return db.MaxExpTime(beacon.PropPolicy)
+				},
+				Task:       "originator_core",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			SenderFactory: &egress.BeaconSenderFactory{Dialer: dialer},
+			Intfs:         intfs.Filtered(originationFilter),
+			IA:            topo.IA(),
+		}
+	}
+
+	es := &egress.Propagator{
+
+		Originator: &egress.PullBasedOriginator{BasicOriginator: originator},
+		Dialer: &libgrpc.QUICDialer{
+			Rewriter: nc.AddressRewriter(nil),
+			Dialer:   quicStack.Dialer,
+		},
+		Local: topo.IA(),
+		Store: egressDB,
+		Core:  topo.Core(),
+		Pather: &addrutil.Pather{
+			NextHopper: topo,
+		},
+		AllInterfaces: intfs,
+		PropagationInterfaces: func() []*ifstate.Interface {
+			return intfs.Filtered(propagationFilter)
+		},
+		Writers: writers,
+		Extender: &egress.DefaultExtender{
+			IA:     topo.IA(),
+			Signer: signer,
+			MAC:    macGen,
+			Intfs:  intfs,
+			MTU:    topo.MTU(),
+			MaxExpTime: func() uint8 {
+				return db.MaxExpTime(beacon.PropPolicy)
+			},
+			Task:       "propagator",
+			StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+			EPIC:       false,
+		},
+		Interfaces:        intfMap,
+		PropagationFilter: propagationFilter,
+		Peers:             egress.SortedIntfs(intfs, topology.Peer),
+		SenderFactory:     &egress.BeaconSenderFactory{Dialer: dialer},
+	}
+	cppb.RegisterEgressInterServiceServer(quicServer, es)
+	cppb.RegisterEgressIntraServiceServer(tcpServer, es)
 
 	var chainBuilder renewal.ChainBuilder
 	var caClient *caapi.Client
@@ -735,19 +1016,6 @@ func realMain(ctx context.Context) error {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
 
-	var propagationFilter func(intf *ifstate.Interface) bool
-	if topo.Core() {
-		propagationFilter = func(intf *ifstate.Interface) bool {
-			topoInfo := intf.TopoInfo()
-			return topoInfo.LinkType == topology.Core
-		}
-	} else {
-		propagationFilter = func(intf *ifstate.Interface) bool {
-			topoInfo := intf.TopoInfo()
-			return topoInfo.LinkType == topology.Child
-		}
-	}
-
 	originationFilter := func(intf *ifstate.Interface) bool {
 		topoInfo := intf.TopoInfo()
 		return topoInfo.LinkType == topology.Core || topoInfo.LinkType == topology.Child
@@ -795,6 +1063,47 @@ func realMain(ctx context.Context) error {
 	defer tasks.Kill()
 	log.Info("Started periodic tasks")
 
+	v := make([]*ifstate.Interface, 0, len(intfs.All()))
+	for _, value := range intfs.All() {
+		v = append(v, value)
+	}
+	if topo.Core() {
+		originationAlgorithms := make([]egress.OriginationAlgorithm, 0)
+		if globalCfg.IREC.Algorithms != nil {
+			for _, alg := range globalCfg.IREC.Algorithms {
+				if alg.Originate {
+					fileBinary, err := os.ReadFile(alg.File)
+					if err != nil {
+						log.Error("An error occurred while loading algorithm "+alg.File+"; skipping.", "err", err)
+						continue
+					}
+
+					h := sha256.New()
+					binary.Write(h, binary.BigEndian, fileBinary)
+					hash := h.Sum(nil)
+					originationAlgorithms = append(originationAlgorithms, egress.OriginationAlgorithm{
+						ID:   alg.ID,
+						Hash: hash,
+					})
+				}
+			}
+		}
+
+		periodic.Start(
+			&egress.AlgorithmOriginator{
+				BasicOriginator:       originator,
+				OriginationAlgorithms: originationAlgorithms,
+			},
+			10*time.Second,
+			30*time.Second,
+		)
+
+	}
+	log.Info("server is listening at", "udp", quicStack.Listener.Addr())
+	log.Info("TCP server is listening at", "udp", tcpStack.Addr())
+
+	log.Info(" Started Irec tasks")
+
 	g.Go(func() error {
 		defer log.HandlePanic()
 		return globalCfg.Metrics.ServePrometheus(errCtx)
@@ -839,6 +1148,7 @@ func adaptInterfaceMap(in map[common.IFIDType]topology.IFInfo) map[uint16]ifstat
 			info.InternalAddr.Port,
 			info.InternalAddr.Zone,
 		)
+		log.Debug("Intf groups", "intf", info.Groups)
 		if !ok {
 			panic(fmt.Sprintf("failed to adapt the topology format. Input %s", info.InternalAddr))
 		}
@@ -846,6 +1156,7 @@ func adaptInterfaceMap(in map[common.IFIDType]topology.IFInfo) map[uint16]ifstat
 			ID:           uint16(info.ID),
 			IA:           info.IA,
 			LinkType:     info.LinkType,
+			Groups:       info.Groups,
 			InternalAddr: addr,
 			RemoteID:     uint16(info.RemoteIFID),
 			MTU:          uint16(info.MTU),

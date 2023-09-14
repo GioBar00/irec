@@ -55,6 +55,7 @@ func TestLoadRawFromFile(t *testing.T) {
 						IA:     "6-ff00:0:363",
 						LinkTo: "CORE",
 						MTU:    1472,
+						Groups: nil,
 						BFD: &jsontopo.BFD{
 							DetectMult:            3,
 							DesiredMinTxInterval:  util.DurWrap{Duration: 25 * time.Millisecond},
@@ -75,6 +76,7 @@ func TestLoadRawFromFile(t *testing.T) {
 						IA:     "6-ff00:0:364",
 						LinkTo: "CHILD",
 						MTU:    4430,
+						Groups: nil,
 					},
 				},
 			},

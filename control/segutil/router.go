@@ -40,5 +40,5 @@ func (r *Router) Route(ctx context.Context, dst addr.IA) (snet.Path, error) {
 
 // AllRoutes is similar to Route except that it returns multiple paths.
 func (r *Router) AllRoutes(ctx context.Context, dst addr.IA) ([]snet.Path, error) {
-	return r.Pather.GetPaths(ctx, dst, false)
+	return r.Pather.GetPaths(ctx, dst, false, nil)
 }

@@ -197,6 +197,7 @@ func TestIFInfoMap(t *testing.T) {
 		1: IFInfo{
 			ID:     1,
 			BRName: "br1-ff00:0:311-1",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("10.1.0.1").To4(),
 				Port: 0,
@@ -222,6 +223,7 @@ func TestIFInfoMap(t *testing.T) {
 		3: IFInfo{
 			ID:     3,
 			BRName: "br1-ff00:0:311-1",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("10.1.0.1").To4(),
 				Port: 0,
@@ -242,6 +244,7 @@ func TestIFInfoMap(t *testing.T) {
 		8: IFInfo{
 			ID:     8,
 			BRName: "br1-ff00:0:311-1",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("10.1.0.1").To4(),
 				Port: 0,
@@ -262,6 +265,7 @@ func TestIFInfoMap(t *testing.T) {
 		11: IFInfo{
 			ID:     11,
 			BRName: "br1-ff00:0:311-2",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("2001:db8:a0b:12f0::1"),
 				Port: 0,
@@ -292,6 +296,7 @@ func TestIFInfoMapCoreAS(t *testing.T) {
 		91: IFInfo{
 			ID:     91,
 			BRName: "borderrouter6-ff00:0:362-1",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("10.1.0.1").To4(),
 				Port: 0,
@@ -312,6 +317,7 @@ func TestIFInfoMapCoreAS(t *testing.T) {
 		32: IFInfo{
 			ID:     32,
 			BRName: "borderrouter6-ff00:0:362-9",
+			Groups: []uint16{0},
 			InternalAddr: &net.UDPAddr{
 				IP:   net.ParseIP("2001:db8:a0b:12f0::2"),
 				Port: 0,

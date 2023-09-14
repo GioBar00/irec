@@ -1,0 +1,24 @@
+cc_library(
+    name = "tommyds",
+    srcs = ["//pkg/irec/libs/tommyds/tommyds:srcs"],
+    hdrs = [
+        "//pkg/irec/libs/tommyds/tommyds:hdrs",
+    ],
+    copts = [
+        "-O3",
+        "-march=native",
+        "-Wall",
+        "-Wextra",
+        "-Wshadow",
+        "-Wuninitialized",
+        "-Wcast-align",
+        "-Wcast-qual",
+        "-g",
+        "-fPIC",
+    ],
+    includes = [
+        "./",
+        "./tommyds/",
+    ],
+    visibility = ["//visibility:public"],
+)

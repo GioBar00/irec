@@ -111,6 +111,7 @@ type BRInterface struct {
 	IA       string   `json:"isd_as"`
 	LinkTo   string   `json:"link_to"`
 	MTU      int      `json:"mtu"`
+	Groups   []uint16 `json:"groups"`
 	BFD      *BFD     `json:"bfd,omitempty"`
 }
 

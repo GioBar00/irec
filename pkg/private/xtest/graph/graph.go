@@ -44,6 +44,7 @@ import (
 	"github.com/scionproto/scion/pkg/scrypto/cppki"
 	"github.com/scionproto/scion/pkg/scrypto/signed"
 	seg "github.com/scionproto/scion/pkg/segment"
+	"github.com/scionproto/scion/pkg/segment/extensions/irec"
 	"github.com/scionproto/scion/pkg/segment/extensions/staticinfo"
 	"github.com/scionproto/scion/pkg/slayers/path"
 )
@@ -237,11 +238,14 @@ func (g *Graph) GetPaths(xIA string, yIA string) [][]uint16 {
 // constructed segment includes peering links. The hop fields in the returned
 // segment do not contain valid MACs.
 func (g *Graph) Beacon(ifids []uint16) *seg.PathSegment {
-	return g.beacon(ifids, false)
+	return g.beacon(ifids, false, false)
 }
 
 func (g *Graph) BeaconWithStaticInfo(ifids []uint16) *seg.PathSegment {
-	return g.beacon(ifids, true)
+	return g.beacon(ifids, true, false)
+}
+func (g *Graph) BeaconWithIRECExtension(ifids []uint16) *seg.PathSegment {
+	return g.beacon(ifids, false, true)
 }
 
 // beacon constructs path segments across a series of egress ifids. The parent
@@ -249,13 +253,27 @@ func (g *Graph) BeaconWithStaticInfo(ifids []uint16) *seg.PathSegment {
 // down to the parent AS of the remote counterpart of the last IFID. The
 // constructed segment includes peering links. The hop fields in the returned
 // segment do not contain valid MACs.
-func (g *Graph) beacon(ifids []uint16, addStaticInfo bool) *seg.PathSegment {
+func (g *Graph) beacon(ifids []uint16, addStaticInfo bool, addIrec bool) *seg.PathSegment {
 	var inIF, outIF, remoteOutIF uint16
 	var currIA, outIA addr.IA
 
 	var segment *seg.PathSegment
 	if len(ifids) == 0 {
 		return segment
+	}
+	var baseIrecExt *irec.Irec
+	if addIrec {
+		hash := make([]byte, 128)
+		// then we can call rand.Read.
+		_, err := rand.Read(hash)
+		if err != nil {
+			panic(err)
+		}
+		baseIrecExt = &irec.Irec{
+			AlgorithmHash:  hash,
+			AlgorithmId:    rand.Uint32(),
+			InterfaceGroup: uint16(rand.Int()),
+		}
 	}
 
 	if _, ok := g.parents[ifids[0]]; !ok {
@@ -327,6 +345,21 @@ func (g *Graph) beacon(ifids []uint16, addStaticInfo bool) *seg.PathSegment {
 		}
 		if addStaticInfo {
 			asEntry.Extensions.StaticInfo = generateStaticInfo(g, currIA, inIF, outIF)
+		}
+		if addIrec {
+			asEntry.Extensions.Irec = &irec.Irec{
+				AlgorithmHash:        baseIrecExt.AlgorithmHash,
+				AlgorithmId:          baseIrecExt.AlgorithmId,
+				InterfaceGroup:       0,
+				PullBased:            false,
+				PullBasedTarget:      0,
+				PullBasedPeriod:      0,
+				PullBasedHyperPeriod: 0,
+				PullBasedMinBeacons:  0,
+			}
+			if i == 0 {
+				asEntry.Extensions.Irec.InterfaceGroup = baseIrecExt.InterfaceGroup
+			}
 		}
 		if err := segment.AddASEntry(context.Background(), asEntry, g.signers[currIA]); err != nil {
 			panic(serrors.WrapStr("adding AS entry", err))

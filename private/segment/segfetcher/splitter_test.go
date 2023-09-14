@@ -68,6 +68,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: core_110},
+					segfetcher.Request{SegType: CoreR, Src: core_110, Dst: isd1},
 				},
 			},
 			"Up wildcard": {
@@ -83,6 +84,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: core_210},
+					segfetcher.Request{SegType: CoreR, Src: core_210, Dst: isd1},
 				},
 			},
 			"Up Core non-local wildcard": {
@@ -91,6 +93,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: isd1},
 				},
 			},
 			"Down local": {
@@ -98,6 +101,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     non_core_111,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: isd1},
+					segfetcher.Request{SegType: CoreR, Src: isd1, Dst: core_110},
 					segfetcher.Request{SegType: Down, Src: isd1, Dst: non_core_111},
 				},
 			},
@@ -106,6 +110,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     non_core_211,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: core_110},
 					segfetcher.Request{SegType: Down, Src: isd2, Dst: non_core_211},
 				},
 			},
@@ -114,6 +119,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     core_130,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: core_130},
+					segfetcher.Request{SegType: CoreR, Src: core_130, Dst: core_110},
 				},
 			},
 			"Core non-local": {
@@ -121,6 +127,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     core_210,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: core_210},
+					segfetcher.Request{SegType: CoreR, Src: core_210, Dst: core_110},
 				},
 			},
 			"Core non-local wildcard": {
@@ -128,6 +135,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     isd2,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: core_110},
 				},
 			},
 			"Up down local": {
@@ -136,6 +144,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: isd1},
+					segfetcher.Request{SegType: CoreR, Src: isd1, Dst: isd1},
 					segfetcher.Request{SegType: Down, Src: isd1, Dst: non_core_112},
 				},
 			},
@@ -145,6 +154,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: isd1},
 					segfetcher.Request{SegType: Down, Src: isd2, Dst: non_core_211},
 				},
 			},
@@ -160,7 +170,7 @@ func TestRequestSplitter(t *testing.T) {
 					Inspector: inspector,
 					Core:      core,
 				}
-				requests, err := splitter.Split(context.Background(), test.Dst)
+				requests, err := splitter.Split(context.Background(), test.Dst, nil)
 				if test.ExpectedErrMsg != "" {
 					assert.Error(t, err)
 					assert.Contains(t, err.Error(), test.ExpectedErrMsg)
@@ -220,6 +230,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: core_210},
+					segfetcher.Request{SegType: CoreR, Src: core_210, Dst: isd1},
 				},
 			},
 			"Up Core non-local wildcard": {
@@ -228,6 +239,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: isd1},
 				},
 			},
 			"Down local": {
@@ -242,6 +254,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     non_core_211,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: core_110},
 					segfetcher.Request{SegType: Down, Src: isd2, Dst: non_core_211},
 				},
 			},
@@ -250,6 +263,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     core_210,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: core_210},
+					segfetcher.Request{SegType: CoreR, Src: core_210, Dst: core_110},
 				},
 			},
 			"Core non-local wildcard": {
@@ -257,6 +271,7 @@ func TestRequestSplitter(t *testing.T) {
 				Dst:     isd2,
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Core, Src: core_110, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: core_110},
 				},
 			},
 			"Up down local": {
@@ -273,6 +288,7 @@ func TestRequestSplitter(t *testing.T) {
 				ExpectedSet: segfetcher.Requests{
 					segfetcher.Request{SegType: Up, Src: non_core_111, Dst: isd1},
 					segfetcher.Request{SegType: Core, Src: isd1, Dst: isd2},
+					segfetcher.Request{SegType: CoreR, Src: isd2, Dst: isd1},
 					segfetcher.Request{SegType: Down, Src: isd2, Dst: non_core_211},
 				},
 			},
@@ -285,7 +301,7 @@ func TestRequestSplitter(t *testing.T) {
 					Inspector: inspector,
 					Core:      core,
 				}
-				requests, err := splitter.Split(context.Background(), test.Dst)
+				requests, err := splitter.Split(context.Background(), test.Dst, nil)
 				if test.ExpectedErrMsg != "" {
 					assert.Error(t, err)
 					assert.Contains(t, err.Error(), test.ExpectedErrMsg)

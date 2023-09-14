@@ -40,7 +40,7 @@ type pathInfo struct {
 
 // collectMetadata extracts the StaticInfo metadata. The returned snet.PathMetadata
 // contains Latency, Bandwidth, Geo, LinkType, InternalHops and Notes.
-func collectMetadata(interfaces []snet.PathInterface, asEntries []seg.ASEntry) snet.PathMetadata {
+func CollectMetadata(interfaces []snet.PathInterface, asEntries []seg.ASEntry) snet.PathMetadata {
 	if len(interfaces) == 0 {
 		return snet.PathMetadata{}
 	}

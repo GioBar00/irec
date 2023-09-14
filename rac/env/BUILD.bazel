@@ -1,0 +1,12 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["execenv.go"],
+    importpath = "github.com/scionproto/scion/rac/env",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/control_plane:go_default_library",
+        "//rac/config:go_default_library",
+    ],
+)

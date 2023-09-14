@@ -83,6 +83,7 @@ func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
 		DestinationIsdAs: uint64(dst),
 		Hidden:           f.Hidden,
 		Refresh:          f.Refresh,
+		AlgorithmHash:    f.AlgorithmHash,
 	})
 	if err != nil {
 		c.metrics.incPaths(err)
@@ -91,6 +92,21 @@ func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
 	paths, err := pathResponseToPaths(response.Paths, dst)
 	c.metrics.incPaths(err)
 	return paths, err
+}
+
+func (c grpcConn) PullPaths(ctx context.Context, dst, src addr.IA, f PullPathReqFlags) error {
+
+	client := sdpb.NewDaemonServiceClient(c.conn)
+	_, err := client.PullPaths(ctx, &sdpb.PullPathsRequest{
+		SourceIsdAs:      uint64(src),
+		DestinationIsdAs: uint64(dst),
+		AlgorithmHash:    f.AlgorithmHash,
+		AlgorithmId:      f.AlgorithmId,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c grpcConn) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {

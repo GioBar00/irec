@@ -41,18 +41,22 @@ func (e *WildcardExpander) ExpandSrcWildcard(ctx context.Context,
 	}
 
 	switch req.SegType {
+	case seg.TypeCoreR:
+		// Reversed core segments should not use wildcards, as we do not want to fetch reversed segments from other Core
+		// ASes
+		return segfetcher.Requests{segfetcher.Request{Src: req.Src, Dst: req.Dst, SegType: req.SegType, AlgorithmHash: req.AlgorithmHash}}, nil
 	case seg.TypeCore:
 		cores, err := e.providerCoreASes(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return requestsSrcsToDst(cores, req.Dst, req.SegType), nil
+		return requestsSrcsToDst(cores, req.Dst, req.SegType, req.AlgorithmHash), nil
 	case seg.TypeDown:
 		cores, err := e.coreASes(ctx, req.Src.ISD())
 		if err != nil {
 			return nil, err
 		}
-		return requestsSrcsToDst(cores, req.Dst, req.SegType), nil
+		return requestsSrcsToDst(cores, req.Dst, req.SegType, req.AlgorithmHash), nil
 	default:
 		// no wildcard source for up requests
 		panic("Unexpected wildcard for up segment request, should not have passed validation")
@@ -88,11 +92,11 @@ func (e *WildcardExpander) providerCoreASes(ctx context.Context) ([]addr.IA, err
 }
 
 // requestsSrcsToDst creates a slice containing a request for each src in srcs to dst
-func requestsSrcsToDst(srcs []addr.IA, dst addr.IA, segType seg.Type) segfetcher.Requests {
+func requestsSrcsToDst(srcs []addr.IA, dst addr.IA, segType seg.Type, hash []byte) segfetcher.Requests {
 	requests := make(segfetcher.Requests, 0, len(srcs))
 	for _, src := range srcs {
 		if src != dst {
-			requests = append(requests, segfetcher.Request{Src: src, Dst: dst, SegType: segType})
+			requests = append(requests, segfetcher.Request{Src: src, Dst: dst, SegType: segType, AlgorithmHash: hash})
 		}
 	}
 	return requests

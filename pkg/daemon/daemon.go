@@ -66,6 +66,7 @@ type Connector interface {
 	LocalIA(ctx context.Context) (addr.IA, error)
 	// Paths requests from the daemon a set of end to end paths between the source and destination.
 	Paths(ctx context.Context, dst, src addr.IA, f PathReqFlags) ([]snet.Path, error)
+	PullPaths(ctx context.Context, dst, src addr.IA, f PullPathReqFlags) error
 	// ASInfo requests from the daemon information about AS ia, the zero IA can be
 	// use to detect the local IA.
 	ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error)

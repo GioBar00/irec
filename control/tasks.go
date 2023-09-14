@@ -81,57 +81,17 @@ type TasksConfig struct {
 // Originator starts a periodic beacon origination task. For non-core ASes, no
 // periodic runner is started.
 func (t *TasksConfig) Originator() *periodic.Runner {
-	if !t.Core {
-		return nil
-	}
-	s := &beaconing.Originator{
-		Extender: t.extender("originator", t.IA, t.MTU, func() uint8 {
-			return t.BeaconStore.MaxExpTime(beacon.PropPolicy)
-		}),
-		SenderFactory:         t.BeaconSenderFactory,
-		IA:                    t.IA,
-		AllInterfaces:         t.AllInterfaces,
-		OriginationInterfaces: t.OriginationInterfaces,
-		Signer:                t.Signer,
-		Tick:                  beaconing.NewTick(t.OriginationInterval),
-	}
-	if t.Metrics != nil {
-		s.Originated = metrics.NewPromCounter(t.Metrics.BeaconingOriginatedTotal)
-	}
-	return periodic.Start(s, 500*time.Millisecond, t.OriginationInterval)
+	return &periodic.Runner{}
 }
 
 // Propagator starts a periodic beacon propagation task.
 func (t *TasksConfig) Propagator() *periodic.Runner {
-	p := &beaconing.Propagator{
-		Extender: t.extender("propagator", t.IA, t.MTU, func() uint8 {
-			return t.BeaconStore.MaxExpTime(beacon.PropPolicy)
-		}),
-		SenderFactory:         t.BeaconSenderFactory,
-		Provider:              t.BeaconStore,
-		IA:                    t.IA,
-		Signer:                t.Signer,
-		AllInterfaces:         t.AllInterfaces,
-		PropagationInterfaces: t.PropagationInterfaces,
-		AllowIsdLoop:          t.AllowIsdLoop,
-		Tick:                  beaconing.NewTick(t.PropagationInterval),
-	}
-	if t.Metrics != nil {
-		p.Propagated = metrics.NewPromCounter(t.Metrics.BeaconingPropagatedTotal)
-		p.InternalErrors = metrics.NewPromCounter(t.Metrics.BeaconingPropagatorInternalErrorsTotal)
-	}
-	return periodic.Start(p, 500*time.Millisecond, t.PropagationInterval)
+	return &periodic.Runner{}
 }
 
 // SegmentWriters starts periodic segment registration tasks.
 func (t *TasksConfig) SegmentWriters() []*periodic.Runner {
-	if t.Core {
-		return []*periodic.Runner{t.segmentWriter(seg.TypeCore, beacon.CoreRegPolicy)}
-	}
-	return []*periodic.Runner{
-		t.segmentWriter(seg.TypeDown, beacon.DownRegPolicy),
-		t.segmentWriter(seg.TypeUp, beacon.UpRegPolicy),
-	}
+	return []*periodic.Runner{}
 }
 
 func (t *TasksConfig) segmentWriter(segType seg.Type,

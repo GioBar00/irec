@@ -86,7 +86,7 @@ func CreateSegment(timestamp time.Time, segID uint16) (*PathSegment, error) {
 
 // SegmentFromPB translates a protobuf path segment.
 func SegmentFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
-	seg, err := segmentFromPB(pb)
+	seg, err := segmentFromPB(pb, false)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func SegmentFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
 
 // BeaconFromPB translates a protobuf path Beacon.
 func BeaconFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
-	seg, err := segmentFromPB(pb)
+	seg, err := segmentFromPB(pb, false)
 	if err != nil {
 		return nil, err
 	}
@@ -108,14 +108,29 @@ func BeaconFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
 	return seg, nil
 }
 
-func segmentFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
+// FullBeaconFromPB translates a protobuf path Beacon, but also
+// keeps the original signed as entry. This is more memory expensive, so only use
+// this if you strictly need access to the original signed body (and parsing it again
+// would be too resource intensive).
+func FullBeaconFromPB(pb *cppb.PathSegment) (*PathSegment, error) {
+	seg, err := segmentFromPB(pb, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := seg.Validate(ValidateBeacon); err != nil {
+		return nil, err
+	}
+	return seg, nil
+}
+
+func segmentFromPB(pb *cppb.PathSegment, keepSignedEntry bool) (*PathSegment, error) {
 	info, err := infoFromRaw(pb.SegmentInfo)
 	if err != nil {
 		return nil, serrors.WrapStr("parsing segment info", err)
 	}
 	asEntries := make([]ASEntry, 0, len(pb.AsEntries))
 	for i, entry := range pb.AsEntries {
-		as, err := ASEntryFromPB(entry)
+		as, err := ASEntryFromPB(entry, keepSignedEntry)
 		if err != nil {
 			return nil, serrors.WrapStr("parsing AS entry", err, "index", i)
 		}
@@ -146,6 +161,34 @@ func (ps *PathSegment) calculateHash(hopOnly bool) []byte {
 		binary.Write(h, binary.BigEndian, ase.HopEntry.HopField.ConsEgress)
 		if hopOnly {
 			continue
+		}
+		for _, peer := range ase.PeerEntries {
+			binary.Write(h, binary.BigEndian, peer.Peer)
+			binary.Write(h, binary.BigEndian, peer.HopField.ConsIngress)
+			binary.Write(h, binary.BigEndian, peer.HopField.ConsEgress)
+		}
+	}
+	return h.Sum(nil)
+}
+
+//nolint:errcheck // hash.Write never returns an error
+func (ps *PathSegment) IRECID() []byte {
+	h := sha256.New()
+	//binary.Write(h, binary.BigEndian, ps.Info.SegmentID) too many beacons...
+	for _, ase := range ps.ASEntries {
+		binary.Write(h, binary.BigEndian, ase.Local)
+
+		binary.Write(h, binary.BigEndian, ase.HopEntry.HopField.ConsIngress)
+		binary.Write(h, binary.BigEndian, ase.HopEntry.HopField.ConsEgress)
+		if ase.Extensions.Irec != nil {
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.PullBased)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.PullBasedTarget)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.PullBasedPeriod)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.PullBasedHyperPeriod)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.PullBasedMinBeacons)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.AlgorithmHash)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.AlgorithmId)
+			binary.Write(h, binary.BigEndian, ase.Extensions.Irec.InterfaceGroup)
 		}
 		for _, peer := range ase.PeerEntries {
 			binary.Write(h, binary.BigEndian, peer.Peer)
@@ -291,6 +334,8 @@ func (ps *PathSegment) AddASEntry(ctx context.Context, asEntry ASEntry, signer S
 			},
 		)
 	}
+	// TODO(jvb); remove this, keep only for wasmoptimized
+	//asEntry.SignedBody = asEntryPB
 	rawASEntry, err := proto.Marshal(asEntryPB)
 	if err != nil {
 		return serrors.WrapStr("packing AS entry", err)
@@ -300,6 +345,7 @@ func (ps *PathSegment) AddASEntry(ctx context.Context, asEntry ASEntry, signer S
 		return serrors.WrapStr("signing AS entry", err)
 	}
 	asEntry.Signed = signedMsg
+	//asEntry.SignedBody = asEntryPB
 	ps.ASEntries = append(ps.ASEntries, asEntry)
 	return nil
 }
@@ -372,6 +418,7 @@ func PathSegmentToPB(ps *PathSegment) *cppb.PathSegment {
 		AsEntries:   make([]*cppb.ASEntry, 0, len(ps.ASEntries)),
 	}
 	for _, entry := range ps.ASEntries {
+
 		pb.AsEntries = append(pb.AsEntries, &cppb.ASEntry{
 			Signed:   entry.Signed,
 			Unsigned: UnsignedExtensionsToPB(entry.UnsignedExtensions),
@@ -384,13 +431,28 @@ func (ps *PathSegment) String() string {
 	if ps == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("ID: %s Timestamp: %s Hops: %s",
+	return fmt.Sprintf("ID: %s Timestamp: %s Hops: %s IREC: %s",
 		ps.GetLoggingID(),
 		util.TimeToCompact(ps.Info.Timestamp),
 		ps.getHopsDescription(),
+		ps.getIRECDescription(),
 	)
 }
 
+func (ps *PathSegment) getIRECDescription() string {
+	description := []string{}
+	for _, entry := range ps.ASEntries {
+		if entry.Extensions.Irec != nil {
+			description = append(description, fmt.Sprintf("[ %s: Id: %d Hash: %x IntfGroup: %d PB: %t PbTarget: %s ]",
+				entry.Local.String(),
+				entry.Extensions.Irec.AlgorithmId,
+				entry.Extensions.Irec.AlgorithmHash, entry.Extensions.Irec.InterfaceGroup, entry.Extensions.Irec.PullBased, entry.Extensions.Irec.PullBasedTarget.String()))
+		} else {
+			description = append(description, fmt.Sprintf("[ %s: no IREC ]", entry.Local.String()))
+		}
+	}
+	return strings.Join(description, ">")
+}
 func (ps *PathSegment) GetLoggingID() string {
 	return fmt.Sprintf("%x", ps.ID()[:12])
 }
@@ -413,5 +475,6 @@ func getHopDescription(ia addr.IA, hop HopField) string {
 	if hop.ConsEgress > 0 {
 		desc = append(desc, fmt.Sprintf(" %v", hop.ConsEgress))
 	}
+
 	return strings.Join(desc, "")
 }

@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/scionproto/scion/control/beacon"
+	storage2 "github.com/scionproto/scion/control/irec/egress/storage"
+	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"
@@ -37,6 +39,8 @@ import (
 	sqlitelevel1 "github.com/scionproto/scion/private/storage/drkey/level1/sqlite"
 	sqlitelevel2 "github.com/scionproto/scion/private/storage/drkey/level2/sqlite"
 	sqlitesecret "github.com/scionproto/scion/private/storage/drkey/secret/sqlite"
+	sqliteegressdb "github.com/scionproto/scion/private/storage/egress/sqlite"
+	sqliteingressdb "github.com/scionproto/scion/private/storage/ingress/sqlite"
 	sqlitepathdb "github.com/scionproto/scion/private/storage/path/sqlite"
 	truststorage "github.com/scionproto/scion/private/storage/trust"
 	sqlitetrustdb "github.com/scionproto/scion/private/storage/trust/sqlite"
@@ -62,6 +66,12 @@ const (
 var (
 	SampleBeaconDB = DBConfig{
 		Connection: "/share/cache/%s.beacon.db",
+	}
+	SampleEgressDB = DBConfig{
+		Connection: "/share/cache/%s.egress.db",
+	}
+	SampleIngressDB = DBConfig{
+		Connection: "/share/cache/%s.ingress.db",
 	}
 	SamplePathDB = DBConfig{
 		Connection: DefaultPathDBPath,
@@ -98,6 +108,16 @@ type BeaconDB interface {
 	io.Closer
 	beacon.DB
 	beaconstorage.BeaconAPI
+}
+
+type IngressDB interface {
+	io.Closer
+	storage.DB
+}
+
+type EgressDB interface {
+	io.Closer
+	storage2.EgressDB
 }
 
 type PathDB interface {
@@ -183,6 +203,82 @@ func NewBeaconStorage(c DBConfig, ia addr.IA) (BeaconDB, error) {
 		BeaconDB: db,
 		cleaner:  cleaner,
 	}, nil
+}
+
+func NewIngressStorage(c DBConfig, ia addr.IA) (IngressDB, error) {
+	log.Info("Connecting IngressDb", "backend", BackendSqlite, "connection", c.Connection)
+	db, err := sqliteingressdb.New(c.Connection, ia)
+	if err != nil {
+		return nil, err
+	}
+	SetConnLimits(db, c)
+
+	// Start a periodic task that cleans up the expired beacons.
+	cleaner := periodic.Start(
+		cleaner.New(
+			func(ctx context.Context) (int, error) {
+				return db.DeleteExpiredBeacons(ctx, time.Now())
+			},
+			"control_ingressdb_cleaner",
+		),
+		30*time.Second,
+		30*time.Second,
+	)
+	return ingressDBWithCleaner{
+		IngressDB: db,
+		cleaner:   cleaner,
+	}, nil
+}
+
+func NewEgressStorage(c DBConfig, ia addr.IA) (EgressDB, error) {
+	log.Info("Connecting EgressDB", "backend", BackendSqlite, "connection", c.Connection)
+	db, err := sqliteegressdb.New(c.Connection, ia)
+	if err != nil {
+		return nil, err
+	}
+	SetConnLimits(db, c)
+
+	// Start a periodic task that cleans up the expired beacons.
+	cleaner := periodic.Start(
+		cleaner.New(
+			func(ctx context.Context) (int, error) {
+				return db.DeleteExpiredBeacons(ctx, time.Now())
+			},
+			"control_egressdb_cleaner",
+		),
+		30*time.Second,
+		30*time.Second,
+	)
+	return egressDBWithCleaner{
+		EgressDB: db,
+		cleaner:  cleaner,
+	}, nil
+}
+
+//	implements the BeaconDB interface and stops both the
+//
+// database and the cleanup task on Close.
+type ingressDBWithCleaner struct {
+	IngressDB
+	cleaner *periodic.Runner
+}
+
+func (b ingressDBWithCleaner) Close() error {
+	b.cleaner.Kill()
+	return b.IngressDB.Close()
+}
+
+//	implements the BeaconDB interface and stops both the
+//
+// database and the cleanup task on Close.
+type egressDBWithCleaner struct {
+	EgressDB
+	cleaner *periodic.Runner
+}
+
+func (b egressDBWithCleaner) Close() error {
+	b.cleaner.Kill()
+	return b.EgressDB.Close()
 }
 
 // beaconDBWithCleaner implements the BeaconDB interface and stops both the

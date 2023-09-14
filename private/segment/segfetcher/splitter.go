@@ -25,7 +25,7 @@ import (
 // Splitter splits a path request into set of segment requests.
 type Splitter interface {
 	// Split splits a path request from the local AS to dst into a set of segment requests.
-	Split(ctx context.Context, dst addr.IA) (Requests, error)
+	Split(ctx context.Context, dst addr.IA, hash []byte) (Requests, error)
 }
 
 // MultiSegmentSplitter splits requests consisting of one or multiple segments.
@@ -37,11 +37,12 @@ type MultiSegmentSplitter struct {
 }
 
 // Split splits a path request from the local AS to dst into a set of segment requests.
-func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests, error) {
+func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA, hash []byte) (Requests, error) {
 
 	const Up = seg.TypeUp
 	const Down = seg.TypeDown
 	const Core = seg.TypeCore
+	const CoreR = seg.TypeCoreR
 
 	src := s.LocalIA
 	srcCore := s.Core
@@ -54,33 +55,38 @@ func (s *MultiSegmentSplitter) Split(ctx context.Context, dst addr.IA) (Requests
 	case !srcCore && !dstCore:
 		if !singleCore.IsZero() {
 			return Requests{
-				{Src: src, Dst: singleCore, SegType: Up},
-				{Src: singleCore, Dst: dst, SegType: Down},
+				{Src: src, Dst: singleCore, SegType: Up, AlgorithmHash: hash},
+				{Src: singleCore, Dst: dst, SegType: Down, AlgorithmHash: hash},
 			}, nil
 		}
 		return Requests{
-			{Src: src, Dst: toWildCard(src), SegType: Up},
-			{Src: toWildCard(src), Dst: toWildCard(dst), SegType: Core},
-			{Src: toWildCard(dst), Dst: dst, SegType: Down},
+			{Src: src, Dst: toWildCard(src), SegType: Up, AlgorithmHash: hash},
+			{Src: toWildCard(src), Dst: toWildCard(dst), SegType: Core, AlgorithmHash: hash},
+			{Src: toWildCard(dst), Dst: toWildCard(src), SegType: CoreR, AlgorithmHash: hash}, // todo(jvb); this shouldn't have wildcards?
+			{Src: toWildCard(dst), Dst: dst, SegType: Down, AlgorithmHash: hash},
 		}, nil
 	case !srcCore && dstCore:
 		if (src.ISD() == dst.ISD() && dst.IsWildcard()) || singleCore.Equal(dst) {
-			return Requests{{Src: src, Dst: dst, SegType: Up}}, nil
+			return Requests{{Src: src, Dst: dst, SegType: Up, AlgorithmHash: hash}}, nil
 		}
 		return Requests{
-			{Src: src, Dst: toWildCard(src), SegType: Up},
-			{Src: toWildCard(src), Dst: dst, SegType: Core},
+			{Src: src, Dst: toWildCard(src), SegType: Up, AlgorithmHash: hash},
+			{Src: toWildCard(src), Dst: dst, SegType: Core, AlgorithmHash: hash},
+			{Src: dst, Dst: toWildCard(src), SegType: CoreR, AlgorithmHash: hash},
 		}, nil
 	case srcCore && !dstCore:
 		if singleCore.Equal(src) {
 			return Requests{{Src: src, Dst: dst, SegType: Down}}, nil
 		}
 		return Requests{
-			{Src: src, Dst: toWildCard(dst), SegType: Core},
-			{Src: toWildCard(dst), Dst: dst, SegType: Down},
+			{Src: src, Dst: toWildCard(dst), SegType: Core, AlgorithmHash: hash},
+			{Src: toWildCard(dst), Dst: src, SegType: CoreR, AlgorithmHash: hash},
+			{Src: toWildCard(dst), Dst: dst, SegType: Down, AlgorithmHash: hash},
 		}, nil
 	default:
-		return Requests{{Src: src, Dst: dst, SegType: Core}}, nil
+		return Requests{{Src: src, Dst: dst, SegType: Core, AlgorithmHash: hash},
+				{Src: dst, Dst: src, SegType: CoreR, AlgorithmHash: hash}},
+			nil
 	}
 }
 

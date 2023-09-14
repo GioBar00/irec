@@ -21,6 +21,7 @@ import (
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/private/serrors"
+	"github.com/scionproto/scion/pkg/segment"
 )
 
 // PolicyType is the policy type.
@@ -293,6 +294,16 @@ func FilterLoop(beacon Beacon, next addr.IA, allowIsdLoop bool) error {
 	return filterLoops(hops, allowIsdLoop)
 }
 
+func FilterLoopSeg(seg *segment.PathSegment, next addr.IA, allowIsdLoop bool) error {
+	hops := make([]addr.IA, 0, len(seg.ASEntries)+1)
+	for _, asEntry := range seg.ASEntries {
+		hops = append(hops, asEntry.Local)
+	}
+	if !next.IsZero() {
+		hops = append(hops, next)
+	}
+	return filterLoops(hops, allowIsdLoop)
+}
 func buildHops(beacon Beacon) []addr.IA {
 	hops := make([]addr.IA, 0, len(beacon.Segment.ASEntries)+1)
 	for _, asEntry := range beacon.Segment.ASEntries {

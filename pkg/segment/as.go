@@ -45,10 +45,12 @@ type ASEntry struct {
 	Extensions Extensions
 	// UnsignedExtensions holds all the unsigned beaconing extensions.
 	UnsignedExtensions UnsignedExtensions
+	// Optional: This stores the parsed signed body
+	SignedBody *cppb.ASEntrySignedBody
 }
 
 // ASEntryFromPB creates an AS entry from the protobuf representation.
-func ASEntryFromPB(pb *cppb.ASEntry) (ASEntry, error) {
+func ASEntryFromPB(pb *cppb.ASEntry, keepSignedEntry bool) (ASEntry, error) {
 	if pb == nil {
 		return ASEntry{}, serrors.New("nil entry")
 	}
@@ -85,10 +87,22 @@ func ASEntryFromPB(pb *cppb.ASEntry) (ASEntry, error) {
 		}
 		peerEntries = append(peerEntries, peerEntry)
 	}
-
 	extensions := extensionsFromPB(entry.Extensions)
 	unsignedExtensions := UnsignedExtensionsFromPB(pb.Unsigned)
 
+	if keepSignedEntry {
+		return ASEntry{
+			HopEntry:           hopEntry,
+			PeerEntries:        peerEntries,
+			Local:              addr.IA(entry.IsdAs),
+			Next:               addr.IA(entry.NextIsdAs), // Can contain wildcard.
+			MTU:                int(entry.Mtu),
+			Extensions:         extensions,
+			Signed:             pb.Signed,
+			UnsignedExtensions: unsignedExtensions,
+			SignedBody:         &entry,
+		}, nil
+	}
 	return ASEntry{
 		HopEntry:           hopEntry,
 		PeerEntries:        peerEntries,
