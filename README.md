@@ -70,7 +70,7 @@ This command will not return anything, but only initialize a pull based beacon.
 
 The result of the pull-based beacon can be queried with
 ```
-bin\scion showpaths 2-ff00:0:210 fb7a5d80b701842b5ab5f974b6500054b9473f824f884d63644257741b5109db --sciond $(./scion.sh sciond-addr 110)
+bin\scion showpaths 2-ff00:0:210 --hash fb7a5d80b701842b5ab5f974b6500054b9473f824f884d63644257741b5109db --sciond $(./scion.sh sciond-addr 110)
 ```
 
 
