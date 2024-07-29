@@ -120,7 +120,7 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 	}
 	b := beacon.Beacon{
 		Segment: ps,
-		InIfId:  ingress,
+		InIfID:  ingress,
 	}
 	if err := i.IncomingHandler.HandleBeacon(ctx, b, peer); err != nil {
 		logger.Debug("Failed to handle beacon", "peer", peer, "err", err)

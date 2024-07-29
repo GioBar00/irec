@@ -83,12 +83,14 @@ func (e *EbpfEnv) ExecuteVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 		C.destroy_ctx(vmCtx)
 		C.destroy_vm(vm)
 	}
+	log.Info("Writing result", "res", selectedBeacons)
 
 	err := e.Writer.WriteBeacons(ctx, selectedBeacons)
 	if err != nil {
 		log.Info("err", "msg", err)
 		//	return &racpb.ExecutionResponse{}, selection, err
 	}
+	log.Info("call completed")
 	if e.Static {
 		return &cppb.JobCompleteNotify{
 			RowIDs:    []int64{},

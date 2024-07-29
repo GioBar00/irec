@@ -108,12 +108,12 @@ type GatewayInfo struct {
 // BRInterface contains the information for an data-plane BR socket that is external (i.e., facing
 // the neighboring AS).
 type BRInterface struct {
-	Underlay Underlay `json:"underlay,omitempty"`
-	IA       string   `json:"isd_as"`
-	LinkTo   string   `json:"link_to"`
-	MTU      int      `json:"mtu"`
-	Groups   []uint16 `json:"groups"`
-	BFD      *BFD     `json:"bfd,omitempty"`
+	Underlay   Underlay        `json:"underlay,omitempty"`
+	IA         string          `json:"isd_as"`
+	LinkTo     string          `json:"link_to"`
+	MTU        int             `json:"mtu"`
+	Groups     []uint16        `json:"groups,omitempty"`
+	BFD        *BFD            `json:"bfd,omitempty"`
 	RemoteIfID common.IfIDType `json:"remote_interface_id,omitempty"`
 }
 

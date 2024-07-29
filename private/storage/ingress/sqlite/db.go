@@ -183,11 +183,15 @@ func (e *executor) MarkBeacons(ctx context.Context, ids []int64) error {
 	}
 	query := fmt.Sprintf("UPDATE Beacons SET FetchStatus = 2 WHERE Beacons.RowID in (%s);", strings.Replace(strings.Trim(fmt.Sprint(ids), "[]"), " ", ",", -1))
 	log.Debug("FetchStatus query", "q", query)
-	_, err := e.db.ExecContext(ctx, query)
-	if err != nil {
-		return db.NewWriteError("update fetchstatus", err)
-	}
-	return nil
+	return db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query)
+		log.Debug("FetchStatus query done", "q", query)
+		if err != nil {
+			return db.NewWriteError("update fetchstatus", err)
+		}
+		return nil
+
+	})
 }
 func (e *executor) GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error) {
 	e.Lock()
@@ -324,13 +328,13 @@ func (e *executor) GetAlgorithm(ctx context.Context, algorithmHash []byte) ([]by
 	query := "SELECT AlgorithmCode FROM Algorithm WHERE AlgorithmHash=?"
 	var algCode sql.RawBytes
 	rows, err := e.db.QueryContext(ctx, query, algorithmHash)
-
 	if err == sql.ErrNoRows {
 		return nil, serrors.New("Algorithm does not exist", "hash", algorithmHash)
 	}
 	if err != nil {
 		return nil, db.NewReadError("Failed to lookup algorithm", err)
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		return nil, serrors.New("Algorithm does not exist", "hash", algorithmHash)
 	}

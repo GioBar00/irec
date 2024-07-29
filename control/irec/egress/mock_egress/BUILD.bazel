@@ -5,12 +5,9 @@ gomock(
     name = "go_default_mock",
     out = "mock.go",
     interfaces = [
-        #        "BeaconInserter",
-        #        "BeaconProvider",
         "Sender",
         "RPC",
         "Writer",
-        #        "SegmentProvider",
         "SegmentStore",
         "SenderFactory",
     ],

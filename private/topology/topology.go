@@ -285,9 +285,6 @@ func (t *RWTopology) populateBR(raw *jsontopo.Topology) error {
 				MTU:          rawIntf.MTU,
 				Groups:       rawIntf.Groups,
 			}
-			if len(ifinfo.Groups) == 0 {
-				ifinfo.Groups = []uint16{0}
-			}
 			if ifinfo.IA, err = addr.ParseIA(rawIntf.IA); err != nil {
 				return err
 			}

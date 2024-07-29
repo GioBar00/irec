@@ -69,7 +69,8 @@ func (h Propagator) PullBasedCallback(ctx context.Context, bcn *cppb.IncomingBea
 					continue
 				}
 				// writer has side-effects for beacon, therefore recreate beacon arr for each writer
-				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment, InIfId: 0}}, h.Peers, false)
+				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
+					InIfID: 0}}, h.Peers, false)
 				if err != nil {
 					log.Error("error occurred", "err", err)
 				}

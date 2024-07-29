@@ -14,6 +14,7 @@
             "local": "192.0.2.1:44997",
             "remote": "192.0.2.2:44998"
           },
+          "groups": [0],
           "isd_as": "1-ff00:0:312",
           "link_to": "PARENT",
           "mtu": 1472,
@@ -24,6 +25,7 @@
           }
         },
         "3": {
+          "groups": [0],
           "underlay": {
             "local": "[2001:db8:a0b:12f0::1]:44997",
             "remote": "[2001:db8:a0b:12f0::2]:44998"
@@ -33,6 +35,7 @@
           "mtu": 4430
         },
         "8": {
+          "groups": [0],
           "underlay": {
             "local": ":44997",
             "remote": "192.0.2.3:44998"
@@ -47,6 +50,7 @@
       "internal_addr": "[2001:db8:a0b:12f0::1%some-internal-zone]:0",
       "interfaces": {
         "11": {
+          "groups": [0],
           "underlay": {
             "local": "[2001:db8:a0b:12f0::1%some-local-zone]:44897",
             "remote": "[2001:db8:a0b:12f0::2%some-remote-zone]:44898"

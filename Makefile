@@ -113,16 +113,16 @@ gazelle: go_deps.bzl
 
 
 gazelle-wa:
-	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=wa $(GAZELLE_DIRS)
+	bazel run //:gazelle --verbose_failures --config=quiet -- -build_tags=wa
 
 gazelle-waopt:
-	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=waopt $(GAZELLE_DIRS)
+	bazel run //:gazelle --verbose_failures --config=quiet -- -build_tags=waopt
 
 gazelle-ubpfjit:
-	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=ubpfjit $(GAZELLE_DIRS)
+	bazel run //:gazelle --verbose_failures --config=quiet -- -build_tags=ubpfjit
 
 gazelle-native:
-	bazel run //:gazelle --config=quiet -- update -mode=$(GAZELLE_MODE) -go_naming_convention go_default_library -build_tags=native $(GAZELLE_DIRS)
+	bazel run //:gazelle --verbose_failures --config=quiet -- -build_tags=native
 
 
 licenses:

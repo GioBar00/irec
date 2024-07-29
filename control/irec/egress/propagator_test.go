@@ -504,7 +504,8 @@ func TestPullBasedCore(t *testing.T) {
 		func(_ context.Context, _ addr.IA, egIfId uint16,
 			nextHop *net.UDPAddr) (egress.Sender, error) {
 			sender := mock_egress.NewMockSender(mctrl)
-			sender.EXPECT().Send(gomock.Any(), gomock.Any()).Times(len(intfs.Get(egIfId).TopoInfo().Groups)).DoAndReturn(
+			sender.EXPECT().Send(gomock.Any(), gomock.Any()).Times(max(len(intfs.Get(egIfId).
+				TopoInfo().Groups), 1)).DoAndReturn(
 				func(_ context.Context, b *seg.PathSegment) error {
 					validateSend(t, b, egIfId, nextHop, pub, topo)
 					assert.NotNil(t, b.ASEntries[0].Extensions.Irec)
@@ -697,7 +698,7 @@ func validateSend(t *testing.T, b *seg.PathSegment, egIfId uint16, nextHop *net.
 	// Check the interface matches.
 	assert.Equal(t, hopF.ConsEgress, egIfId)
 	// Check that the beacon is sent to the correct border router.
-	br := interfaceInfos(topo)[egIfId].InternalAddr.UDPAddr()
+	br := net.UDPAddrFromAddrPort(interfaceInfos(topo)[egIfId].InternalAddr)
 	assert.Equal(t, br, nextHop)
 }
 
@@ -724,7 +725,7 @@ func TestHashing(t *testing.T) {
 	require.NotContains(t, hashes, egress.HashBeacon(alteredBeacon))
 	hashes = append(hashes, egress.HashBeacon(alteredBeacon))
 
-	alteredBeacon.Info.Timestamp = time.UnixMilli(5000000)
+	alteredBeacon.Info.Timestamp = alteredBeacon.Info.Timestamp.Add(50 * time.Minute)
 	require.NotContains(t, hashes, egress.HashBeacon(alteredBeacon))
 	hashes = append(hashes, egress.HashBeacon(alteredBeacon))
 

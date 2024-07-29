@@ -16,6 +16,7 @@ go_library(
         "//pkg/log:go_default_library",
         "//pkg/private/serrors:go_default_library",
         "//pkg/proto/control_plane:go_default_library",
+        "//pkg/snet:go_default_library",
         "//private/app:go_default_library",
         "//private/app/launcher:go_default_library",
         "//private/topology:go_default_library",

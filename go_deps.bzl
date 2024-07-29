@@ -514,8 +514,8 @@ def go_deps():
     go_repository(
         name = "com_github_google_flatbuffers",
         importpath = "github.com/google/flatbuffers",
-        sum = "h1:M9dgRyhJemaM4Sw8+66GHBu8ioaQmyPLg1b8VwK5WJg=",
-        version = "v23.5.26+incompatible",
+        sum = "h1:CX395cjN9Kke9mmalRoL3d81AtFUxJM+yDthflgJGkI=",
+        version = "v24.3.25+incompatible",
     )
     go_repository(
         name = "com_github_google_go_cmp",

@@ -31,6 +31,7 @@ import (
 	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/pkg/segment/extensions/staticinfo"
 	"github.com/scionproto/scion/pkg/slayers/path"
+	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/rac/config"
 	"github.com/scionproto/scion/rac/env/ebpf"
@@ -271,14 +272,14 @@ var (
 
 type PeerEntry struct {
 	IA      addr.IA
-	Ingress common.IFIDType
+	Ingress common.IfIDType
 }
 
 type IfInfo struct {
 	IA      addr.IA
 	Next    addr.IA
-	Ingress common.IFIDType
-	Egress  common.IFIDType
+	Ingress common.IfIDType
+	Egress  common.IfIDType
 	Peers   []PeerEntry
 }
 
@@ -363,7 +364,7 @@ func MockBeacon(ases []IfInfo, id uint16, inIfId uint16, infoTS int64) (beacon.B
 		})
 	}
 	//todo(jvb); signed body not getting into db due to mockbeacon
-	b := beacon.Beacon{Segment: pseg, InIfId: inIfId}
+	b := beacon.Beacon{Segment: pseg, InIfID: inIfId}
 	flatbufferBeacon, err := beacon.PackBeaconFB(&b)
 
 	if err != nil {
@@ -464,17 +465,17 @@ func main() {
 			rowIds = append(rowIds, int64(i))
 			bcns = append(bcns, &cppb.IRECBeacon{
 				PathSeg: excerpt,
-				InIfId:  uint32(bcn.InIfId),
+				InIfId:  uint32(bcn.InIfID),
 				Id:      int64(i),
 			})
 			bcnsUnopt = append(bcnsUnopt, &cppb.IRECBeaconUnopt{
 				PathSeg: seg.PathSegmentToPB(bcn.Segment),
-				InIfId:  uint32(bcn.InIfId),
+				InIfId:  uint32(bcn.InIfID),
 				Id:      int64(i),
 			})
 			egressBcns = append(egressBcns, &cppb.EgressBeacon{
 				PathSeg:         seg.PathSegmentToPB(bcn.Segment),
-				InIfId:          uint32(bcn.InIfId),
+				InIfId:          uint32(bcn.InIfID),
 				EgressIntfs:     nil,
 				PullbasedTarget: 0,
 			})
@@ -512,7 +513,7 @@ func main() {
 		}
 
 		dialer := &libgrpc.TCPDialer{
-			SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+			SvcResolver: func(dst addr.SVC) []resolver.Address {
 				if base := dst.Base(); base != addr.SvcCS {
 					panic("Unsupported address type, implementation error?")
 				}
@@ -521,7 +522,7 @@ func main() {
 				return targets
 			},
 		}
-		conn, err := dialer.DialLimit(context.Background(), addr.SvcCS, 50)
+		conn, err := dialer.DialLimit(context.Background(), &snet.SVCAddr{SVC: addr.SvcCS}, 50)
 		if err != nil {
 			log.Error("error occurred", "err", err)
 			return
@@ -586,17 +587,17 @@ func main() {
 			rowIds = append(rowIds, int64(i))
 			bcns = append(bcns, &cppb.IRECBeacon{
 				PathSeg: excerpt,
-				InIfId:  uint32(bcn.InIfId),
+				InIfId:  uint32(bcn.InIfID),
 				Id:      int64(i),
 			})
 			bcnsUnopt = append(bcnsUnopt, &cppb.IRECBeaconUnopt{
 				PathSeg: seg.PathSegmentToPB(bcn.Segment),
-				InIfId:  uint32(bcn.InIfId),
+				InIfId:  uint32(bcn.InIfID),
 				Id:      int64(i),
 			})
 			egressBcns = append(egressBcns, &cppb.EgressBeacon{
 				PathSeg:         seg.PathSegmentToPB(bcn.Segment),
-				InIfId:          uint32(bcn.InIfId),
+				InIfId:          uint32(bcn.InIfID),
 				EgressIntfs:     nil,
 				PullbasedTarget: 0,
 			})
@@ -817,7 +818,7 @@ func main() {
 			IngressDB:             db,
 			PropagationInterfaces: []uint32{0, 1, 2},
 			Dialer: &libgrpc.TCPDialer{
-				SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+				SvcResolver: func(dst addr.SVC) []resolver.Address {
 					if base := dst.Base(); base != addr.SvcCS {
 						panic("Unsupported address type, implementation error?")
 					}
@@ -853,7 +854,7 @@ func main() {
 			IngressDB:             db,
 			PropagationInterfaces: []uint32{0, 1, 2},
 			Dialer: &libgrpc.TCPDialer{
-				SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+				SvcResolver: func(dst addr.SVC) []resolver.Address {
 					if base := dst.Base(); base != addr.SvcCS {
 						panic("Unsupported address type, implementation error?")
 					}

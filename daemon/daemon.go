@@ -120,11 +120,9 @@ type ServerConfig struct {
 // NewServer constructs a daemon API server.
 func NewServer(cfg ServerConfig) *servers.DaemonServer {
 	return &servers.DaemonServer{
-		Dialer:      cfg.Dialer,
-		IA:          cfg.IA,
-		MTU:         cfg.MTU,
-		IA:  cfg.IA,
-		MTU: cfg.MTU,
+		Dialer: cfg.Dialer,
+		IA:     cfg.IA,
+		MTU:    cfg.MTU,
 		// TODO(JordiSubira): This will be changed in the future to fetch
 		// the information from the CS instead of feeding the configuration
 		// file into.

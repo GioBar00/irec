@@ -19,7 +19,7 @@ import (
 
 // Pather computes the remote address with a path based on the provided segment.
 type Pather interface {
-	GetPath(svc addr.HostSVC, ps *seg.PathSegment) (*snet.SVCAddr, error)
+	GetPath(svc addr.SVC, ps *seg.PathSegment) (*snet.SVCAddr, error)
 }
 
 // SegmentStore stores segments in the path database.
@@ -88,10 +88,10 @@ func (r *RemoteWriter) Write(
 	var wg sync.WaitGroup
 	for _, b := range segments {
 		if extendBeacon {
-			if r.Intfs.Get(b.InIfId) == nil {
+			if r.Intfs.Get(b.InIfID) == nil {
 				continue
 			}
-			err := r.Extender.Extend(ctx, b.Segment, b.InIfId, 0, false, nil, peers)
+			err := r.Extender.Extend(ctx, b.Segment, b.InIfID, 0, false, nil, peers)
 			if err != nil {
 				logger.Error("Unable to terminate beacon", "beacon", b, "err", err)
 				metrics.CounterInc(r.InternalErrors)
@@ -146,11 +146,11 @@ func (r *LocalWriter) Write(
 	var toRegister []*seg.Meta
 	for _, b := range segments {
 		if extendBeacon {
-			if r.Intfs.Get(b.InIfId) == nil {
+			if r.Intfs.Get(b.InIfID) == nil {
 				continue
 			}
 			logger.Debug("terminating beacon")
-			err := r.Extender.Extend(ctx, b.Segment, b.InIfId, 0, false, nil, peers)
+			err := r.Extender.Extend(ctx, b.Segment, b.InIfID, 0, false, nil, peers)
 
 			if err != nil {
 				logger.Error("Unable to terminate beacon", "beacon", b, "err", err)
@@ -182,7 +182,7 @@ func (r *LocalWriter) updateMetricsFromStat(s seghandler.SegStats, b map[string]
 	for _, id := range s.InsertedSegs {
 		metrics.CounterInc(metrics.CounterWith(r.Registered, writerLabels{
 			StartIA: b[id].Segment.FirstIA(),
-			Ingress: b[id].InIfId,
+			Ingress: b[id].InIfID,
 			SegType: r.Type.String(),
 			Result:  "ok_new",
 		}.Expand()...))
@@ -190,7 +190,7 @@ func (r *LocalWriter) updateMetricsFromStat(s seghandler.SegStats, b map[string]
 	for _, id := range s.UpdatedSegs {
 		metrics.CounterInc(metrics.CounterWith(r.Registered, writerLabels{
 			StartIA: b[id].Segment.FirstIA(),
-			Ingress: b[id].InIfId,
+			Ingress: b[id].InIfID,
 			SegType: r.Type.String(),
 			Result:  "ok_updated",
 		}.Expand()...))
@@ -230,7 +230,7 @@ func (r *remoteWriter) startSendSegReg(ctx context.Context, bseg beacon.Beacon,
 
 		labels := writerLabels{
 			StartIA: bseg.Segment.FirstIA(),
-			Ingress: bseg.InIfId,
+			Ingress: bseg.InIfID,
 			SegType: r.writer.Type.String(),
 		}
 

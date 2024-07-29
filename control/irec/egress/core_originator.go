@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"math/big"
+	"net"
 	"sort"
 	"sync"
 	"time"
@@ -146,7 +147,7 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 	topoInfo := o.intf.TopoInfo()
 
 	senderStart := time.Now()
-	duration := time.Duration(5 * len(topoInfo.Groups))
+	duration := time.Duration(5 * max(len(topoInfo.Groups), 1))
 	senderCtx, cancelF := context.WithTimeout(ctx, duration*time.Second)
 
 	defer cancelF()
@@ -155,7 +156,7 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 		senderCtx,
 		topoInfo.IA,
 		topoInfo.ID,
-		topoInfo.InternalAddr.UDPAddr(),
+		net.UDPAddrFromAddrPort(topoInfo.InternalAddr),
 	)
 	if err != nil {
 		return serrors.WrapStr("getting beacon sender", err,
@@ -163,7 +164,13 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 	}
 	defer sender.Close()
 	if o.OriginatePerIntfGroup {
-		for _, intfGroup := range topoInfo.Groups {
+		var groups []uint16
+		if len(topoInfo.Groups) == 0 {
+			groups = []uint16{0} // Default to sending to all groups.
+		} else {
+			groups = topoInfo.Groups
+		}
+		for _, intfGroup := range groups {
 			sendStart := time.Now()
 			beacon, err := o.createBeacon(ctx, intfGroup)
 			if o.pullbased {

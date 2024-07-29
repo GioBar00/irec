@@ -192,9 +192,9 @@ func TestIFInfoMap(t *testing.T) {
 	c := MustLoadTopo(t, "testdata/basic.json")
 	ifm := IfInfoMap{
 		1: IFInfo{
-			ID:     1,
-			BRName: "br1-ff00:0:311-1",
-			Groups: []uint16{0},
+			ID:           1,
+			BRName:       "br1-ff00:0:311-1",
+			Groups:       []uint16{0},
 			InternalAddr: netip.MustParseAddrPort("10.1.0.1:0"),
 			Local:        netip.MustParseAddrPort("192.0.2.1:44997"),
 			Remote:       netip.MustParseAddrPort("192.0.2.2:44998"),
@@ -208,9 +208,9 @@ func TestIFInfoMap(t *testing.T) {
 			},
 		},
 		3: IFInfo{
-			ID:     3,
-			BRName: "br1-ff00:0:311-1",
-			Groups: []uint16{0},
+			ID:           3,
+			BRName:       "br1-ff00:0:311-1",
+			Groups:       []uint16{0},
 			InternalAddr: netip.MustParseAddrPort("10.1.0.1:0"),
 			Local:        netip.MustParseAddrPort("[2001:db8:a0b:12f0::1]:44997"),
 			Remote:       netip.MustParseAddrPort("[2001:db8:a0b:12f0::2]:44998"),
@@ -220,7 +220,7 @@ func TestIFInfoMap(t *testing.T) {
 		},
 		8: IFInfo{
 			ID:           8,
-			Groups: []uint16{0},
+			Groups:       []uint16{0},
 			BRName:       "br1-ff00:0:311-1",
 			InternalAddr: netip.MustParseAddrPort("10.1.0.1:0"),
 			Local:        netip.AddrPortFrom(netip.Addr{}, 44997),
@@ -231,7 +231,7 @@ func TestIFInfoMap(t *testing.T) {
 		},
 		11: IFInfo{
 			ID:           11,
-			Groups: []uint16{0},
+			Groups:       []uint16{0},
 			BRName:       "br1-ff00:0:311-2",
 			InternalAddr: netip.MustParseAddrPort(`[2001:db8:a0b:12f0::1%some-internal-zone]:0`),
 			Local:        netip.MustParseAddrPort(`[2001:db8:a0b:12f0::1%some-local-zone]:44897`),
@@ -290,7 +290,6 @@ func TestIFInfoMapCoreAS(t *testing.T) {
 	ifm := IfInfoMap{
 		91: IFInfo{
 			ID:           91,
-			Groups: []uint16{0},
 			BRName:       "borderrouter6-ff00:0:362-1",
 			InternalAddr: netip.MustParseAddrPort("10.1.0.1:0"),
 			Local:        netip.MustParseAddrPort("192.0.2.1:4997"),
@@ -301,7 +300,6 @@ func TestIFInfoMapCoreAS(t *testing.T) {
 		},
 		32: IFInfo{
 			ID:           32,
-			Groups: []uint16{0},
 			BRName:       "borderrouter6-ff00:0:362-9",
 			InternalAddr: netip.MustParseAddrPort("[2001:db8:a0b:12f0::2]:0"),
 			Local:        netip.MustParseAddrPort("[2001:db8:a0b:12f0::1]:4997"),

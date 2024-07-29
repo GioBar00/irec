@@ -16,13 +16,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -38,7 +41,6 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/resolver"
-	"inet.af/netaddr"
 
 	cs "github.com/scionproto/scion/control"
 	"github.com/scionproto/scion/control/beacon"
@@ -393,7 +395,7 @@ func realMain(ctx context.Context) error {
 			Peers:      egress.SortedIntfs(intfs, topology.Peer),
 			Verifier:   verifier,
 			Interfaces: intfs,
-			Rewriter:   nc.AddressRewriter(nil),
+			Rewriter:   nc.AddressRewriter(),
 			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
@@ -408,13 +410,13 @@ func realMain(ctx context.Context) error {
 				EPIC:       false,
 			},
 			Dialer: &libgrpc.QUICDialer{
-				Rewriter: nc.AddressRewriter(nil),
+				Rewriter: nc.AddressRewriter(),
 				Dialer:   quicStack.Dialer,
 			},
 		},
 		IngressDB: db,
 		Dialer: &libgrpc.TCPDialer{
-			SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+			SvcResolver: func(dst addr.SVC) []resolver.Address {
 				if base := dst.Base(); base != addr.SvcCS {
 					panic("Unsupported address type, implementation error?")
 				}
@@ -634,7 +636,7 @@ func realMain(ctx context.Context) error {
 
 		Originator: &egress.PullBasedOriginator{BasicOriginator: originator},
 		Dialer: &libgrpc.QUICDialer{
-			Rewriter: nc.AddressRewriter(nil),
+			Rewriter: nc.AddressRewriter(),
 			Dialer:   quicStack.Dialer,
 		},
 		Local: topo.IA(),
@@ -1155,15 +1157,7 @@ func createBeaconStore(
 func adaptInterfaceMap(in map[common.IfIDType]topology.IFInfo) map[uint16]ifstate.InterfaceInfo {
 	converted := make(map[uint16]ifstate.InterfaceInfo, len(in))
 	for id, info := range in {
-		addr, ok := netaddr.FromStdAddr(
-			info.InternalAddr.IP,
-			info.InternalAddr.Port,
-			info.InternalAddr.Zone,
-		)
 		log.Debug("Intf groups", "intf", info.Groups)
-		if !ok {
-			panic(fmt.Sprintf("failed to adapt the topology format. Input %s", info.InternalAddr))
-		}
 		converted[uint16(id)] = ifstate.InterfaceInfo{
 			ID:           uint16(info.ID),
 			IA:           info.IA,

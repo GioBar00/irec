@@ -87,7 +87,7 @@ func (s *DaemonServer) Paths(ctx context.Context,
 }
 func (s *DaemonServer) PullPaths(ctx context.Context,
 	req *sdpb.PullPathsRequest) (*sdpb.PullPathsResponse, error) {
-	conn, err := s.Dialer.Dial(ctx, addr.SvcCS)
+	conn, err := s.Dialer.Dial(ctx, &snet.SVCAddr{SVC: addr.SvcCS})
 	if err != nil {
 		return &sdpb.PullPathsResponse{}, err
 	}

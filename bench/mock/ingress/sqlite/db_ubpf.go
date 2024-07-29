@@ -451,7 +451,7 @@ func insertNewBeacon(
 	_, err = tx.ExecContext(ctx, inst, segID, fullID, start.ISD(), start.AS(),
 		intfGroup,
 		algorithmHash,
-		algorithmId, b.InIfId,
+		algorithmId, b.InIfID,
 		len(b.Segment.ASEntries), infoTime, expTime, lastUpdated, usage, packed, packedFlatBuffer, pullBased, pullBasedMinBeacons, pullBasedPeriod, pullBasedHyperPeriod, pullBasedTargetAs, pullBasedTargetIsd)
 	if err != nil {
 		return db.NewWriteError("insert beacon", err)

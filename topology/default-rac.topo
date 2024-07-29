@@ -46,7 +46,6 @@ ASes:
   "1-ff00:0:132":
     dynamic_racs: 1
     cert_issuer: 1-ff00:0:130
-    underlay: UDP/IPv6
   "1-ff00:0:133":
     dynamic_racs: 1
     cert_issuer: 1-ff00:0:130

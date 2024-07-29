@@ -18,6 +18,7 @@ import (
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
+	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/private/topology"
 	"github.com/scionproto/scion/rac"
@@ -45,7 +46,7 @@ func realMain(ctx context.Context) error {
 	})
 
 	dialer := &libgrpc.TCPDialer{
-		SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+		SvcResolver: func(dst addr.SVC) []resolver.Address {
 			if base := dst.Base(); base != addr.SvcCS {
 				panic("Unsupported address type, implementation error?")
 			}
@@ -56,7 +57,7 @@ func realMain(ctx context.Context) error {
 			return targets
 		},
 	}
-	conn, err := dialer.Dial(context.Background(), addr.SvcCS)
+	conn, err := dialer.Dial(context.Background(), &snet.SVCAddr{SVC: addr.SvcCS})
 	if err != nil {
 		log.Error("Error occurred dialing ", "err", err)
 	}
@@ -97,7 +98,7 @@ func realMain(ctx context.Context) error {
 
 func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.AlgorithmCache, env env2.Environment, ctr *atomic.Uint64) {
 
-	conn, err := dialer.DialLimit(ctx, addr.SvcCS, 200)
+	conn, err := dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 200)
 	if err != nil {
 		log.Error("Error when retrieving job for sources", "err", err)
 		time.Sleep(1 * time.Second)
@@ -143,12 +144,14 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
+			log.Info("Calling to say job is complete")
 			_, err = client.JobComplete(ctx, res)
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
+			log.Info("Called to say job is complete")
 			ctr.Add(1)
 
 		}()
@@ -157,7 +160,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 
 func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.AlgorithmCache, env env2.Environment, ctr *atomic.Uint64) {
 
-	conn, err := dialer.DialLimit(ctx, addr.SvcCS, 200)
+	conn, err := dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 200)
 
 	if err != nil {
 		log.Error("Error when retrieving job for sources", "err", err)

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"net"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ func (p *Propagator) RequestPullBasedOrigination(ctx context.Context, request *c
 func HashBeacon(segment *seg.PathSegment) []byte {
 	h := sha256.New()
 	binary.Write(h, binary.BigEndian, segment.Info.SegmentID)
-	binary.Write(h, binary.BigEndian, segment.Info.Timestamp)
+	binary.Write(h, binary.BigEndian, segment.Info.Timestamp.UnixNano())
 	binary.Write(h, binary.BigEndian, segment.Info.Raw)
 	for _, ase := range segment.ASEntries {
 		binary.Write(h, binary.BigEndian, ase.Local)
@@ -104,7 +105,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 			continue
 		}
-
+		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
 		// TODO(jvb); ALternatively, we can write these to the egress database and use a periodic writer to write to the path servers.
 		// A non-core AS can have multiple writers, core only one, write to all:
@@ -127,7 +128,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				// writer has side-effects for beacon, therefore recreate beacon arr for each writer
 
 				log.Info("NOTIF; writing", "bcn", segment)
-				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment, InIfId: uint16(bcn.InIfId)}}, p.Peers, true)
+				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
+					InIfID: uint16(bcn.InIfId)}}, p.Peers, true)
+				log.Debug("NOTIF; finished writing", "bcn", segment)
 				if err != nil {
 					log.Error("Could not write beacon to path servers", "err", err)
 				}
@@ -144,6 +147,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				defer log.HandlePanic()
 				defer wg.Done()
 				intf := p.Interfaces[intfId]
+				log.Debug("NOTIF; here1")
 				if intf == nil {
 					log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
 					return
@@ -158,6 +162,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB propagation segment failed", "err", err)
 					return
 				}
+				log.Debug("NOTIF; here2")
 
 				if p.shouldIgnore(segment, intf) {
 					return
@@ -182,6 +187,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
+				log.Debug("NOTIF; here3")
 				// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 				peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -204,6 +210,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 
+				log.Debug("NOTIF; here4")
+				//TODO(jvb): hangs between 4 and 5
 				//	Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
 				defer cancel()
@@ -212,7 +220,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					senderCtx,
 					intf.TopoInfo().IA,
 					intf.TopoInfo().ID,
-					intf.TopoInfo().InternalAddr.UDPAddr(),
+					net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
 				)
 				if err != nil {
 					log.Error("Creating sender failed", "err", err)
@@ -220,9 +228,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				defer sender.Close()
 				if err := sender.Send(ctx, segment); err != nil {
-					log.Error("Sending beacon failed", "err", err)
+					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
+						"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
+						err)
 					return
 				}
+				log.Debug("NOTIF; here5")
 				// Here we keep track of the last time a beacon has been sent on an interface per algorithm hash.
 				// Such that the egress gateway can plan origination scripts for those algorithms that need origination.
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -230,10 +241,14 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				} else {
 					intf.Propagate(time.Now(), "")
 				}
+				log.Debug("NOTIF; here6")
 			}()
 		}
 	}
+
+	log.Debug("NOTIF; waiting")
 	wg.Wait() // Necessary for tests, but possible optimization is not waiting for this.
+	log.Debug("NOTIF; DONE1!!!@!")
 	return &cppb.PropagationRequestResponse{}, nil
 }
 

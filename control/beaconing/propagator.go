@@ -320,7 +320,7 @@ func (p *propagator) Propagate(ctx context.Context) error {
 			}
 
 			setSuccess()
-			p.incMetric(b.Segment.FirstIA(), b.InIfId, egress, prom.Success)
+			p.incMetric(b.Segment.FirstIA(), b.InIfID, egress, prom.Success)
 			p.intf.Propagate(p.now, "")
 
 			if debugEnabled {

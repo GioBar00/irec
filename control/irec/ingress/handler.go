@@ -41,16 +41,16 @@ type Handler struct {
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
 	span := opentracing.SpanFromContext(ctx)
-	intf := h.Interfaces.Get(b.InIfId)
+	intf := h.Interfaces.Get(b.InIfID)
 	if intf == nil {
 		err := serrors.New("received beacon on non-existent interface",
-			"ingress_interface", b.InIfId)
+			"ingress_interface", b.InIfID)
 		return err
 	}
 
 	upstream := intf.TopoInfo().IA
 	if span != nil {
-		span.SetTag("ingress_interface", b.InIfId)
+		span.SetTag("ingress_interface", b.InIfID)
 		span.SetTag("upstream", upstream)
 	}
 	logger := log.FromCtx(ctx).New("beacon", b, "upstream", upstream)
@@ -120,7 +120,7 @@ func (h Handler) checkAndFetchAlgorithm(ctx context.Context, b *beacon.Beacon, p
 	// to create a path back to the origin AS using the path described in the beacon.
 	//TODO(jvb); Optimize this slightly by removing the need for the extender.
 	segCopy, _ := seg.BeaconFromPB(seg.PathSegmentToPB(b.Segment))
-	err = h.Extender.Extend(ctx, segCopy, b.InIfId, 0, false, nil, []uint16{})
+	err = h.Extender.Extend(ctx, segCopy, b.InIfID, 0, false, nil, []uint16{})
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (h Handler) validateASEntry(b beacon.Beacon, intf *ifstate.Interface) error
 	topoInfo := intf.TopoInfo()
 	if topoInfo.LinkType != topology.Parent && topoInfo.LinkType != topology.Core {
 		return serrors.New("beacon received on invalid link",
-			"ingress_interface", b.InIfId, "link_type", topoInfo.LinkType)
+			"ingress_interface", b.InIfID, "link_type", topoInfo.LinkType)
 	}
 	asEntry := b.Segment.ASEntries[b.Segment.MaxIdx()]
 	if !asEntry.Local.Equal(topoInfo.IA) {

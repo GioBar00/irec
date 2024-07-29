@@ -750,7 +750,7 @@ func ReverseSegments(ps *seg.PathSegment) Path {
 		if hopField.ConsEgress != 0 {
 			intfs = append(intfs, snet.PathInterface{
 				IA: asEntry.Local,
-				ID: common.IFIDType(hopField.ConsEgress),
+				ID: common.IfIDType(hopField.ConsEgress),
 			})
 		}
 		hops = append(hops, hopField)
@@ -796,7 +796,7 @@ func ReverseSegments(ps *seg.PathSegment) Path {
 	if err := sp.SerializeTo(raw); err != nil {
 		panic(err)
 	}
-	minTTL := time.Duration(path.MaxTTL) * time.Second
+	minTTL := path.MaxTTL
 	for _, hf := range hops {
 		offset := path.ExpTimeToDuration(hf.ExpTime)
 		if minTTL > offset {

@@ -8,13 +8,13 @@ import (
 	"crypto/rand"
 	"hash"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"inet.af/netaddr"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/ifstate"
@@ -68,8 +68,8 @@ func interfaceInfos(topo topology.Topology) map[uint16]ifstate.InterfaceInfo {
 			IA:           info.IA,
 			LinkType:     info.LinkType,
 			Groups:       info.Groups,
-			InternalAddr: netaddr.MustParseIPPort(info.InternalAddr.String()),
-			RemoteID:     uint16(info.RemoteIFID),
+			InternalAddr: netip.MustParseAddrPort(info.InternalAddr.String()),
+			RemoteID:     uint16(info.RemoteIfID),
 			MTU:          uint16(info.MTU),
 		}
 	}
@@ -147,7 +147,7 @@ func TestOriginatorRun(t *testing.T) {
 						// Check the interface matches.
 						assert.Equal(t, hopF.ConsEgress, egIfId)
 						// Check that the beacon is sent to the correct border router.
-						br := interfaceInfos(topo)[egIfId].InternalAddr.UDPAddr()
+						br := net.UDPAddrFromAddrPort(interfaceInfos(topo)[egIfId].InternalAddr)
 						assert.Equal(t, br, nextHop)
 						//// Check that the IREC extension contains the correct origination algorithm
 						//algHash := b.ASEntries[b.MaxIdx()].Extensions.Irec.AlgorithmHash

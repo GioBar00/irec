@@ -316,7 +316,7 @@ func PackBeaconFB(beacon *Beacon) ([]byte, error) {
 	IREC.BeaconStart(builder)
 	IREC.BeaconAddAsEntries(builder, beacon_ase)
 	//irec.BeaconAddId(builder, )                         // TODO; id
-	IREC.BeaconAddInIfId(builder, uint32(beacon.InIfId))
+	IREC.BeaconAddInIfId(builder, uint32(beacon.InIfID))
 	packed := IREC.BeaconEnd(builder)
 	builder.Finish(packed)
 	bytes := builder.FinishedBytes()

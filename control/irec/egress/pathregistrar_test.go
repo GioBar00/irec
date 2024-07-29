@@ -212,7 +212,7 @@ func TestRegistrarRun(t *testing.T) {
 						assert.Equal(t, pathHopField.ConsEgress, segHopField.ConsEgress)
 
 						nextHop := pathHopField.ConsIngress
-						a := interfaceInfos(topo)[nextHop].InternalAddr.UDPAddr()
+						a := net.UDPAddrFromAddrPort(interfaceInfos(topo)[nextHop].InternalAddr)
 						assert.Equal(t, a, s.Addr.NextHop)
 					}
 				})
@@ -298,7 +298,7 @@ func testBeacon(g *graph.Graph, desc []uint16, addIrec bool) beacon.Beacon {
 	bseg.ASEntries = bseg.ASEntries[:len(bseg.ASEntries)-1]
 
 	return beacon.Beacon{
-		InIfId:  asEntry.HopEntry.HopField.ConsIngress,
+		InIfID:  asEntry.HopEntry.HopField.ConsIngress,
 		Segment: bseg,
 	}
 }
@@ -308,6 +308,6 @@ type topoWrap struct {
 }
 
 func (w topoWrap) UnderlayNextHop(id uint16) *net.UDPAddr {
-	a, _ := w.Topo.UnderlayNextHop(common.IFIDType(id))
+	a, _ := w.Topo.UnderlayNextHop(common.IfIDType(id))
 	return a
 }

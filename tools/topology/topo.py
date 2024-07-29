@@ -363,7 +363,7 @@ class TopoGenerator(object):
 
         intl_addr = self._reg_addr(local, local_br + "_internal", addr_type)
 
-        intf = self._gen_br_intf(remote, r_ifid, local_addr, remote_addr, attrs, remote_type)
+        intf = self._gen_br_intf(remote, r_ifid, local_addr, remote_addr, attrs, remote_type, grps)
 
         if self.topo_dicts[local]["border_routers"].get(local_br) is None:
             intl_port = 30042
@@ -373,8 +373,6 @@ class TopoGenerator(object):
             self.topo_dicts[local]["border_routers"][local_br] = {
                 'internal_addr': join_host_port(intl_addr.ip, intl_port),
                 'interfaces': {
-                    l_ifid: self._gen_br_intf(remote, public_addr, remote_addr, attrs,
-                                              remote_type, grps)
                     l_ifid: intf
                 }
             }
@@ -383,7 +381,7 @@ class TopoGenerator(object):
             intf = self._gen_br_intf(remote, public_addr, remote_addr, attrs, remote_type, grps)
             self.topo_dicts[local]["border_routers"][local_br]['interfaces'][l_ifid] = intf
 
-    def _gen_br_intf(self, remote, r_ifid, local_addr, remote_addr, attrs, remote_type):
+    def _gen_br_intf(self, remote, r_ifid, local_addr, remote_addr, attrs, remote_type, grps):
         link_to = remote_type.name.lower()
         intf = {
             'underlay': {
