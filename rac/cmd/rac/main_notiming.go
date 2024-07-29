@@ -10,6 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/resolver"
+
 	"github.com/scionproto/scion/pkg/addr"
 	libgrpc "github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
@@ -22,8 +25,6 @@ import (
 	"github.com/scionproto/scion/rac/env/ebpf"
 	"github.com/scionproto/scion/rac/env/native"
 	"github.com/scionproto/scion/rac/env/wasm"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/resolver"
 )
 
 func realMain(ctx context.Context) error {
@@ -116,6 +117,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
+			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			if exec.BeaconCount == 0 {
 				time.Sleep(1 * time.Second)
 				return

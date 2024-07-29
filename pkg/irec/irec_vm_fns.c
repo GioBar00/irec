@@ -24,14 +24,14 @@ void assert_fail(ubpf_ctx_t* ctx, const char *__assertion, const char *__file,
 
 int print(ubpf_ctx_t* ctx, const char * fmt, ...){
 // This is a security risk, only allow printing in debug mode.
-#ifdef IREC_DEBUG
+//#ifdef IREC_DEBUG
     va_list ap;
     int res = 0;
     va_start(ap, fmt);
     res = vprintf(fmt, ap);
     va_end(ap);
     return res;
-#endif
+//#endif
 }
 
 //#ifndef __GLIBC__

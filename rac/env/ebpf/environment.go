@@ -75,6 +75,8 @@ func (e *EbpfEnv) ExecuteVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 			PullbasedTarget: 0,
 		}
 	}
+	C.fflush(C.stdout)
+	log.Info("Processing result", "res", selectedBeacons)
 
 	C.destroy_mem(vmCtx)
 	if !e.Static {

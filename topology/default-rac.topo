@@ -5,8 +5,7 @@ ASes:
     voting: true
     authoritative: true
     issuing: true
-    static_racs:
-        - {static_algorithm: algorithms/deadbeef.o}
+    dynamic_racs: 1
     irec:
       algorithms:
         - {originate: true, id: 0, file: algorithms/deadbeef.o}
@@ -39,8 +38,7 @@ ASes:
     dynamic_racs: 1
     cert_issuer: 1-ff00:0:120
   "1-ff00:0:122":
-    static_racs:
-        - {static_algorithm: algorithms/deadbeef.o}
+    dynamic_racs: 1
     cert_issuer: 1-ff00:0:120
   "1-ff00:0:131":
     dynamic_racs: 1
