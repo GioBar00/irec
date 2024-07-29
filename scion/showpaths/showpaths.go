@@ -19,8 +19,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
-	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -54,12 +53,12 @@ type Path struct {
 	Latency     []time.Duration `json:"latency" yaml:"latency"`
 	Status      string          `json:"status,omitempty" yaml:"status,omitempty"`
 	StatusInfo  string          `json:"status_info,omitempty" yaml:"status_info,omitempty"`
-	Local       net.IP          `json:"local_ip,omitempty" yaml:"local_ip,omitempty"`
+	Local       netip.Addr      `json:"local_ip,omitempty" yaml:"local_ip,omitempty"`
 }
 
 // Hop represents an hop on the path.
 type Hop struct {
-	IfID common.IFIDType `json:"ifid"`
+	IfID common.IfIDType `json:"interface"`
 	IA   addr.IA         `json:"isd_as"`
 }
 
@@ -243,8 +242,8 @@ func humanInternalHops(p *snet.PathMetadata) string {
 		if numHops == 0 {
 			continue
 		}
-		interfaceIdx := 2*i + 1
-		ia := p.Interfaces[interfaceIdx].IA
+		interfaceIndex := 2*i + 1
+		ia := p.Interfaces[interfaceIndex].IA
 		internalHops = append(internalHops, fmt.Sprintf("%s: %d", ia, numHops))
 	}
 	if len(internalHops) == 0 {
@@ -261,11 +260,11 @@ func humanNotes(p *snet.PathMetadata) string {
 		if note == "" {
 			continue
 		}
-		interfaceIdx := 0
+		interfaceIndex := 0
 		if i > 0 {
-			interfaceIdx = 2*i - 1
+			interfaceIndex = 2*i - 1
 		}
-		ia := p.Interfaces[interfaceIdx].IA
+		ia := p.Interfaces[interfaceIndex].IA
 		notes = append(notes, fmt.Sprintf("%s: \"%s\"", ia, sanitizeString(note)))
 	}
 	if len(notes) == 0 {
@@ -353,11 +352,10 @@ func Run(ctx context.Context, dst addr.IA, algHash []byte, cfg Config) (*Result,
 	if !cfg.NoProbe {
 		p := pathprobe.FilterEmptyPaths(paths)
 		statuses, err = pathprobe.Prober{
-			DstIA:      dst,
-			LocalIA:    localIA,
-			LocalIP:    cfg.Local,
-			ID:         uint16(rand.Uint32()),
-			Dispatcher: cfg.Dispatcher,
+			DstIA:    dst,
+			LocalIA:  localIA,
+			LocalIP:  cfg.Local,
+			Topology: sdConn,
 		}.GetStatuses(ctx, p, pathprobe.WithEPIC(cfg.Epic))
 		if err != nil {
 			return nil, serrors.WrapStr("getting statuses", err)

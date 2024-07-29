@@ -24,6 +24,7 @@ import (
 	timestamppb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/singleflight"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	drkey_daemon "github.com/scionproto/scion/daemon/drkey"
 	"github.com/scionproto/scion/daemon/fetcher"
@@ -48,9 +49,10 @@ import (
 )
 
 type Topology interface {
-	InterfaceIDs() []uint16
+	IfIDs() []uint16
 	UnderlayNextHop(uint16) *net.UDPAddr
 	ControlServiceAddresses() []*net.UDPAddr
+	PortRange() (uint16, uint16)
 }
 
 // DaemonServer handles gRPC requests to the SCION daemon.
@@ -293,7 +295,7 @@ func (s *DaemonServer) interfaces(ctx context.Context,
 		Interfaces: make(map[uint64]*sdpb.Interface),
 	}
 	topo := s.Topology
-	for _, ifID := range topo.InterfaceIDs() {
+	for _, ifID := range topo.IfIDs() {
 		nextHop := topo.UnderlayNextHop(ifID)
 		if nextHop == nil {
 			continue
@@ -353,7 +355,7 @@ func (s *DaemonServer) notifyInterfaceDown(ctx context.Context,
 
 	revInfo := &path_mgmt.RevInfo{
 		RawIsdas:     addr.IA(req.IsdAs),
-		IfID:         common.IFIDType(req.Id),
+		IfID:         common.IfIDType(req.Id),
 		LinkType:     proto.LinkType_core,
 		RawTTL:       10,
 		RawTimestamp: util.TimeToSecs(time.Now()),
@@ -369,11 +371,27 @@ func (s *DaemonServer) notifyInterfaceDown(ctx context.Context,
 	return &sdpb.NotifyInterfaceDownResponse{}, nil
 }
 
+// PortRange returns the port range for the dispatched ports.
+func (s *DaemonServer) PortRange(
+	_ context.Context,
+	_ *emptypb.Empty,
+) (*sdpb.PortRangeResponse, error) {
+
+	startPort, endPort := s.Topology.PortRange()
+	return &sdpb.PortRangeResponse{
+		DispatchedPortStart: uint32(startPort),
+		DispatchedPortEnd:   uint32(endPort),
+	}, nil
+}
+
 func (s *DaemonServer) DRKeyASHost(
 	ctx context.Context,
 	req *pb_daemon.DRKeyASHostRequest,
 ) (*pb_daemon.DRKeyASHostResponse, error) {
 
+	if s.DRKeyClient == nil {
+		return nil, serrors.New("DRKey is not available")
+	}
 	meta, err := requestToASHostMeta(req)
 	if err != nil {
 		return nil, serrors.WrapStr("parsing protobuf ASHostReq", err)
@@ -396,6 +414,9 @@ func (s *DaemonServer) DRKeyHostAS(
 	req *pb_daemon.DRKeyHostASRequest,
 ) (*pb_daemon.DRKeyHostASResponse, error) {
 
+	if s.DRKeyClient == nil {
+		return nil, serrors.New("DRKey is not available")
+	}
 	meta, err := requestToHostASMeta(req)
 	if err != nil {
 		return nil, serrors.WrapStr("parsing protobuf HostASReq", err)
@@ -418,6 +439,9 @@ func (s *DaemonServer) DRKeyHostHost(
 	req *pb_daemon.DRKeyHostHostRequest,
 ) (*pb_daemon.DRKeyHostHostResponse, error) {
 
+	if s.DRKeyClient == nil {
+		return nil, serrors.New("DRKey is not available")
+	}
 	meta, err := requestToHostHostMeta(req)
 	if err != nil {
 		return nil, serrors.WrapStr("parsing protobuf HostHostReq", err)

@@ -17,6 +17,7 @@ package svc
 import (
 	"context"
 	"net"
+	"net/netip"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -56,10 +57,9 @@ func init() {
 
 // Resolver performs SVC address resolution.
 type Resolver struct {
+	Network snet.Network
 	// LocalIA is the local AS.
 	LocalIA addr.IA
-	// ConnFactory is used to open ports for SVC resolution messages.
-	ConnFactory snet.PacketDispatcherService
 	// LocalIP is the default L3 address for connections originating from this process.
 	LocalIP net.IP
 	// RoundTripper performs the request/reply exchange for SVC resolutions. If
@@ -68,7 +68,7 @@ type Resolver struct {
 }
 
 // LookupSVC resolves the SVC address for the AS terminating the path.
-func (r *Resolver) LookupSVC(ctx context.Context, p snet.Path, svc addr.HostSVC) (*Reply, error) {
+func (r *Resolver) LookupSVC(ctx context.Context, p snet.Path, svc addr.SVC) (*Reply, error) {
 	var span opentracing.Span
 	span, ctx = opentracing.StartSpanFromContext(ctx, "svc.resolution")
 	span.SetTag("svc", svc.String())
@@ -78,8 +78,12 @@ func (r *Resolver) LookupSVC(ctx context.Context, p snet.Path, svc addr.HostSVC)
 	u := &net.UDPAddr{
 		IP: r.LocalIP,
 	}
+	localIP, ok := netip.AddrFromSlice(r.LocalIP)
+	if !ok {
+		return nil, serrors.New("invalid local IP", "ip", r.LocalIP)
+	}
 
-	conn, port, err := r.ConnFactory.Register(ctx, r.LocalIA, u, addr.SvcNone)
+	conn, err := r.Network.OpenRaw(ctx, u)
 	if err != nil {
 		ext.Error.Set(span, true)
 		return nil, serrors.Wrap(errRegistration, err)
@@ -95,15 +99,15 @@ func (r *Resolver) LookupSVC(ctx context.Context, p snet.Path, svc addr.HostSVC)
 		PacketInfo: snet.PacketInfo{
 			Source: snet.SCIONAddress{
 				IA:   r.LocalIA,
-				Host: addr.HostFromIP(r.LocalIP),
+				Host: addr.HostIP(localIP),
 			},
 			Destination: snet.SCIONAddress{
 				IA:   p.Destination(),
-				Host: svc,
+				Host: addr.HostSVC(svc),
 			},
 			Path: p.Dataplane(),
 			Payload: snet.UDPPayload{
-				SrcPort: port,
+				SrcPort: uint16(conn.LocalAddr().(*net.UDPAddr).Port),
 				Payload: requestPayload,
 			},
 		},

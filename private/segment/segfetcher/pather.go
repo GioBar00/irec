@@ -70,7 +70,7 @@ func (p *Pather) GetPaths(ctx context.Context, dst addr.IA,
 			Dst: dst,
 			Meta: snet.PathMetadata{
 				MTU:    p.MTU,
-				Expiry: time.Now().Add(rawpath.MaxTTL * time.Second),
+				Expiry: time.Now().Add(rawpath.MaxTTL),
 			},
 		}}, nil
 	}
@@ -197,7 +197,7 @@ func (p *Pather) translatePath(comb combinator.Path) (snet.Path, error) {
 	nextHop := p.NextHopper.UnderlayNextHop(uint16(comb.Metadata.Interfaces[0].ID))
 	if nextHop == nil {
 		return nil, serrors.New("Unable to find first-hop BR for path",
-			"ifid", comb.Metadata.Interfaces[0].ID)
+			"ifID", comb.Metadata.Interfaces[0].ID)
 	}
 	return path.Path{
 		Src:           comb.Metadata.Interfaces[0].IA,

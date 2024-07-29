@@ -16,6 +16,7 @@ package beaconing
 
 import (
 	"context"
+	"net"
 	"sort"
 	"strconv"
 	"sync"
@@ -168,7 +169,7 @@ func (p *Propagator) beaconsPerInterface(
 	}
 	var beacons []beacon.Beacon
 	for _, b := range allBeacons {
-		if p.AllInterfaces.Get(b.InIfId) == nil {
+		if p.AllInterfaces.Get(b.InIfID) == nil {
 			continue
 		}
 		beacons = append(beacons, b)
@@ -184,7 +185,7 @@ func (p *Propagator) beaconsPerInterface(
 			if err != nil {
 				return nil, err
 			}
-			toPropagate = append(toPropagate, beacon.Beacon{Segment: ps, InIfId: b.InIfId})
+			toPropagate = append(toPropagate, beacon.Beacon{Segment: ps, InIfID: b.InIfID})
 		}
 		r[intf] = toPropagate
 	}
@@ -222,7 +223,7 @@ func (p *Propagator) logCandidateBeacons(
 		for _, b := range beacons {
 			infos = append(infos, Beacon{
 				ID:      b.Segment.GetLoggingID(),
-				Ingress: b.InIfId,
+				Ingress: b.InIfID,
 				Segment: hopsDescription(b.Segment.ASEntries),
 			})
 		}
@@ -266,11 +267,11 @@ func (p *propagator) Propagate(ctx context.Context) error {
 		senderCtx,
 		topoInfo.IA,
 		egress,
-		topoInfo.InternalAddr.UDPAddr(),
+		net.UDPAddrFromAddrPort(topoInfo.InternalAddr),
 	)
 	if err != nil {
 		for _, b := range p.beacons {
-			p.incMetric(b.Segment.FirstIA(), b.InIfId, egress, prom.ErrNetwork)
+			p.incMetric(b.Segment.FirstIA(), b.InIfID, egress, prom.ErrNetwork)
 		}
 		return serrors.WrapStr("getting beacon sender", err,
 			"waited_for", time.Since(senderStart).String(),
@@ -294,14 +295,14 @@ func (p *propagator) Propagate(ctx context.Context) error {
 				id = b.Segment.GetLoggingID()
 			}
 
-			if err := p.extender.Extend(ctx, b.Segment, b.InIfId, egress, p.peers); err != nil {
+			if err := p.extender.Extend(ctx, b.Segment, b.InIfID, egress, p.peers); err != nil {
 				logger.Error("Unable to extend beacon",
 					"egress_interface", egress,
-					"beacon.ingress_interface", b.InIfId,
+					"beacon.ingress_interface", b.InIfID,
 					"beacon.segment", hopsDescription(b.Segment.ASEntries),
 					"err", err,
 				)
-				p.incMetric(b.Segment.FirstIA(), b.InIfId, egress, "err_create")
+				p.incMetric(b.Segment.FirstIA(), b.InIfID, egress, "err_create")
 				return
 			}
 
@@ -309,12 +310,12 @@ func (p *propagator) Propagate(ctx context.Context) error {
 			if err := sender.Send(ctx, b.Segment); err != nil {
 				logger.Info("Unable to send beacon",
 					"egress_interface", egress,
-					"beacon.ingress_interface", b.InIfId,
+					"beacon.ingress_interface", b.InIfID,
 					"beacon.segment", hopsDescription(b.Segment.ASEntries),
 					"waited_for", time.Since(sendStart).String(),
 					"err", err,
 				)
-				p.incMetric(b.Segment.FirstIA(), b.InIfId, egress, prom.ErrNetwork)
+				p.incMetric(b.Segment.FirstIA(), b.InIfID, egress, prom.ErrNetwork)
 				return
 			}
 
@@ -326,7 +327,7 @@ func (p *propagator) Propagate(ctx context.Context) error {
 				logger.Debug("Propagated beacon",
 					"egress_interface", egress,
 					"candidate_id", id,
-					"beacon.ingress_interface", b.InIfId,
+					"beacon.ingress_interface", b.InIfID,
 					"beacon.segment", hopsDescription(b.Segment.ASEntries),
 					"waited_for", time.Since(sendStart).String(),
 					"err", err,

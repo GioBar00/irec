@@ -23,8 +23,6 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/scrypto/cppki"
 	"github.com/scionproto/scion/private/storage/db"
@@ -159,10 +157,11 @@ func (e *executor) Chains(ctx context.Context,
 		args = append(args, query.SubjectKeyID)
 		filters = append(filters, fmt.Sprintf("key_id=$%d", len(args)))
 	}
-	if !query.Date.IsZero() {
-		args = append(args, query.Date.UTC())
+	if !query.Validity.IsZero() {
+		args = append(args, query.Validity.NotBefore.UTC())
+		args = append(args, query.Validity.NotAfter.UTC())
 		filters = append(filters, fmt.Sprintf("not_before<=$%d AND not_after>=$%d",
-			len(args), len(args)))
+			len(args)-1, len(args)))
 	}
 	if query.IA.ISD() != 0 {
 		args = append(args, query.IA.ISD())

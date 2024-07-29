@@ -56,10 +56,17 @@ func realMain(ctx context.Context) error {
 	}
 	g, errCtx := errgroup.WithContext(ctx)
 	metrics := router.NewMetrics()
+
 	dp := &router.Connector{
 		DataPlane: router.DataPlane{
-			Metrics: metrics,
+			Metrics:                        metrics,
+			ExperimentalSCMPAuthentication: globalCfg.Features.ExperimentalSCMPAuthentication,
 		},
+		ReceiveBufferSize:   globalCfg.Router.ReceiveBufferSize,
+		SendBufferSize:      globalCfg.Router.SendBufferSize,
+		BFD:                 globalCfg.Router.BFD,
+		DispatchedPortStart: globalCfg.Router.DispatchedPortStart,
+		DispatchedPortEnd:   globalCfg.Router.DispatchedPortEnd,
 	}
 	iaCtx := &control.IACtx{
 		Config: controlConfig,
@@ -121,7 +128,12 @@ func realMain(ctx context.Context) error {
 	})
 	g.Go(func() error {
 		defer log.HandlePanic()
-		if err := dp.DataPlane.Run(errCtx); err != nil {
+		runConfig := &router.RunConfig{
+			NumProcessors:         globalCfg.Router.NumProcessors,
+			NumSlowPathProcessors: globalCfg.Router.NumSlowPathProcessors,
+			BatchSize:             globalCfg.Router.BatchSize,
+		}
+		if err := dp.DataPlane.Run(errCtx, runConfig); err != nil {
 			return serrors.WrapStr("running dataplane", err)
 		}
 		return nil

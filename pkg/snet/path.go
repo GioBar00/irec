@@ -70,7 +70,7 @@ type Path interface {
 // PathInterface is an interface of the path.
 type PathInterface struct {
 	// ID is the ID of the interface.
-	ID common.IFIDType
+	ID common.IfIDType
 	// IA is the ISD AS identifier of the interface.
 	IA addr.IA
 }
@@ -247,10 +247,6 @@ func (p *partialPath) UnderlayNextHop() *net.UDPAddr {
 
 func (p *partialPath) Dataplane() DataplanePath {
 	return p.dataplane
-}
-
-func (p *partialPath) Interfaces() []PathInterface {
-	return nil
 }
 
 func (p *partialPath) Source() addr.IA {

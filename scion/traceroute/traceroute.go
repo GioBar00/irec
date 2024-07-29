@@ -17,8 +17,8 @@ package traceroute
 
 import (
 	"context"
-	"math/rand"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/scionproto/scion/pkg/addr"
@@ -28,7 +28,6 @@ import (
 	"github.com/scionproto/scion/pkg/slayers/path/scion"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/pkg/snet/path"
-	"github.com/scionproto/scion/pkg/sock/reliable"
 )
 
 // Update contains the information for a single hop.
@@ -56,12 +55,14 @@ type Stats struct {
 
 // Config configures the traceroute run.
 type Config struct {
-	Dispatcher  reliable.Dispatcher
-	Local       *snet.UDPAddr
+	Local   addr.Addr
+	Remote  addr.Addr
+	NextHop *net.UDPAddr
+
+	Topology    snet.Topology
 	MTU         uint16
 	PathEntry   snet.Path
 	PayloadSize uint
-	Remote      *snet.UDPAddr
 	Timeout     time.Duration
 	EPIC        bool
 
@@ -79,17 +80,18 @@ type tracerouter struct {
 	probesPerHop  int
 	timeout       time.Duration
 	conn          snet.PacketConn
-	local         *snet.UDPAddr
-	remote        *snet.UDPAddr
+	local         addr.Addr
+	remote        addr.Addr
 	errHandler    func(error)
 	updateHandler func(Update)
 
 	replies <-chan reply
 
-	path  snet.Path
-	epic  bool
-	id    uint16
-	index int
+	path    snet.Path
+	nextHop *net.UDPAddr
+	epic    bool
+	id      uint16
+	index   int
 
 	stats Stats
 }
@@ -99,18 +101,25 @@ func Run(ctx context.Context, cfg Config) (Stats, error) {
 	if _, isEmpty := cfg.PathEntry.Dataplane().(path.Empty); isEmpty {
 		return Stats{}, serrors.New("empty path is not allowed for traceroute")
 	}
-	id := rand.Uint64()
 	replies := make(chan reply, 10)
-	dispatcher := snet.DefaultPacketDispatcherService{
-		Dispatcher:  cfg.Dispatcher,
+	sn := &snet.SCIONNetwork{
 		SCMPHandler: scmpHandler{replies: replies},
+		Topology:    cfg.Topology,
 	}
-	conn, port, err := dispatcher.Register(ctx, cfg.Local.IA, cfg.Local.Host, addr.SvcNone)
+
+	// We need to manufacture a netip.UDPAddr as we're constrained by the sn API.
+	netUdpAddr := net.UDPAddrFromAddrPort(netip.AddrPortFrom(cfg.Local.Host.IP(), 0))
+	conn, err := sn.OpenRaw(ctx, netUdpAddr)
 	if err != nil {
 		return Stats{}, err
 	}
-	local := cfg.Local.Copy()
-	local.Host.Port = int(port)
+	// Get our real local address.
+	asNetipAddr, ok := netip.AddrFromSlice(conn.LocalAddr().(*net.UDPAddr).IP)
+	if !ok {
+		panic("Invalid Local IP address")
+	}
+	local := cfg.Local
+	local.Host = addr.HostIP(asNetipAddr)
 	t := tracerouter{
 		probesPerHop:  cfg.ProbesPerHop,
 		timeout:       cfg.Timeout,
@@ -120,8 +129,9 @@ func Run(ctx context.Context, cfg Config) (Stats, error) {
 		replies:       replies,
 		errHandler:    cfg.ErrHandler,
 		updateHandler: cfg.UpdateHandler,
-		id:            uint16(id),
+		id:            uint16(conn.LocalAddr().(*net.UDPAddr).Port),
 		path:          cfg.PathEntry,
+		nextHop:       cfg.NextHop,
 		epic:          cfg.EPIC,
 	}
 	return t.Traceroute(ctx)
@@ -162,7 +172,10 @@ func (t *tracerouter) Traceroute(ctx context.Context) (Stats, error) {
 				t.updateHandler(u)
 			}
 		}
-		xover := idxPath.IsXover()
+		// Peering links do not count as regular cross
+		// overs. For peering links we probe all interfaces on
+		// the path.
+		xover := idxPath.IsXover() && !info.Peer
 		// The last hop of the path isn't probed, only the ingress interface is
 		// relevant.
 		// At a crossover (segment change) only the ingress interface is
@@ -223,24 +236,19 @@ func (t *tracerouter) probeHop(ctx context.Context, hfIdx uint8, egress bool) (U
 		RTTs:  make([]time.Duration, 0, t.probesPerHop),
 	}
 	t.index++
+
 	pkt := &snet.Packet{
 		PacketInfo: snet.PacketInfo{
-			Destination: snet.SCIONAddress{
-				IA:   t.remote.IA,
-				Host: addr.HostFromIP(t.remote.Host.IP),
-			},
-			Source: snet.SCIONAddress{
-				IA:   t.local.IA,
-				Host: addr.HostFromIP(t.local.Host.IP),
-			},
-			Path:    alertPath,
-			Payload: snet.SCMPTracerouteRequest{Identifier: t.id},
+			Destination: t.remote,
+			Source:      t.local,
+			Path:        alertPath,
+			Payload:     snet.SCMPTracerouteRequest{Identifier: t.id},
 		},
 	}
 	for i := 0; i < t.probesPerHop; i++ {
 		sendTs := time.Now()
 		t.stats.Sent++
-		if err := t.conn.WriteTo(pkt, t.remote.NextHop); err != nil {
+		if err := t.conn.WriteTo(pkt, t.nextHop); err != nil {
 			return u, serrors.WrapStr("writing", err)
 		}
 		select {
@@ -310,11 +318,8 @@ func (h scmpHandler) Handle(pkt *snet.Packet) error {
 	h.replies <- reply{
 		Received: time.Now(),
 		Reply:    r,
-		Remote: snet.SCIONAddress{
-			IA:   pkt.Source.IA,
-			Host: pkt.Source.Host.Copy(),
-		},
-		Error: err,
+		Remote:   pkt.Source,
+		Error:    err,
 	}
 	return nil
 }

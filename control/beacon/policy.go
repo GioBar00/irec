@@ -20,6 +20,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/private/ptr"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/segment"
 )
@@ -254,8 +255,7 @@ func (f *Filter) InitDefaults() {
 		f.MaxHopsLength = DefaultMaxHopsLength
 	}
 	if f.AllowIsdLoop == nil {
-		t := true
-		f.AllowIsdLoop = &t
+		f.AllowIsdLoop = ptr.To(true)
 	}
 }
 

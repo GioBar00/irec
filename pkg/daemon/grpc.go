@@ -17,9 +17,11 @@ package daemon
 import (
 	"context"
 	"net"
+	"net/netip"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/scionproto/scion/pkg/addr"
@@ -74,6 +76,35 @@ func (c grpcConn) LocalIA(ctx context.Context) (addr.IA, error) {
 	return ia, nil
 }
 
+func (c grpcConn) PortRange(ctx context.Context) (uint16, uint16, error) {
+	client := sdpb.NewDaemonServiceClient(c.conn)
+	response, err := client.PortRange(ctx, &emptypb.Empty{})
+	if err != nil {
+		return 0, 0, err
+	}
+	return uint16(response.DispatchedPortStart), uint16(response.DispatchedPortEnd), nil
+}
+
+func (c grpcConn) Interfaces(ctx context.Context) (map[uint16]netip.AddrPort, error) {
+	client := sdpb.NewDaemonServiceClient(c.conn)
+	response, err := client.Interfaces(ctx, &sdpb.InterfacesRequest{})
+	if err != nil {
+		c.metrics.incInterface(err)
+		return nil, err
+	}
+	result := make(map[uint16]netip.AddrPort, len(response.Interfaces))
+	for ifID, intf := range response.Interfaces {
+		a, err := netip.ParseAddrPort(intf.Address.Address)
+		if err != nil {
+			c.metrics.incInterface(err)
+			return nil, serrors.WrapStr("parsing reply", err, "raw_uri", intf.Address.Address)
+		}
+		result[uint16(ifID)] = a
+	}
+	c.metrics.incInterface(nil)
+	return result, nil
+}
+
 func (c grpcConn) Paths(ctx context.Context, dst, src addr.IA,
 	f PathReqFlags) ([]snet.Path, error) {
 
@@ -123,32 +154,10 @@ func (c grpcConn) ASInfo(ctx context.Context, ia addr.IA) (ASInfo, error) {
 	}, nil
 }
 
-func (c grpcConn) IFInfo(ctx context.Context,
-	_ []common.IFIDType) (map[common.IFIDType]*net.UDPAddr, error) {
-
-	client := sdpb.NewDaemonServiceClient(c.conn)
-	response, err := client.Interfaces(ctx, &sdpb.InterfacesRequest{})
-	if err != nil {
-		c.metrics.incInterface(err)
-		return nil, err
-	}
-	result := make(map[common.IFIDType]*net.UDPAddr)
-	for ifID, intf := range response.Interfaces {
-		a, err := net.ResolveUDPAddr("udp", intf.Address.Address)
-		if err != nil {
-			c.metrics.incInterface(err)
-			return nil, serrors.WrapStr("parsing reply", err, "raw_uri", intf.Address.Address)
-		}
-		result[common.IFIDType(ifID)] = a
-	}
-	c.metrics.incInterface(nil)
-	return result, nil
-}
-
 func (c grpcConn) SVCInfo(
 	ctx context.Context,
-	_ []addr.HostSVC,
-) (map[addr.HostSVC][]string, error) {
+	_ []addr.SVC,
+) (map[addr.SVC][]string, error) {
 
 	client := sdpb.NewDaemonServiceClient(c.conn)
 	response, err := client.Services(ctx, &sdpb.ServicesRequest{})
@@ -156,7 +165,7 @@ func (c grpcConn) SVCInfo(
 		c.metrics.incServcies(err)
 		return nil, err
 	}
-	result := make(map[addr.HostSVC][]string)
+	result := make(map[addr.SVC][]string)
 	for st, si := range response.Services {
 		svc := topoServiceTypeToSVCAddr(topology.ServiceTypeFromString(st))
 		if svc == addr.SvcNone || len(si.Services) == 0 {
@@ -267,7 +276,7 @@ func convertPath(p *sdpb.Path, dst addr.IA) (path.Path, error) {
 	interfaces := make([]snet.PathInterface, len(p.Interfaces))
 	for i, pi := range p.Interfaces {
 		interfaces[i] = snet.PathInterface{
-			ID: common.IFIDType(pi.Id),
+			ID: common.IfIDType(pi.Id),
 			IA: addr.IA(pi.IsdAs),
 		}
 	}
@@ -331,7 +340,7 @@ func linkTypeFromPB(lt sdpb.LinkType) snet.LinkType {
 	}
 }
 
-func topoServiceTypeToSVCAddr(st topology.ServiceType) addr.HostSVC {
+func topoServiceTypeToSVCAddr(st topology.ServiceType) addr.SVC {
 	switch st {
 	case topology.Control:
 		return addr.SvcCS

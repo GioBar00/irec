@@ -90,20 +90,21 @@ func (SimpleDialer) Dial(ctx context.Context, address net.Addr) (*grpc.ClientCon
 // TCPDialer dials a gRPC connection over TCP. This dialer is meant to be used
 // for AS internal communication, and is capable of resolving svc addresses.
 type TCPDialer struct {
-	SvcResolver func(addr.HostSVC) []resolver.Address
+	SvcResolver func(addr.SVC) []resolver.Address
 }
 
 // Dial dials a gRPC connection over TCP. It resolves svc addresses.
 func (t *TCPDialer) Dial(ctx context.Context, dst net.Addr) (*grpc.ClientConn, error) {
-	if v, ok := dst.(addr.HostSVC); ok {
-		targets := t.SvcResolver(v)
+	if v, ok := dst.(*snet.SVCAddr); ok {
+		// XXX(matzf) is this really needed!?
+		targets := t.SvcResolver(v.SVC)
 		if len(targets) == 0 {
 			return nil, serrors.New("could not resolve")
 		}
 
 		r := manual.NewBuilderWithScheme("svc")
 		r.InitialState(resolver.State{Addresses: targets})
-		return grpc.DialContext(ctx, r.Scheme()+":///"+v.BaseString(),
+		return grpc.DialContext(ctx, r.Scheme()+":///"+v.SVC.BaseString(),
 			grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
 			grpc.WithInsecure(),
 			grpc.WithResolvers(r),
@@ -149,7 +150,7 @@ func (t *TCPDialer) DialLimit(ctx context.Context, dst net.Addr, mb int) (*grpc.
 
 // AddressRewriter redirects to QUIC endpoints.
 type AddressRewriter interface {
-	RedirectToQUIC(ctx context.Context, address net.Addr) (net.Addr, bool, error)
+	RedirectToQUIC(ctx context.Context, address net.Addr) (net.Addr, error)
 }
 
 // ConnDialer dials a net.Conn.
@@ -170,7 +171,7 @@ func (d *QUICDialer) Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn,
 	// resolver+balancer mechanism of gRPC. For now, keep the legacy behavior of
 	// dialing a connection based on the QUIC redirects.
 
-	addr, _, err := d.Rewriter.RedirectToQUIC(ctx, addr)
+	addr, err := d.Rewriter.RedirectToQUIC(ctx, addr)
 	if err != nil {
 		return nil, serrors.WrapStr("resolving SVC address", err)
 	}

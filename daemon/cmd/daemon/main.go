@@ -48,6 +48,7 @@ import (
 	"github.com/scionproto/scion/pkg/private/serrors"
 	cryptopb "github.com/scionproto/scion/pkg/proto/crypto"
 	sdpb "github.com/scionproto/scion/pkg/proto/daemon"
+	"github.com/scionproto/scion/pkg/scrypto/cppki"
 	"github.com/scionproto/scion/pkg/scrypto/signed"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/private/app/launcher"
@@ -121,7 +122,7 @@ func realMain(ctx context.Context) error {
 	defer rcCleaner.Stop()
 
 	dialer := &libgrpc.TCPDialer{
-		SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+		SvcResolver: func(dst addr.SVC) []resolver.Address {
 			if base := dst.Base(); base != addr.SvcCS {
 				panic("Unsupported address type, implementation error?")
 			}
@@ -156,7 +157,7 @@ func realMain(ctx context.Context) error {
 		Inspector:          engine.Inspector,
 		Cache:              globalCfg.TrustEngine.Cache.New(),
 		CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
-		MaxCacheExpiration: globalCfg.TrustEngine.Cache.Expiration,
+		MaxCacheExpiration: globalCfg.TrustEngine.Cache.Expiration.Duration,
 	}
 	trcLoader := periodic.Start(periodic.Func{
 		Task: func(ctx context.Context) {
@@ -247,11 +248,14 @@ func realMain(ctx context.Context) error {
 			Engine:             engine,
 			Cache:              globalCfg.TrustEngine.Cache.New(),
 			CacheHits:          metrics.NewPromCounter(trustmetrics.CacheHitsTotal),
-			MaxCacheExpiration: globalCfg.TrustEngine.Cache.Expiration,
+			MaxCacheExpiration: globalCfg.TrustEngine.Cache.Expiration.Duration,
 		}}
 	}
 
-	server := grpc.NewServer(libgrpc.UnaryServerInterceptor())
+	server := grpc.NewServer(
+		libgrpc.UnaryServerInterceptor(),
+		libgrpc.DefaultMaxConcurrentStreams(),
+	)
 	sdpb.RegisterDaemonServiceServer(server, daemon.NewServer(
 		daemon.ServerConfig{
 			Dialer:   dialer,
@@ -363,6 +367,10 @@ func (v acceptAllVerifier) WithServer(net.Addr) infra.Verifier {
 }
 
 func (v acceptAllVerifier) WithIA(addr.IA) infra.Verifier {
+	return v
+}
+
+func (v acceptAllVerifier) WithValidity(cppki.Validity) infra.Verifier {
 	return v
 }
 

@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/quic-go/quic-go"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/protobuf/proto"
@@ -44,7 +45,6 @@ import (
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/pkg/snet/addrutil"
 	"github.com/scionproto/scion/pkg/snet/squic"
-	"github.com/scionproto/scion/pkg/sock/reliable"
 	"github.com/scionproto/scion/private/app"
 	infraenv "github.com/scionproto/scion/private/app/appnet"
 	"github.com/scionproto/scion/private/app/command"
@@ -263,11 +263,9 @@ The template is expressed in JSON. A valid example::
 				return err
 			}
 			daemonAddr := envFlags.Daemon()
-			dispatcher := envFlags.Dispatcher()
-			localIP := envFlags.Local().IPAddr().IP
+			localIP := net.IP(envFlags.Local().AsSlice())
 			log.Debug("Resolved SCION environment flags",
 				"daemon", daemonAddr,
-				"dispatcher", dispatcher,
 				"local", localIP,
 			)
 
@@ -419,12 +417,11 @@ The template is expressed in JSON. A valid example::
 			}
 
 			r := renewer{
-				LocalIA:   info.IA,
-				LocalIP:   localIP,
-				Daemon:    sd,
-				Disatcher: dispatcher,
-				Timeout:   flags.timeout,
-				StdErr:    cmd.ErrOrStderr(),
+				LocalIA: info.IA,
+				LocalIP: localIP,
+				Daemon:  sd,
+				Timeout: flags.timeout,
+				StdErr:  cmd.ErrOrStderr(),
 				PathOptions: func() []path.Option {
 					pathOpts := []path.Option{
 						path.WithInteractive(flags.interactive),
@@ -434,9 +431,8 @@ The template is expressed in JSON. A valid example::
 					}
 					if !flags.noProbe {
 						pathOpts = append(pathOpts, path.WithProbing(&path.ProbeConfig{
-							LocalIA:    info.IA,
-							LocalIP:    localIP,
-							Dispatcher: dispatcher,
+							LocalIA: info.IA,
+							LocalIP: localIP,
 						}))
 					}
 					return pathOpts
@@ -505,7 +501,7 @@ The template is expressed in JSON. A valid example::
 			switch {
 			case len(cas) > 0:
 				for _, ca := range cas {
-					remote := addr.SvcCS
+					remote := &snet.SVCAddr{SVC: addr.SvcCS}
 					chain, err := request(ca, remote)
 					if err != nil {
 						continue
@@ -647,9 +643,9 @@ func (r *renewer) requestLocal(
 ) ([]*x509.Certificate, error) {
 
 	dialer := &grpc.TCPDialer{
-		SvcResolver: func(hs addr.HostSVC) []resolver.Address {
+		SvcResolver: func(hs addr.SVC) []resolver.Address {
 			// Do the SVC resolution
-			entries, err := r.Daemon.SVCInfo(ctx, []addr.HostSVC{hs})
+			entries, err := r.Daemon.SVCInfo(ctx, []addr.SVC{hs})
 			if err != nil {
 				fmt.Fprintf(r.StdErr, "Failed to resolve SVC address: %s\n", err)
 				return nil
@@ -709,10 +705,10 @@ func (r *renewer) requestRemote(
 			Path:    path.Dataplane(),
 			NextHop: path.UnderlayNextHop(),
 		}
-	case addr.HostSVC:
+	case *snet.SVCAddr:
 		dst = &snet.SVCAddr{
 			IA:      ca,
-			SVC:     r,
+			SVC:     r.SVC,
 			Path:    path.Dataplane(),
 			NextHop: path.UnderlayNextHop(),
 		}
@@ -741,16 +737,16 @@ func (r *renewer) requestRemote(
 	}
 
 	sn := &snet.SCIONNetwork{
-		LocalIA: local.IA,
-		Dispatcher: &snet.DefaultPacketDispatcherService{
-			Dispatcher: reliable.NewDispatcher(r.Disatcher),
-			SCMPHandler: snet.DefaultSCMPHandler{
+		Topology: r.Daemon,
+		SCMPHandler: snet.SCMPPropagationStopper{
+			Handler: snet.DefaultSCMPHandler{
 				RevocationHandler: daemon.RevHandler{Connector: r.Daemon},
 			},
+			Log: log.FromCtx(ctx).Debug,
 		},
 	}
 
-	conn, err := sn.Listen(ctx, "udp", local.Host, addr.SvcNone)
+	conn, err := sn.Listen(ctx, "udp", local.Host)
 	if err != nil {
 		return nil, serrors.WrapStr("dialing", err)
 	}
@@ -763,14 +759,13 @@ func (r *renewer) requestRemote(
 			},
 			SVCRouter: svcRouter{Connector: r.Daemon},
 			Resolver: &svc.Resolver{
-				LocalIA:     local.IA,
-				ConnFactory: sn.Dispatcher,
-				LocalIP:     local.Host.IP,
+				LocalIA: local.IA,
+				Network: sn,
+				LocalIP: local.Host.IP,
 			},
-			SVCResolutionFraction: 1,
 		},
 		Dialer: squic.ConnDialer{
-			Conn: conn,
+			Transport: &quic.Transport{Conn: conn},
 			TLSConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				NextProtos:         []string{"SCION"},
@@ -960,7 +955,7 @@ type svcRouter struct {
 	Connector daemon.Connector
 }
 
-func (r svcRouter) GetUnderlay(svc addr.HostSVC) (*net.UDPAddr, error) {
+func (r svcRouter) GetUnderlay(svc addr.SVC) (*net.UDPAddr, error) {
 	// XXX(karampok). We need to change the interface to not use TODO context.
 	return daemon.TopoQuerier{Connector: r.Connector}.UnderlayAnycast(context.TODO(), svc)
 }

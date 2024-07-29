@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"net/netip"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -33,7 +34,6 @@ import (
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet/addrutil"
-	"github.com/scionproto/scion/pkg/sock/reliable"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/private/app/launcher"
 	"github.com/scionproto/scion/private/service"
@@ -73,6 +73,10 @@ func realMain(ctx context.Context) error {
 		if err != nil {
 			return serrors.WrapStr("determine default local IP", err)
 		}
+	}
+	controlAddressIP, ok := netip.AddrFromSlice(controlAddress.IP)
+	if !ok {
+		return serrors.New("invalid IP address", "control", controlAddress.IP)
 	}
 	dataAddress, err := net.ResolveUDPAddr("udp", globalCfg.Gateway.DataAddr)
 	if err != nil {
@@ -135,12 +139,11 @@ func realMain(ctx context.Context) error {
 		ControlServerAddr:        controlAddress,
 		ControlClientIP:          controlAddress.IP,
 		ServiceDiscoveryClientIP: controlAddress.IP,
-		PathMonitorIP:            controlAddress.IP,
+		PathMonitorIP:            controlAddressIP,
 		ProbeServerAddr:          probeAddress,
 		ProbeClientIP:            controlAddress.IP,
 		DataServerAddr:           dataAddress,
 		DataClientIP:             dataAddress.IP,
-		Dispatcher:               reliable.NewDispatcher(""),
 		Daemon:                   daemon,
 		RouteSourceIPv4:          globalCfg.Tunnel.SrcIPv4,
 		RouteSourceIPv6:          globalCfg.Tunnel.SrcIPv6,

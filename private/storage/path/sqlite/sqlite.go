@@ -27,8 +27,6 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	seg "github.com/scionproto/scion/pkg/segment"
@@ -378,6 +376,14 @@ func insertInterfaces(ctx context.Context, tx *sql.Tx, ases []seg.ASEntry, segRo
 		}
 	}
 	return nil
+}
+
+func (e *executor) DeleteSegment(ctx context.Context, partialID string) error {
+	_, err := e.deleteInTx(ctx, func(tx *sql.Tx) (sql.Result, error) {
+		delStmt := `DELETE FROM Segments WHERE hex(SegID) LIKE ?`
+		return tx.ExecContext(ctx, delStmt, partialID+"%")
+	})
+	return err
 }
 
 func (e *executor) DeleteExpired(ctx context.Context, now time.Time) (int, error) {

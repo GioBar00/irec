@@ -56,7 +56,6 @@ type Config struct {
 	Metrics     env.Metrics        `toml:"metrics,omitempty"`
 	API         api.Config         `toml:"api,omitempty"`
 	Tracing     env.Tracing        `toml:"tracing,omitempty"`
-	QUIC        env.QUIC           `toml:"quic,omitempty"`
 	BeaconDB    storage.DBConfig   `toml:"beacon_db,omitempty"`
 	IngressDB   storage.DBConfig   `toml:"ingress_db,omitempty"`
 	EgressDB    storage.DBConfig   `toml:"egress_db,omitempty"`
@@ -124,7 +123,6 @@ func (cfg *Config) Sample(dst io.Writer, path config.Path, _ config.CtxMap) {
 		&cfg.Metrics,
 		&cfg.API,
 		&cfg.Tracing,
-		&cfg.QUIC,
 		config.OverrideName(
 			config.FormatData(
 				&cfg.BeaconDB,
@@ -238,7 +236,7 @@ type BSConfig struct {
 	// Policies contains the policy files.
 	Policies Policies `toml:"policies,omitempty"`
 	// EPIC specifies whether the EPIC authenticators should be added to the beacons.
-	EPIC bool `toml:"epic,omitempty" default:"false"`
+	EPIC bool `toml:"epic,omitempty"`
 }
 
 // InitDefaults the default values for the durations that are equal to zero.

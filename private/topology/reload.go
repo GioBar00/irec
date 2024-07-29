@@ -133,19 +133,26 @@ func (l *Loader) UnderlayNextHop(ifID uint16) *net.UDPAddr {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	addr, _ := l.topo.UnderlayNextHop(common.IFIDType(ifID))
+	addr, _ := l.topo.UnderlayNextHop(common.IfIDType(ifID))
 	return addr
 }
 
-func (l *Loader) InterfaceIDs() []uint16 {
+func (l *Loader) IfIDs() []uint16 {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
 	var ids []uint16
-	for _, id := range l.topo.InterfaceIDs() {
+	for _, id := range l.topo.IfIDs() {
 		ids = append(ids, uint16(id))
 	}
 	return ids
+}
+
+func (l *Loader) PortRange() (uint16, uint16) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	return l.topo.PortRange()
 }
 
 func (l *Loader) ControlServiceAddresses() []*net.UDPAddr {
@@ -175,7 +182,7 @@ func (l *Loader) Gateways() ([]GatewayInfo, error) {
 	return l.topo.Gateways()
 }
 
-func (l *Loader) InterfaceInfoMap() map[common.IFIDType]IFInfo {
+func (l *Loader) InterfaceInfoMap() map[common.IfIDType]IFInfo {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
@@ -207,7 +214,7 @@ func (l *Loader) HiddenSegmentRegistrationAddresses() ([]*net.UDPAddr, error) {
 }
 
 // TODO(lukedirtwalker): remove error / cleanup.
-func (l *Loader) GetUnderlay(svc addr.HostSVC) (*net.UDPAddr, error) {
+func (l *Loader) GetUnderlay(svc addr.SVC) (*net.UDPAddr, error) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 

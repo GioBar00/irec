@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -62,7 +63,7 @@ func newShowpaths(pather CommandPather) *cobra.Command {
 		Long: fmt.Sprintf(`'showpaths' lists available paths between the local and the specified
 SCION ASe a.
 
-By default, the paths are probed. Paths served from the SCION Deamon's might not
+By default, the paths are probed. Paths served from the SCION Daemon's might not
 forward traffic successfully (e.g. if a network link went down, or there is a black
 hole on the path). To disable path probing, set the appropriate flag.
 
@@ -109,11 +110,9 @@ On other errors, showpaths will exit with code 2.
 			}
 
 			flags.cfg.Daemon = envFlags.Daemon()
-			flags.cfg.Dispatcher = envFlags.Dispatcher()
-			flags.cfg.Local = envFlags.Local().IPAddr().IP
+			flags.cfg.Local = net.IP(envFlags.Local().AsSlice())
 			log.Debug("Resolved SCION environment flags",
 				"daemon", flags.cfg.Daemon,
-				"dispatcher", flags.cfg.Dispatcher,
 				"local", flags.cfg.Local,
 			)
 
@@ -165,7 +164,7 @@ On other errors, showpaths will exit with code 2.
 	cmd.Flags().BoolVarP(&flags.extended, "extended", "e", false,
 		"Show extended path meta data information")
 	cmd.Flags().BoolVarP(&flags.cfg.Refresh, "refresh", "r", false,
-		"Set refresh flag for SCION Deamon path request")
+		"Set refresh flag for SCION Daemon path request")
 	cmd.Flags().BoolVar(&flags.cfg.NoProbe, "no-probe", false,
 		"Do not probe the paths and print the health status")
 	cmd.Flags().BoolVarP(&flags.json, "json", "j", false,
