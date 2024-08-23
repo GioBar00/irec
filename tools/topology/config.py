@@ -93,10 +93,11 @@ class ConfigGenerator(object):
         """
         defaults = self.topo_config.get("defaults", {})
         docker_net_alloc = self.args.docker and not self.args.kathara
-        self.subnet_gen4 = SubnetGenerator(self.args.network, docker_net_alloc) \
-            if self.args.network else SubnetGenerator(DEFAULT_NETWORK, docker_net_alloc)
-        self.subnet_gen6 = SubnetGenerator(self.args.network_v6, docker_net_alloc) \
-            if self.args.network_v6 else SubnetGenerator(DEFAULT6_NETWORK, docker_net_alloc)
+        kathara_net_alloc = self.args.kathara
+        self.subnet_gen4 = SubnetGenerator(self.args.network, docker_net_alloc, kathara_net_alloc) \
+            if self.args.network else SubnetGenerator(DEFAULT_NETWORK, docker_net_alloc, kathara_net_alloc)
+        self.subnet_gen6 = SubnetGenerator(self.args.network_v6, docker_net_alloc, kathara_net_alloc) \
+            if self.args.network_v6 else SubnetGenerator(DEFAULT6_NETWORK, docker_net_alloc, kathara_net_alloc)
         self.default_mtu = defaults.get("mtu", DEFAULT_MTU)
         self.dispatched_ports = defaults.get("dispatched_ports", DEFAULT_DISPATCHED_PORTS)
 

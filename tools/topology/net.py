@@ -37,7 +37,7 @@ from typing import Mapping, Union
 import yaml
 
 # SCION
-from topology.defines import DEFAULT_NETWORK, DEFAULT_SCN_DC_NETWORK, DEFAULT6_NETWORK_ADDR
+from topology.defines import DEFAULT_NETWORK, DEFAULT_SCN_DC_NETWORK, DEFAULT6_NETWORK_ADDR, DEFAULT_KATHARA_NETWORK
 
 IPAddress = Union[IPv4Address, IPv6Address]
 IPNetwork = Union[IPv4Network, IPv6Network]
@@ -94,10 +94,13 @@ class AddressGenerator(object):
 
 
 class SubnetGenerator(object):
-    def __init__(self, network: str, docker: bool):
+    def __init__(self, network: str, docker: bool, kathara: bool = False):
         self.docker = docker
+        self.kathara = kathara
         if self.docker and network == DEFAULT_NETWORK:
             network = DEFAULT_SCN_DC_NETWORK
+        elif self.kathara and network == DEFAULT_NETWORK:
+            network = DEFAULT_KATHARA_NETWORK
         if "/" not in network:
             logging.critical("No prefix length specified for network '%s'",
                              network)
