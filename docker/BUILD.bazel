@@ -1,6 +1,8 @@
 load("@rules_debian_packages//debian_packages:defs.bzl", "debian_packages_lockfile")
 load(":scion_app.bzl", "scion_app_base", "scion_app_image")
+load(":scion_app_kathara.bzl", "scion_app_base_kathara", "scion_app_image_kathara")
 load(":tester.bzl", "scion_tester_image")
+load(":endhost.bzl", "scion_endhost_image")
 load(":labels.bzl", "scion_labels")
 
 filegroup(
@@ -11,6 +13,8 @@ filegroup(
         ":dispatcher.tar",
         ":gateway.tar",
         ":router.tar",
+        ":control_kathara.tar",
+        ":router_kathara.tar",
     ],
 )
 
@@ -18,12 +22,14 @@ filegroup(
     name = "test",
     srcs = [
         ":tester.tar",
+        ":endhost.tar"
     ],
 )
 
 scion_labels()
 
 scion_app_base()
+scion_app_base_kathara()
 
 scion_app_image(
     name = "router",
@@ -77,15 +83,29 @@ scion_app_image(
     entrypoint = ["/app/gateway"],
 )
 
+scion_app_image_kathara(
+    name = "router",
+    src = "//router/cmd/router",
+    cmd = ["tail", "-f", "/dev/null"],
+    entrypoint = None,
+)
+
+scion_app_image_kathara(
+    name = "control",
+    src = "//control/cmd/control",
+    cmd = ["tail", "-f", "/dev/null"],
+    entrypoint = None,
+)
+
 ### Tester image with more tools for scripting in integration tests
 # This is a debian image with additional packages installed. The
 # packages are added to the image as layers created with
 # rules_debian_packages.
 #
 # Generate lockfile with:
-# bazel run //docker:tester_debian_packages.generate
+# bazel run //docker:tester_debian10_packages.generate
 # Update snapshots with:
-# bazel run //docker:tester_debian_packages.update
+# bazel run //docker:tester_debian10_packages.update
 debian_packages_lockfile(
     name = "tester_debian10_packages",
     lock_file = "tester_packages.lock",
@@ -94,3 +114,4 @@ debian_packages_lockfile(
 )
 
 scion_tester_image()
+scion_endhost_image()

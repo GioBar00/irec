@@ -1,0 +1,494 @@
+ASes:
+  1-ff00:0:1:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:10:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:11:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:12:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:13:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:14:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:15:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:16:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:17:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:18:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:19:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:2:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:20:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:21:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:22:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:23:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:24:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:25:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:26:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:27:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:28:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:29:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:3:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:30:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:31:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:32:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:33:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:34:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:35:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:36:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:37:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:38:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:39:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:4:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:40:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:41:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:42:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:43:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:44:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:45:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:46:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:47:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:48:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:49:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:5:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:50:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:6:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:7:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:8:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+  1-ff00:0:9:
+    authoritative: true
+    core: true
+    dispatched_ports: 1024-65535
+    issuing: true
+    voting: true
+links:
+- a: 1-ff00:0:4-0#0
+  b: 1-ff00:0:3-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#1
+  b: 1-ff00:0:5-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:5-0#1
+  b: 1-ff00:0:1-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:1-0#1
+  b: 1-ff00:0:46-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:46-0#1
+  b: 1-ff00:0:2-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:2-0#1
+  b: 1-ff00:0:9-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:9-0#1
+  b: 1-ff00:0:6-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:6-0#1
+  b: 1-ff00:0:40-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:40-0#1
+  b: 1-ff00:0:8-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:8-0#1
+  b: 1-ff00:0:16-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:16-0#1
+  b: 1-ff00:0:41-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:41-0#1
+  b: 1-ff00:0:31-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:31-0#1
+  b: 1-ff00:0:20-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:20-0#1
+  b: 1-ff00:0:11-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:11-0#1
+  b: 1-ff00:0:33-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:33-0#1
+  b: 1-ff00:0:15-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:15-0#1
+  b: 1-ff00:0:12-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:12-0#1
+  b: 1-ff00:0:34-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:34-0#1
+  b: 1-ff00:0:7-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:7-0#1
+  b: 1-ff00:0:23-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:23-0#1
+  b: 1-ff00:0:35-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:35-0#1
+  b: 1-ff00:0:14-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:14-0#1
+  b: 1-ff00:0:48-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:48-0#1
+  b: 1-ff00:0:29-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:29-0#1
+  b: 1-ff00:0:26-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:26-0#1
+  b: 1-ff00:0:32-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:32-0#1
+  b: 1-ff00:0:22-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:22-0#1
+  b: 1-ff00:0:42-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:42-0#1
+  b: 1-ff00:0:36-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:36-0#1
+  b: 1-ff00:0:30-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:30-0#1
+  b: 1-ff00:0:47-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:47-0#1
+  b: 1-ff00:0:44-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:44-0#1
+  b: 1-ff00:0:27-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:27-0#1
+  b: 1-ff00:0:45-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:45-0#1
+  b: 1-ff00:0:10-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:10-0#1
+  b: 1-ff00:0:17-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:17-0#1
+  b: 1-ff00:0:49-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:49-0#1
+  b: 1-ff00:0:19-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:19-0#1
+  b: 1-ff00:0:21-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:21-0#1
+  b: 1-ff00:0:24-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:24-0#1
+  b: 1-ff00:0:43-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:43-0#1
+  b: 1-ff00:0:13-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:13-0#1
+  b: 1-ff00:0:25-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:25-0#1
+  b: 1-ff00:0:38-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:38-0#1
+  b: 1-ff00:0:18-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:18-0#1
+  b: 1-ff00:0:28-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:28-0#1
+  b: 1-ff00:0:37-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:37-0#1
+  b: 1-ff00:0:39-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:39-0#1
+  b: 1-ff00:0:50-0#0
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#1
+  b: 1-ff00:0:3-0#2
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#2
+  b: 1-ff00:0:5-0#2
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#3
+  b: 1-ff00:0:5-0#3
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#3
+  b: 1-ff00:0:3-0#4
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#4
+  b: 1-ff00:0:5-0#4
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#5
+  b: 1-ff00:0:5-0#5
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#5
+  b: 1-ff00:0:3-0#6
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#6
+  b: 1-ff00:0:5-0#6
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#7
+  b: 1-ff00:0:5-0#7
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#7
+  b: 1-ff00:0:3-0#8
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#8
+  b: 1-ff00:0:5-0#8
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#9
+  b: 1-ff00:0:5-0#9
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#9
+  b: 1-ff00:0:3-0#10
+  linkAtoB: CORE
+- a: 1-ff00:0:4-0#10
+  b: 1-ff00:0:5-0#10
+  linkAtoB: CORE
+- a: 1-ff00:0:3-0#11
+  b: 1-ff00:0:5-0#11
+  linkAtoB: CORE

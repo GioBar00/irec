@@ -30,3 +30,17 @@ def write_file(file_path, text):
 
     pathlib.Path(file_path).parent.mkdir(parents=True, exist_ok=True)
     pathlib.Path(file_path).write_text(text)
+
+
+def symlink(source, dest, is_dir=False):
+    """
+    Create a symbolic link from source to dest, creating the directory as needed.
+    :param str source: the source of the link.
+    :param str dest: the destination of the link.
+    """
+    # ":" is an illegal filename char on both windows and OSX, so disallow it globally to prevent
+    # incompatibility.
+    assert ":" not in dest, dest
+
+    pathlib.Path(dest).parent.mkdir(parents=True, exist_ok=True)
+    pathlib.Path(dest).symlink_to(source, target_is_directory=is_dir)

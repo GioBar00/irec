@@ -73,10 +73,17 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	}
 	var cmd *exec.Cmd
 	if cfg.Tester != "" {
-		args := append([]string{}, dockerArgs...)
-		args = append(args, cfg.Tester, "sh", "-c", joinCmds(cfg.Commands))
-		cmd = exec.CommandContext(ctx, "docker", args...)
-		log.Debug("Running docker command", "cmd", cmd)
+		if strings.HasPrefix(cfg.Tester, "tester_") {
+			args := append([]string{}, dockerArgs...)
+			args = append(args, cfg.Tester, "sh", "-c", joinCmds(cfg.Commands))
+			cmd = exec.CommandContext(ctx, "docker", args...)
+			log.Debug("Running docker command", "cmd", cmd)
+		} else {
+			args := append([]string{}, katharaArgs...)
+			args = append(args, cfg.Tester, "bash -c \""+joinCmds(cfg.Commands)+"\"")
+			cmd = exec.CommandContext(ctx, "kathara", args...)
+			log.Debug("Running kathara command", "cmd", cmd)
+		}
 	} else {
 		cmd = exec.CommandContext(ctx, "sh", "-c", joinCmds(cfg.Commands))
 		cmd.Env = append(os.Environ(), fmt.Sprintf("%s=1", GoIntegrationEnv))

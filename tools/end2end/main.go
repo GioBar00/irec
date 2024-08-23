@@ -150,8 +150,8 @@ func (s server) run() {
 	localAddr := conn.LocalAddr().(*snet.UDPAddr)
 	if len(os.Getenv(libint.GoIntegrationEnv)) > 0 {
 		// Needed for integration test ready signal.
-		fmt.Printf("Port=%d\n", localAddr.Host.Port)
-		fmt.Printf("%s%s\n\n", libint.ReadySignal, integration.Local.IA)
+		fmt.Fprintf(os.Stderr, "Port=%d\n", localAddr.Host.Port)
+		fmt.Fprintf(os.Stderr, "%s%s\n\n", libint.ReadySignal, integration.Local.IA)
 	}
 	log.Info("Listening", "local", fmt.Sprintf("%v:%d", localAddr.Host.IP, localAddr.Host.Port))
 	// Receive ping message

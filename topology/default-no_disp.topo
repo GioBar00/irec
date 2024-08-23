@@ -6,57 +6,73 @@ ASes:
     authoritative: true
     issuing: true
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "1-ff00:0:120":
     core: true
     voting: true
     authoritative: true
     issuing: true
+    dispatched_ports: "1024-65535"
   "1-ff00:0:130":
     core: true
     voting: true
     authoritative: true
     issuing: true
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "1-ff00:0:111":
     cert_issuer: 1-ff00:0:110
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "1-ff00:0:112":
     cert_issuer: 1-ff00:0:110
     mtu: 1450
+    dispatched_ports: "1024-65535"
   "1-ff00:0:121":
     cert_issuer: 1-ff00:0:120
+    dispatched_ports: "1024-65535"
   "1-ff00:0:122":
     cert_issuer: 1-ff00:0:120
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "1-ff00:0:131":
     cert_issuer: 1-ff00:0:130
+    dispatched_ports: "1024-65535"
   "1-ff00:0:132":
     cert_issuer: 1-ff00:0:130
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "1-ff00:0:133":
     cert_issuer: 1-ff00:0:130
+    dispatched_ports: "1024-65535"
   "2-ff00:0:210":
     core: true
     voting: true
     authoritative: true
     issuing: true
     mtu: 1280
+    dispatched_ports: "1024-65535"
   "2-ff00:0:220":
     core: true
     voting: true
     authoritative: true
     issuing: true
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "2-ff00:0:211":
     cert_issuer: 2-ff00:0:210
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
   "2-ff00:0:212":
     cert_issuer: 2-ff00:0:210
+    dispatched_ports: "1024-65535"
   "2-ff00:0:221":
     cert_issuer: 2-ff00:0:220
+    dispatched_ports: "1024-65535"
   "2-ff00:0:222":
     cert_issuer: 2-ff00:0:220
     underlay: UDP/IPv6
+    dispatched_ports: "1024-65535"
 links:
   - {a: "1-ff00:0:110#1",     b: "1-ff00:0:120-A#6",   linkAtoB: CORE}
   - {a: "1-ff00:0:110#2",     b: "1-ff00:0:130-A#104", linkAtoB: CORE, underlay: UDP/IPv6}

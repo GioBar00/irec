@@ -36,6 +36,8 @@ def add_arguments(parser):
                         help='Path policy file')
     parser.add_argument('-d', '--docker', action='store_true',
                         help='Create a docker compose configuration')
+    parser.add_argument('-k', '--kathara', action='store_true',
+                        help='Create a Kathara Lab configuration')
     parser.add_argument('-n', '--network',
                         help='IPv4 network to create subnets in (E.g. "127.0.0.0/8"')
     parser.add_argument('-n6', '--network-v6',
@@ -46,8 +48,7 @@ def add_arguments(parser):
                         help='Generate random IFIDs')
     parser.add_argument('--docker-registry', help='Specify docker registry to pull images from',
                         default='scion')
-    parser.add_argument('--image-tag', help='Docker image tag',
-                        default='latest')
+    parser.add_argument('--image-tag', help='Docker image tag')
     parser.add_argument('--sig', action='store_true',
                         help='Generate a SIG per AS (only available with -d, the SIG image needs\
                         to be built manually e.g. when running acceptance tests)')

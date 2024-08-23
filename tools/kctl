@@ -1,0 +1,250 @@
+#!/bin/bash
+# Copyright 2018 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e
+
+cmd_help() {
+    echo
+	cat <<-_EOF
+	Usage:
+	    $PROGRAM start [SERVICE]
+	        Creates and starts containers
+	    $PROGRAM stop [SERVICE]
+	        Stops containers
+	    $PROGRAM down
+	        Stops and removes all containers, networks and volumes
+	    $PROGRAM run [SERVICE]
+	        Runs the service and removes its container afterwards
+	    $PROGRAM [GROUP] [COMMAND]
+	        Run the docker compose command COMMAND for the service group GROUP.
+	    $PROGRAM exec_tester [IA] [COMMAND]
+	        Exec a command in the specified service.
+        $PROGRAM collect_logs [GROUP] [LOG_DIR]
+            Collect logs from all services in the service group GROUP to the log directory LOG_DIR
+	Options:
+	    - [SERVICE]: As scion service glob, e.g. cs1*.
+	    - [GROUP]:
+	        - scion:    For all scion services.
+	        - monitoring:     For the monitoring service (i.e. prometheus and yaeger).
+	    - [COMMAND]: A docker compose command like 'up -d' or 'down'
+	    - [IA]: An IA number like 1-ff00:0:110
+	    - [LOG_DIR]: A folder.
+	_EOF
+}
+
+cmd_start() {
+
+    kathara lstart -d gen/kathara_lab
+
+    echo "Starting services..."
+    namespace=$(cmd_namespace)
+
+    if [ ! -f "gen/service-br-metrics.yml" ] || [ ! -f "gen/service-cs-metrics.yml" ] || [ ! -f "gen/service-sd-metrics.yml" ]; then
+        echo "Error: Service configuration file not found."
+        return 1
+    fi
+
+    services=""
+    devices=$(get_devices "$namespace")
+    for device_name in $devices; do
+        dev_type=${device_name:0:2}
+        service_template=$(cat "gen/service-$dev_type-metrics.yml")
+        # Check the prefix and process accordingly
+        if [[ $device_name == cs* || $device_name == br* ]]; then
+            # Remove the initial "cs" or "br" and the last part after the final underscore
+            trimmed_device_name=$(echo $device_name | sed -E 's/^(cs|br)//' | sed -E 's/_[^_]*$//')
+        else
+            # Only remove the initial "sd" if present
+            trimmed_device_name=$(echo $device_name | sed -E 's/^sd//')
+        fi
+
+        # Replace the first underscore with a dash and remaining underscores with colons
+        isd_as=$(echo $trimmed_device_name | sed -E 's/_/-/')
+
+        patched_service=$(echo "$service_template" | sed "s/<name-label>/$device_name/g; s/<name>/${device_name//_/\-}/g; s/<isd-as>/$isd_as/g")
+
+        services="$services"$'\n---\n'"$patched_service"
+
+    done
+
+    echo "$services" | kubectl apply -n "$namespace" -f - 
+
+}
+
+cmd_stop() {
+    echo "Stopping services..."
+    namespace=$(cmd_namespace)
+
+    if [ -z "$namespace" ]; then
+        echo "Error: Namespace not found."
+        return 1
+    fi
+
+    devices=$(get_devices "$namespace")
+    for device_name in $devices; do
+        dev_type=${device_name:0:2}
+        if [ "$dev_type" == "sd" ]; then
+            kathara exec -d gen/kathara_lab $device_name "pkill -f cron.sh"
+        fi
+    done
+    for device_name in $devices; do
+        dev_type=${device_name:0:2}
+        if [ "$dev_type" == "sd" ]; then
+            kathara exec -d gen/kathara_lab $device_name "bash -l -c 'rm -f /shared/kathara-*.prom'"
+        fi
+    done
+
+    kubectl delete service -n "$namespace" -l app=kathara
+
+    namespace_file="gen/namespace"
+    if [ -f "$namespace_file" ]; then
+        rm "$namespace_file"
+    fi
+
+    kathara lclean -d gen/kathara_lab
+
+    # Get nodes
+    # nodes=$(kubectl get nodes -o=jsonpath='{.items[*].metadata.name}')
+
+    # for node in $nodes; do
+    #     kubectl node-shell $node -- rm -rf /home/shared/kathara-*.prom
+    # done
+}
+
+cmd_down() {
+    echo "Stopping and removing all services..."
+}
+
+cmd_run() {
+    echo "Running service..."
+}
+
+cmd_scion() {
+    echo "Running scion command..."
+}
+
+cmd_start-monitoring() {
+    echo "Starting monitoring services..."
+
+    if [ ! -f "gen/servicemonitor.yml" ]; then
+        echo "Error: ServiceMonitor configuration file not found."
+        return 1
+    fi
+    if [ ! -f "gen/jaeger-values.yml" ]; then
+        echo "Error: Jaeger configuration file not found."
+        return 1
+    fi
+    kubectl apply -f gen/servicemonitor.yml -n monitoring
+    #helm upgrade --install jaeger-all-in-one jaeger-all-in-one/jaeger-all-in-one --namespace monitoring --values gen/jaeger-values.yml
+}
+
+cmd_stop-monitoring() {
+    echo "Stopping monitoring services..."
+    
+    if [ ! -f "gen/servicemonitor.yml" ]; then
+        echo "Error: ServiceMonitor configuration file not found."
+        return 1
+    fi
+
+    kubectl delete -f gen/servicemonitor.yml -n monitoring
+    #helm uninstall jaeger-all-in-one -n monitoring
+}
+
+cmd_namespace() {
+    namespace_file="gen/namespace"
+    label_selector="app=kathara"
+
+    if [ -f "$namespace_file" ]; then
+        # If the namespace file exists, read the namespace from the file
+        namespace=$(cat "$namespace_file")
+    else
+        # If the namespace file does not exist, retrieve the namespace and save it to the file
+        namespace=$(kubectl get namespace -l=$label_selector)
+        if [ -z "$namespace" ]; then
+            echo "Error: Kathara lab not running. Nothing to do."
+            return 1
+        fi
+        namespace=$(kubectl get namespace -l=$label_selector -o=jsonpath='{.items[0].metadata.name}')
+        
+        if [ -n "$namespace" ]; then
+            echo "$namespace" > "$namespace_file"
+        else
+            echo "Error: Failed to retrieve namespace."
+            return 1
+        fi
+    fi
+
+    # Return the namespace
+    echo "$namespace"
+}
+
+get_devices() {
+    local namespace="$1"
+
+    # Check if namespace is provided
+    if [ -z "$namespace" ]; then
+        echo "Namespace not specified."
+        return 1
+    fi
+
+    kubectl get deployments -n db6hxe5novtclba8r4wpa -l app=kathara -o=jsonpath='{.items[*].metadata.labels.name}'
+}
+
+cmd_collect_logs() {
+    [ $# -ge 2 ] || { cmd_help; exit 1; }
+    local group="$1"
+    local out_dir="$2"
+    mkdir -p "$out_dir"
+    for svc in $(cmd_$group config --services); do
+        cmd_$group logs $svc &> $out_dir/$svc.log
+    done
+}
+
+glob_docker() {
+    [ $# -ge 1 ] || set -- '*'
+    matches=
+    for proc in $(cmd_scion config --services); do
+        for spec in "$@"; do
+            if glob_match $proc "$spec"; then
+                matches="$matches $proc"
+                break
+            fi
+        done
+    done
+    echo $matches
+}
+
+glob_match() {
+    # If $1 is matched by $2, return true
+    case "$1" in
+        $2) return 0;;
+    esac
+    return 1
+}
+
+service_running() {
+    cntr="$(cmd_scion ps -q $1)"
+    [ -n "$cntr" ] && [ -n "$(docker ps -q --no-trunc | grep $cntr)" ]
+}
+
+PROGRAM="${0##*/}"
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    start|stop|down|run|scion|start-monitoring|stop-monitoring|collect_logs|namespace)
+        "cmd_$COMMAND" "$@" ;;
+    *)  cmd_help; exit 1 ;;
+esac

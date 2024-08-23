@@ -101,7 +101,11 @@ func NewBinaryIntegration(name string, cmd string, clientArgs, serverArgs []stri
 		serverArgs: serverArgs,
 		logDir:     logDir,
 	}
-	return dockerize(bi)
+	res, ized := dockerize(bi).(*dockerIntegration)
+	if !ized {
+		return katharize(bi)
+	}
+	return res
 }
 
 func (bi *binaryIntegration) Name() string {
@@ -127,19 +131,23 @@ func (bi *binaryIntegration) StartServer(ctx context.Context, dst *snet.UDPAddr)
 	if err != nil {
 		return nil, err
 	}
-	sp, err := r.StdoutPipe()
+	pr, pw, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return nil, serrors.WrapStr("creating pipe", err)
 	}
+	defer pw.Close()
+
+	tpr := io.TeeReader(ep, pw)
+
 	ready := make(chan struct{})
 	// parse until we have the ready signal.
 	// and then discard the output until the end (required by StdoutPipe).
 	go func() {
 		defer log.HandlePanic()
-		defer sp.Close()
+		//defer tpr.Close()
 		signal := fmt.Sprintf("%s%s", ReadySignal, dst.IA)
 		init := true
-		scanner := bufio.NewScanner(sp)
+		scanner := bufio.NewScanner(tpr)
 		for scanner.Scan() {
 			if scanner.Err() != nil {
 				log.Error("Error during reading of stdout", "err", scanner.Err())
@@ -160,7 +168,7 @@ func (bi *binaryIntegration) StartServer(ctx context.Context, dst *snet.UDPAddr)
 	go func() {
 		defer log.HandlePanic()
 		ia := addr.FormatIA(dst.IA, addr.WithFileSeparator())
-		bi.writeLog("server", ia, ia, ep)
+		bi.writeLog("server", ia, ia, pr)
 	}()
 
 	if err = r.Start(); err != nil {

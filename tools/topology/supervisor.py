@@ -25,7 +25,7 @@ from io import StringIO
 # SCION
 from topology.util import write_file
 from topology.common import (
-    ArgsTopoConfigDicts,
+    ArgsTopoDicts,
     DISP_CONFIG_NAME,
     SD_CONFIG_NAME,
 )
@@ -33,7 +33,7 @@ from topology.common import (
 SUPERVISOR_CONF = 'supervisord.conf'
 
 
-class SupervisorGenArgs(ArgsTopoConfigDicts):
+class SupervisorGenArgs(ArgsTopoDicts):
     pass
 
 
@@ -67,7 +67,6 @@ class SupervisorGenerator(object):
         entries = []
         entries.extend(self._br_entries(topo, "bin/router", base))
         entries.extend(self._control_service_entries(topo, base))
-        entries.extend(self._rac_entries(topo, base))
         entries.append(self._sciond_entry(topo_id, base))
         return entries
 
@@ -77,14 +76,6 @@ class SupervisorGenerator(object):
             conf = os.path.join(base, "%s.toml" % k)
             prog = self._common_entry(k, [cmd, "--config", conf])
             prog['environment'] += ',GODEBUG="cgocheck=0"'
-            entries.append((k, prog))
-        return entries
-
-    def _rac_entries(self, topo, base):
-        entries = []
-        for k, v in topo.get("rac_service", {}).items():
-            conf = os.path.join(base, "%s.toml" % k)
-            prog = self._common_entry(k, ["bin/rac", "--config", conf])
             entries.append((k, prog))
         return entries
 

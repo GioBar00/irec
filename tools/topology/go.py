@@ -70,35 +70,6 @@ class GoGenerator(object):
         self.db_dir = '/share/cache' if args.docker else 'gen-cache'
         self.log_level = 'debug'
 
-    def generate_rac(self):
-        for topo_id, topo in self.args.topo_dicts.items():
-            ctrl_addr = ""
-            for elem_id, elem in topo.get("control_service", {}).items():
-                # only a single Go-BS per AS is currently supported
-                if elem_id.endswith("-1"):
-                    ctrl_addr = elem.get("addr", "").split(":")[0] + ":32768"
-
-            for k, v in topo.get("rac_service", {}).items():
-                base = topo_id.base_dir(self.args.output_dir)
-                rac_conf = self.build_rac_conf(topo_id, topo["isd_as"], base, k, v, ctrl_addr)
-                write_file(os.path.join(base, "%s.toml" % k), toml.dumps(rac_conf))
-
-    def build_rac_conf(self, topo_id, ia, base, name, v, ctrl_addr):
-        config_dir = '/share/conf' if self.args.docker else base
-        raw_entry = {
-            'general': {
-                'id': name,
-                'config_dir': config_dir,
-            },
-
-            'log': self._log_entry(name),
-            # TODO(jvb): remove hardcoded algorithm.
-            'rac': {'ctrl_addr': ctrl_addr, 'addr': v.get("addr", ""), 'static':
-                    v.get("static", False), 'static_algorithm': {'file':
-                    v.get("static_algorithm", "")}}
-        }
-        return raw_entry
-
     def generate_br(self):
         for topo_id, topo in self.args.topo_dicts.items():
             for k, v in topo.get("border_routers", {}).items():
@@ -119,7 +90,7 @@ class GoGenerator(object):
             },
             'features': translate_features(self.args.features),
             'api': {
-                'addr': prom_addr(v['internal_addr'], DEFAULT_BR_PROM_PORT + 700)
+                'addr': prom_addr(v['internal_addr'], DEFAULT_BR_PROM_PORT+700)
             }
         }
         return raw_entry
@@ -147,15 +118,7 @@ class GoGenerator(object):
             'trust_db': {
                 'connection': os.path.join(self.db_dir, '%s.trust.db' % name),
             },
-
-            'ingress_db': {
-                'connection': os.path.join(self.db_dir, '%s.ingress.db' % name),
-            },
-            'egress_db': {
-                'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
-            },
-
-            'beacon_db': {
+            'beacon_db':     {
                 'connection': os.path.join(self.db_dir, '%s.beacon.db' % name),
             },
             'path_db': {
@@ -163,116 +126,16 @@ class GoGenerator(object):
             },
             'tracing': self._tracing_entry(),
             'metrics': self._metrics_entry(infra_elem, CS_PROM_PORT),
-            'api': self._api_entry(infra_elem, CS_PROM_PORT + 700),
+            'api': self._api_entry(infra_elem, CS_PROM_PORT+700),
             'features': translate_features(self.args.features),
+            'beaconing': {
+                 'origination_interval': '1m',
+                 'propagation_interval': '15s',
+             }
         }
         if ca:
             raw_entry['ca'] = {'mode': 'in-process'}
-        if self.args.config["ASes"][str(topo_id)].get("irec", None):
-            raw_entry['irec'] = self.generate_irec(topo_id)
         return raw_entry
-
-    def generate_irec(self, topo_id):
-        algs = self.args.config["ASes"][str(topo_id)].get("irec", {}).get("algorithms", [])
-        sanitized_list = []
-        # Only copy the options we currently accept: hexhash, file and id, ideally this should be
-        # identical to the variable algs.
-        for alg in algs:
-            if 'originate' in alg and 'file' in alg and 'id' in alg:
-                sanitized_list.append({'originate': alg['originate'], 'file': alg['file'],
-                                       'id': alg['id'], 'fallback': alg['fallback'] if
-                                       'fallback' in alg else False})
-        return {"algorithms": sanitized_list}
-
-    def generate_co(self):
-        if not self.args.colibri:
-            return
-        for topo_id, topo in self.args.topo_dicts.items():
-            for elem_id, elem in topo.get("colibri_service", {}).items():
-                # only a single Go-CO per AS is currently supported
-                if elem_id.endswith("-1"):
-                    base = topo_id.base_dir(self.args.output_dir)
-                    co_conf = self._build_co_conf(topo_id, topo["isd_as"], base, elem_id, elem)
-                    write_file(os.path.join(base, elem_id, CO_CONFIG_NAME), toml.dumps(co_conf))
-                    traffic_matrix = self._build_co_traffic_matrix(topo_id)
-                    write_file(os.path.join(base, elem_id, 'matrix.yml'),
-                               yaml.dump(traffic_matrix, default_flow_style=False))
-                    rsvps = self._build_co_reservations(topo_id)
-                    write_file(os.path.join(base, elem_id, 'reservations.yml'),
-                               yaml.dump(rsvps, default_flow_style=False))
-
-    def _build_co_conf(self, topo_id, ia, base, name, infra_elem):
-        config_dir = '/share/conf' if self.args.docker else base
-        raw_entry = {
-            'general': {
-                'ID': name,
-                'ConfigDir': config_dir,
-                'ReconnectToDispatcher': True,
-            },
-            'log': self._log_entry(name),
-            'trust_db': {
-                'connection': os.path.join(self.db_dir, '%s.trust.db' % name),
-            },
-            'tracing': self._tracing_entry(),
-            'metrics': self._metrics_entry(infra_elem, CO_PROM_PORT),
-            'features': translate_features(self.args.features),
-        }
-        return raw_entry
-
-    def _build_co_traffic_matrix(self, ia):
-        """
-        Creates a NxN traffic matrix for colibri with N = len(interfaces)
-        """
-        topo = self.args.topo_dicts[ia]
-        if_ids = {iface for br in topo['border_routers'].values() for iface in br['interfaces']}
-        if_ids.add(0)
-        bw = int(DEFAULT_COLIBRI_TOTAL_BW / (len(if_ids) - 1))
-        traffic_matrix = {}
-        for inIfid in if_ids:
-            traffic_matrix[inIfid] = {}
-            for egIfid in if_ids.difference({inIfid}):
-                traffic_matrix[inIfid][egIfid] = bw
-        return traffic_matrix
-
-    def _build_co_reservations(self, ia):
-        """
-        Generates a dictionary of reservations with one entry per core AS (if "ia" is core)
-        excluding itself, or a pair (up and down) per core AS in the ISD if "ia" is not core.
-        """
-        rsvps = {}
-        this_as = self.args.topo_dicts[ia]
-        if this_as['Core']:
-            for dst_ia, topo in self.args.topo_dicts.items():
-                if dst_ia != ia and topo['Core']:
-                    rsvps['Core-%s' % dst_ia] = self._build_co_reservation(dst_ia, 'Core')
-        else:
-            for dst_ia, topo in self.args.topo_dicts.items():
-                if dst_ia != ia and dst_ia._isd == ia._isd and topo['Core']:
-                    # reach this core AS in the same ISD
-                    rsvps['Up-%s' % dst_ia] = self._build_co_reservation(dst_ia, 'Up')
-                    rsvps['Down-%s' % dst_ia] = self._build_co_reservation(dst_ia, 'Down')
-        return rsvps
-
-    def _build_co_reservation(self, dst_ia, path_type):
-        start_props = {'L', 'T'}
-        end_props = {'L', 'T'}
-        if path_type == 'Up':
-            start_props.remove('T')
-        elif path_type == 'Down':
-            end_props.remove('T')
-        return {
-            'desired_size': 27,
-            'ia': str(dst_ia),
-            'max_size': 30,
-            'min_size': 1,
-            'path_predicate': '%s#0' % dst_ia,
-            'path_type': path_type,
-            'split_cls': 8,
-            'end_props': {
-                'start': list(start_props),
-                'end': list(end_props)
-            }
-        }
 
     def generate_sciond(self):
         for topo_id, topo in self.args.topo_dicts.items():
@@ -305,7 +168,7 @@ class GoGenerator(object):
             },
             'features': translate_features(self.args.features),
             'api': {
-                'addr': socket_address_str(ip, SD_API_PORT + 700),
+                'addr': socket_address_str(ip, SD_API_PORT+700),
             }
         }
         return raw_entry

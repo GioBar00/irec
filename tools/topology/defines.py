@@ -29,6 +29,8 @@ IFIDS_FILE = "ifids.yml"
 AS_LIST_FILE = "as_list.yml"
 #: Prometheus config
 PROM_FILE = "prometheus.yml"
+#: Kathara lab file directory
+KATHARA_GEN_PATH = 'kathara_lab'
 
 #: Default SCION router UDP port.
 SCION_ROUTER_PORT = 50000
@@ -41,7 +43,7 @@ DEFAULT_MTU = 1500 - 20 - 8
 SCION_MIN_MTU = 1280
 
 # Default IPv4 network
-DEFAULT_NETWORK = "127.0.0.0/8"
+DEFAULT_NETWORK = "10.0.0.0/8"
 DEFAULT_PRIV_NETWORK = "192.168.0.0/16"
 DEFAULT_SCN_DC_NETWORK = "172.20.0.0/20"
 

@@ -101,7 +101,7 @@ class TopoGenerator(object):
 
     def _reg_addr(self, topo_id: TopoID, elem_id, addr_type):
         subnet = self.args.subnet_gen[addr_type].register(str(topo_id))
-        if self.args.docker and addr_type == ADDR_TYPE_6:
+        if self.args.docker and addr_type == ADDR_TYPE_6 and not self.args.kathara:
             # for docker also allocate an IPv4 address so that we have ipv4
             # range allocated for the network.
             v4subnet = self.args.subnet_gen[ADDR_TYPE_4].register(str(topo_id) + '_v4')
@@ -112,7 +112,7 @@ class TopoGenerator(object):
         link_name = str(sorted((local_br, remote_br)))
         link_name += str(sorted((local_ifid, remote_ifid)))
         subnet = self.args.subnet_gen[addr_type].register(link_name)
-        if self.args.docker and addr_type == ADDR_TYPE_6:
+        if self.args.docker and addr_type == ADDR_TYPE_6 and not self.args.kathara:
             # for docker also allocate an IPv4 address so that we have ipv4
             # range allocated for the network.
             v4subnet = self.args.subnet_gen[ADDR_TYPE_4].register(link_name + '_v4')
@@ -146,7 +146,6 @@ class TopoGenerator(object):
         if self.args.sig:
             self._register_sig(topo_id, as_conf)
         self._register_sciond(topo_id, as_conf)
-        self._register_rac_entries(topo_id, as_conf)
 
     def _register_srv_entries(self, topo_id, as_conf):
         srvs = [("control_servers", DEFAULT_CONTROL_SERVERS, "cs")]
@@ -162,24 +161,9 @@ class TopoGenerator(object):
                 self.args.port_gen.register(elem_id)
             self._reg_addr(topo_id, elem_id, addr_type)
 
-    def _register_rac_entries(self, topo_id, as_conf):
-        addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-        count = as_conf.get('dynamic_racs', 0)
-        for i in range(1, count + 1):
-            elem_id = "%s%s-%s" % ('rac', topo_id.file_fmt(), i)
-            if not self.args.docker:
-                self.args.port_gen.register(elem_id)
-            self._reg_addr(topo_id, elem_id, addr_type)
-        for i in range(count + 1, count+1 + len(as_conf.get('static_racs', []))):
-            elem_id = "%s%s-%s" % ('rac', topo_id.file_fmt(), i)
-            if not self.args.docker:
-                self.args.port_gen.register(elem_id)
-            self._reg_addr(topo_id, elem_id, addr_type)
-            i += 1
-
     def _register_br_entries(self, topo_id, as_conf):
         addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-        for (linkto, remote, attrs, l_br, r_br, l_ifid, r_ifid, grps) in self.links[topo_id]:
+        for (linkto, remote, attrs, l_br, r_br, l_ifid, r_ifid) in self.links[topo_id]:
             self._register_br_entry(topo_id, l_ifid, remote, r_ifid,
                                     linkto, attrs, l_br, r_br, addr_type)
 
@@ -240,10 +224,8 @@ class TopoGenerator(object):
                 linkto_b = LinkType.CHILD
             a_br, a_ifid = self._br_name(a, assigned_br_id, br_ids, if_ids)
             b_br, b_ifid = self._br_name(b, assigned_br_id, br_ids, if_ids)
-            a_grps = attrs.pop("groupsA", [0])
-            b_grps = attrs.pop("groupsB", [0])
-            self.links[a].append((linkto_b, b, attrs, a_br, b_br, a_ifid, b_ifid, a_grps))
-            self.links[b].append((linkto_a, a, attrs, b_br, a_br, b_ifid, a_ifid, b_grps))
+            self.links[a].append((linkto_b, b, attrs, a_br, b_br, a_ifid, b_ifid))
+            self.links[b].append((linkto_a, a, attrs, b_br, a_br, b_ifid, a_ifid))
             a_desc = "%s %s" % (a_br, a_ifid)
             b_desc = "%s %s" % (b_br, b_ifid)
             self.ifid_map.setdefault(str(a), {})
@@ -277,7 +259,6 @@ class TopoGenerator(object):
             self.topo_dicts[topo_id][i] = {}
         self._gen_srv_entries(topo_id, as_conf)
         self._gen_br_entries(topo_id, as_conf)
-        self._gen_rac_entries(topo_id, as_conf)
         if self.args.sig:
             self.topo_dicts[topo_id]['sigs'] = {}
             self._gen_sig_entries(topo_id, as_conf)
@@ -316,54 +297,21 @@ class TopoGenerator(object):
             count = 1
         return count
 
-    def _gen_rac_entries(self, topo_id, as_conf):
-        addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-        count = as_conf.get('dynamic_racs', 0)
-        for i in range(1, count + 1):
-            elem_id = "%s%s-%s" % ('rac', topo_id.file_fmt(), i)
-
-            port = 30333
-            if not self.args.docker:
-                port = self.args.port_gen.register(elem_id)
-            d = {
-                'addr': join_host_port(self._reg_addr(topo_id, elem_id, addr_type).ip, port),
-
-            }
-            self.topo_dicts[topo_id]['rac_service'][elem_id] = d
-            addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-
-        staticracs = as_conf.get('static_racs', [])
-        i = count + 1
-        for rac in staticracs:
-            elem_id = "%s%s-%s" % ('rac', topo_id.file_fmt(), i)
-
-            port = 30333
-            if not self.args.docker:
-                port = self.args.port_gen.register(elem_id)
-            d = {
-                'addr': join_host_port(self._reg_addr(topo_id, elem_id, addr_type).ip, port),
-                'static': True,
-                'static_algorithm': rac['static_algorithm']
-            }
-            self.topo_dicts[topo_id]['rac_service'][elem_id] = d
-            addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-            i += 1
-
     def _gen_br_entries(self, topo_id, as_conf):
         addr_type = addr_type_from_underlay(as_conf.get('underlay', DEFAULT_UNDERLAY))
-        for (linkto, remote, attrs, l_br, r_br, l_ifid, r_ifid, grps) in self.links[topo_id]:
+        for (linkto, remote, attrs, l_br, r_br, l_ifid, r_ifid) in self.links[topo_id]:
             self._gen_br_entry(topo_id, l_ifid, remote, r_ifid,
-                               linkto, attrs, l_br, r_br, addr_type, grps)
+                               linkto, attrs, l_br, r_br, addr_type)
 
     def _gen_br_entry(self, local, l_ifid, remote, r_ifid, remote_type, attrs,
-                      local_br, remote_br, addr_type, grps):
+                      local_br, remote_br, addr_type):
         link_addr_type = addr_type_from_underlay(attrs.get('underlay', DEFAULT_UNDERLAY))
         local_addr, remote_addr = self._reg_link_addrs(local_br, remote_br, l_ifid,
                                                        r_ifid, link_addr_type)
 
         intl_addr = self._reg_addr(local, local_br + "_internal", addr_type)
 
-        intf = self._gen_br_intf(remote, r_ifid, local_addr, remote_addr, attrs, remote_type, grps)
+        intf = self._gen_br_intf(remote, r_ifid, local_addr, remote_addr, attrs, remote_type)
 
         if self.topo_dicts[local]["border_routers"].get(local_br) is None:
             intl_port = 30042
@@ -378,17 +326,15 @@ class TopoGenerator(object):
             }
         else:
             # There is already a BR entry, add interface
-            intf = self._gen_br_intf(remote, public_addr, remote_addr, attrs, remote_type, grps)
             self.topo_dicts[local]["border_routers"][local_br]['interfaces'][l_ifid] = intf
 
-    def _gen_br_intf(self, remote, r_ifid, local_addr, remote_addr, attrs, remote_type, grps):
+    def _gen_br_intf(self, remote, r_ifid, local_addr, remote_addr, attrs, remote_type):
         link_to = remote_type.name.lower()
         intf = {
             'underlay': {
                 'local': join_host_port(local_addr.ip, SCION_ROUTER_PORT),
                 'remote': join_host_port(remote_addr.ip, SCION_ROUTER_PORT),
             },
-            'groups': grps,
             'isd_as': str(remote),
             'link_to': link_to,
             'mtu': attrs.get('mtu', self.args.default_mtu),

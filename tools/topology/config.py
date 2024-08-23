@@ -38,6 +38,7 @@ from topology.util import write_file
 from topology.cert import CertGenArgs, CertGenerator
 from topology.common import ArgsBase
 from topology.docker import DockerGenArgs, DockerGenerator
+from topology.kathara import KatharaLabGenerator, KatharaLabGenArgs
 from topology.go import GoGenArgs, GoGenerator
 from topology.net import (
     NetworkDescription,
@@ -75,6 +76,14 @@ class ConfigGenerator(object):
         if self.args.sig and not self.args.docker:
             logging.critical("Cannot use sig without docker!")
             sys.exit(1)
+        if not self.args.image_tag:
+            if self.args.kathara:
+                self.args.image_tag = "kathara-irec"
+            else:
+                self.args.image_tag = "latest"
+        # If kathara is set, docker is also set
+        if self.args.kathara:
+            self.args.docker = True
         self.default_mtu = None
         self._read_defaults()
 
@@ -83,10 +92,11 @@ class ConfigGenerator(object):
         Configure default network.
         """
         defaults = self.topo_config.get("defaults", {})
-        self.subnet_gen4 = SubnetGenerator(self.args.network, self.args.docker) \
-            if self.args.network else SubnetGenerator(DEFAULT_NETWORK, self.args.docker)
-        self.subnet_gen6 = SubnetGenerator(self.args.network_v6, self.args.docker) \
-            if self.args.network_v6 else SubnetGenerator(DEFAULT6_NETWORK, self.args.docker)
+        docker_net_alloc = self.args.docker and not self.args.kathara
+        self.subnet_gen4 = SubnetGenerator(self.args.network, docker_net_alloc) \
+            if self.args.network else SubnetGenerator(DEFAULT_NETWORK, docker_net_alloc)
+        self.subnet_gen6 = SubnetGenerator(self.args.network_v6, docker_net_alloc) \
+            if self.args.network_v6 else SubnetGenerator(DEFAULT6_NETWORK, docker_net_alloc)
         self.default_mtu = defaults.get("mtu", DEFAULT_MTU)
         self.dispatched_ports = defaults.get("dispatched_ports", DEFAULT_DISPATCHED_PORTS)
 
@@ -118,6 +128,8 @@ class ConfigGenerator(object):
             self._generate_supervisor(topo_dicts)
         self._generate_monitoring_conf(topo_dicts)
         self._generate_certs_trcs(topo_dicts)
+        if self.args.kathara:
+            self._generate_kathara(topo_dicts)
 
     def _generate_certs_trcs(self, topo_dicts):
         certgen = CertGenerator(self._cert_args())
@@ -129,7 +141,6 @@ class ConfigGenerator(object):
     def _generate_go(self, topo_dicts):
         args = self._go_args(topo_dicts)
         go_gen = GoGenerator(args)
-        go_gen.generate_rac()
         go_gen.generate_br()
         go_gen.generate_sciond()
         go_gen.generate_control_service()
@@ -153,7 +164,7 @@ class ConfigGenerator(object):
         super_gen.generate()
 
     def _supervisor_args(self, topo_dicts):
-        return SupervisorGenArgs(self.args, topo_dicts, self.topo_config)
+        return SupervisorGenArgs(self.args, topo_dicts)
 
     def _generate_docker(self, topo_dicts):
         args = self._docker_args(topo_dicts)
@@ -162,6 +173,14 @@ class ConfigGenerator(object):
 
     def _docker_args(self, topo_dicts):
         return DockerGenArgs(self.args, topo_dicts, self.all_networks)
+    
+    def _generate_kathara(self, topo_dicts):
+        args = self._kathara_args(topo_dicts)
+        kathara_gen = KatharaLabGenerator(args)
+        kathara_gen.generate_lab()
+
+    def _kathara_args(self, topo_dicts):
+        return KatharaLabGenArgs(self.args, topo_dicts, self.networks)
 
     def _generate_monitoring_conf(self, topo_dicts):
         args = self._monitoring_args(topo_dicts)

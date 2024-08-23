@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -139,6 +140,17 @@ func runTests(in integration.Integration, pairs []integration.IAPair) error {
 			cleaner func()
 			err     error
 		}
+
+		// clear logdir
+		if *integration.Kathara {
+			if err := os.RemoveAll(logDir()); err != nil {
+				return serrors.WrapStr("removing log dir", err)
+			}
+			if err := os.MkdirAll(logDir(), os.ModePerm); err != nil {
+				return serrors.WrapStr("creating log dir", err)
+			}
+		}
+
 		// Start servers in parallel.
 		srvResults := make(chan srvResult)
 		for _, dst := range integration.ExtractUniqueDsts(pairs) {
@@ -216,6 +228,8 @@ func runTests(in integration.Integration, pairs []integration.IAPair) error {
 
 		if *integration.Docker {
 			socket = strings.Replace(socket, doneDir, "/share/logs/socks", -1)
+		} else if *integration.Kathara {
+			socket = strings.Replace(socket, doneDir, "/shared/logs/socks", -1)
 		}
 
 		// CI collapses if parallelism is too high.
@@ -245,6 +259,8 @@ func runTests(in integration.Integration, pairs []integration.IAPair) error {
 				var tester string
 				if *integration.Docker {
 					tester = integration.TesterID(src)
+				} else if *integration.Kathara {
+					tester = integration.EndhostID(src)
 				}
 				logFile := fmt.Sprintf("%s/client_%s.log",
 					logDir(),
@@ -281,6 +297,35 @@ func runTests(in integration.Integration, pairs []integration.IAPair) error {
 				errs = append(errs, err)
 			}
 		}
+		if *integration.Kathara {
+			// check though the logs to see if there are any errors
+			for src := range groups {
+				logFile := fmt.Sprintf("%s/client_%s.log",
+					logDir(),
+					addr.FormatIA(src.IA, addr.WithFileSeparator()),
+				)
+				f, err := os.Open(logFile)
+				if err != nil {
+					log.Error("Failed to read log file for test run (create)",
+						"name", name, "err", err)
+					return err
+				}
+				defer f.Close()
+				scanner := bufio.NewScanner(f)
+				for scanner.Scan() {
+					if scanner.Err() != nil {
+						log.Error("Error during reading of stdout", "err", scanner.Err())
+						return scanner.Err()
+					}
+					line := scanner.Text()
+					if strings.Contains(line, "ERROR") {
+						errs = append(errs, serrors.New(fmt.Sprintf("Error in client %s", addr.FormatIA(src.IA, addr.WithFileSeparator()))))
+						break
+					}
+				}
+			}
+
+		}
 		return errs.ToError()
 	})
 }
@@ -301,7 +346,7 @@ func clientTemplate(progressSock string) integration.Cmd {
 	if len(features) != 0 {
 		cmd.Args = append(cmd.Args, "--features", features)
 	}
-	if progress {
+	if progress && !*integration.Kathara {
 		cmd.Args = append(cmd.Args, "-progress", progressSock)
 	}
 	if !*integration.Docker {

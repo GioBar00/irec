@@ -11,6 +11,7 @@
     - telnet
     - tshark
     - wget
+    - python3
   exclude_packages:
     # generally excluded from distroless
     - debconf

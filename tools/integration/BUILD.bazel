@@ -9,6 +9,7 @@ go_library(
         "docker.go",
         "done.go",
         "integration.go",
+        "kathara.go",
         "networkalloc.go",
     ],
     importpath = "github.com/scionproto/scion/tools/integration",
