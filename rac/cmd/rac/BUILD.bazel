@@ -4,8 +4,8 @@ load("//:scion.bzl", "scion_go_binary")
 go_library(
     name = "go_default_library",
     srcs = [
-        #"build_ubpfjit.go",
-        "build_ubpf.go",
+        "build_ubpfjit.go",
+        #"build_ubpf.go",
         "main.go",
         "main_notiming.go",
     ],

@@ -284,7 +284,8 @@ class KatharaLabGenerator(object):
                     symlink(f"{str(os.path.join(self.output_base, self.args.output_dir))}/{SCMP_PATH_PROBE_SCRIPT_FILE}", f"{dest_conf_dir}/{SCMP_PATH_PROBE_SCRIPT_FILE}")
                 else:
                     real_dev_id = self.get_real_device_id(dev_id)
-                    symlink(f"{conf_dir}/{real_dev_id}.toml", f"{dest_conf_dir}/{real_dev_id[:2]}.toml")
+                    k = 3 if dev_id.startswith("rac") else 2
+                    symlink(f"{conf_dir}/{real_dev_id}.toml", f"{dest_conf_dir}/{real_dev_id[:k]}.toml")
 
     
     def _init_file_content(self):

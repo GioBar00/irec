@@ -84,7 +84,11 @@ class GoGenerator(object):
                 write_file(os.path.join(base, "%s.toml" % k), toml.dumps(rac_conf))
 
     def build_rac_conf(self, topo_id, ia, base, name, v, ctrl_addr):
-        config_dir = '/share/conf' if self.args.docker else base
+        config_dir = '/etc/scion' if self.args.docker else base
+        if self.args.docker:
+            # check if v['static_algorithm'] is absolute path
+            if 'static_algorithm' in v and not os.path.isabs(v['static_algorithm']):
+                v['static_algorithm'] = os.path.join('/etc/scion', v['static_algorithm'])
         raw_entry = {
             'general': {
                 'id': name,
@@ -179,6 +183,11 @@ class GoGenerator(object):
         sanitized_list = []
         # Only copy the options we currently accept: hexhash, file and id, ideally this should be
         # identical to the variable algs.
+        if self.args.docker:
+            for alg in algs:
+                # check if alg['file'] is absolute path
+                if not os.path.isabs(alg['file']):
+                    alg['file'] = os.path.join('/etc/scion', alg['file'])
         for alg in algs:
             if 'originate' in alg and 'file' in alg and 'id' in alg:
                 sanitized_list.append({'originate': alg['originate'], 'file': alg['file'],
