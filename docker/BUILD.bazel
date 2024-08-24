@@ -13,8 +13,10 @@ filegroup(
         ":dispatcher.tar",
         ":gateway.tar",
         ":router.tar",
+        ":rac.tar",
         ":control_kathara.tar",
         ":router_kathara.tar",
+        ":rac_kathara.tar",
     ],
 )
 
@@ -49,6 +51,16 @@ scion_app_image(
         "/etc/scion/cs.toml",
     ],
     entrypoint = ["/app/control"],
+)
+
+scion_app_image(
+    name = "rac",
+    src = "//rac/cmd/rac",
+    cmd = [
+        "--config",
+        "/etc/scion/rac.toml",
+    ],
+    entrypoint = ["/app/rac"],
 )
 
 scion_app_image(
@@ -93,6 +105,13 @@ scion_app_image_kathara(
 scion_app_image_kathara(
     name = "control",
     src = "//control/cmd/control",
+    cmd = ["tail", "-f", "/dev/null"],
+    entrypoint = None,
+)
+
+scion_app_image_kathara(
+    name = "rac",
+    src = "//rac/cmd/rac",
     cmd = ["tail", "-f", "/dev/null"],
     entrypoint = None,
 )

@@ -91,7 +91,7 @@ class KatharaLabGenerator(object):
 
         for topo_id, topo in self.args.topo_dicts.items():
             self.topoid_devices[topo_id] = []
-            for dev_id in topo.get("border_routers", {}).keys() | topo.get("control_service", {}).keys():
+            for dev_id in topo.get("border_routers", {}).keys() | topo.get("control_service", {}).keys() | topo.get("rac_service", {}).keys():
                 self.topoid_devices[topo_id].append(dev_id.replace("-", "_"))
 
             self.topoid_devices[topo_id].append(sciond_name(topo_id).replace("-", "_"))
@@ -165,6 +165,8 @@ class KatharaLabGenerator(object):
                     image = docker_image(self.args, 'control')
                 elif dev_id.startswith("sd"):
                     image = docker_image(self.args, 'endhost')
+                elif dev_id.startswith("rac"):
+                    image = docker_image(self.args, 'rac')
                 else:
                     continue
                 gen_lines.append(f'{dev_id}[image]="{image}"\n')
@@ -188,9 +190,11 @@ class KatharaLabGenerator(object):
                     self.device_info[dev_id]["startup"] += f'/app/router --config /{self.config_dir}/br.toml &\n'
                 elif dev_id.startswith("cs"):
                     self.device_info[dev_id]["startup"] += f'/app/control --config /{self.config_dir}/cs.toml &\n'
+                elif dev_id.startswith("rac"):
+                    self.device_info[dev_id]["startup"] += f'/app/rac --config /{self.config_dir}/rac.toml &\n'
                 elif dev_id.startswith("sd"):
                     self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{CRON_SCRIPT_FILE}\n'
-                    self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
+                    # self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
                     self.device_info[dev_id]["startup"] += f'/app/daemon --config /{self.config_dir}/sd.toml &\n'
                 
                     # Add shutdown commands: Clean scmp_path logs from shared folder
@@ -212,6 +216,8 @@ class KatharaLabGenerator(object):
 
             conf_dir = str(os.path.join(self.output_base, topo_id.base_dir(self.args.output_dir)))
             for dev_id in self.topoid_devices[topo_id]:
+                if dev_id.startswith("rac"):
+                    continue
                 if dev_id.startswith("sd"):
                     conf_toml = f"{conf_dir}/sd.toml"
                 else:
@@ -267,6 +273,9 @@ class KatharaLabGenerator(object):
                 symlink(f"{conf_dir}/crypto", f"{dest_conf_dir}/crypto", is_dir=True)
                 symlink(f"{conf_dir}/keys", f"{dest_conf_dir}/keys", is_dir=True)
                 symlink(f"{conf_dir}/topology.json", f"{dest_conf_dir}/topology.json")
+
+                if dev_id.startswith("cs") or dev_id.startswith("rac"):
+                    symlink(f"{self.output_base}/algorithms", f"{dest_conf_dir}/algorithms", is_dir=True)
 
                 if dev_id.startswith("sd"):
                     symlink(f"{conf_dir}/sd.toml", f"{dest_conf_dir}/sd.toml")
