@@ -153,6 +153,12 @@ class GoGenerator(object):
             'path_db': {
                 'connection': os.path.join(self.db_dir, '%s.path.db' % name),
             },
+            'ingress_db': {
+                'connection': os.path.join(self.db_dir, '%s.ingress.db' % name),
+            },
+            'egress_db': {
+                'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
+            },
             'tracing': self._tracing_entry(),
             'metrics': self._metrics_entry(infra_elem, CS_PROM_PORT),
             'api': self._api_entry(infra_elem, CS_PROM_PORT+700),
@@ -164,7 +170,21 @@ class GoGenerator(object):
         }
         if ca:
             raw_entry['ca'] = {'mode': 'in-process'}
+        if self.args.config["ASes"][str(topo_id)].get("irec", None):
+            raw_entry['irec'] = self.generate_irec(topo_id)
         return raw_entry
+    
+    def generate_irec(self, topo_id):
+        algs = self.args.config["ASes"][str(topo_id)].get("irec", {}).get("algorithms", [])
+        sanitized_list = []
+        # Only copy the options we currently accept: hexhash, file and id, ideally this should be
+        # identical to the variable algs.
+        for alg in algs:
+            if 'originate' in alg and 'file' in alg and 'id' in alg:
+                sanitized_list.append({'originate': alg['originate'], 'file': alg['file'],
+                                       'id': alg['id'], 'fallback': alg['fallback'] if
+                                       'fallback' in alg else False})
+        return {"algorithms": sanitized_list}
 
     def generate_sciond(self):
         for topo_id, topo in self.args.topo_dicts.items():

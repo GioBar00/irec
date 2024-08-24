@@ -260,12 +260,6 @@ def go_deps():
         version = "v2.1.0",
     )
     go_repository(
-        name = "com_github_dustin_go_humanize",
-        importpath = "github.com/dustin/go-humanize",
-        sum = "h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=",
-        version = "v1.0.1",
-    )
-    go_repository(
         name = "com_github_dvyukov_go_fuzz",
         importpath = "github.com/dvyukov/go-fuzz",
         sum = "h1:q1oJaUPdmpDm/VyXosjgPgr6wS7c5iV2p0PwJD73bUI=",
@@ -782,12 +776,6 @@ def go_deps():
         version = "v0.0.4",
     )
     go_repository(
-        name = "com_github_kballard_go_shellquote",
-        importpath = "github.com/kballard/go-shellquote",
-        sum = "h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=",
-        version = "v0.0.0-20180428030007-95032a82bc51",
-    )
-    go_repository(
         name = "com_github_kisielk_errcheck",
         importpath = "github.com/kisielk/errcheck",
         sum = "h1:e8esj/e4R+SAOwFwN+n3zr0nYeCyeweozKfO23MvHzY=",
@@ -808,8 +796,8 @@ def go_deps():
     go_repository(
         name = "com_github_klauspost_cpuid_v2",
         importpath = "github.com/klauspost/cpuid/v2",
-        sum = "h1:ZWSB3igEs+d0qvnxR/ZBzXVmxkgt8DdzP6m9pfuVLDM=",
-        version = "v2.2.7",
+        sum = "h1:0E5MSMDEoAulmXNFquVs//DdoomxaoTY1kUhbc/qbZg=",
+        version = "v2.2.5",
     )
     go_repository(
         name = "com_github_konsorten_go_windows_terminal_sequences",
@@ -1022,12 +1010,6 @@ def go_deps():
         version = "v1.0.1",
     )
     go_repository(
-        name = "com_github_ncruces_go_strftime",
-        importpath = "github.com/ncruces/go-strftime",
-        sum = "h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=",
-        version = "v0.1.9",
-    )
-    go_repository(
         name = "com_github_niemeyer_pretty",
         importpath = "github.com/niemeyer/pretty",
         sum = "h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=",
@@ -1140,12 +1122,6 @@ def go_deps():
         importpath = "github.com/RaveNoX/go-jsoncommentstrip",
         sum = "h1:t527LHHE3HmiHrq74QMpNPZpGCIJzTx+apLkMKt4HC0=",
         version = "v1.0.0",
-    )
-    go_repository(
-        name = "com_github_remyoudompheng_bigfft",
-        importpath = "github.com/remyoudompheng/bigfft",
-        sum = "h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=",
-        version = "v0.0.0-20230129092748-24d4a6f8daec",
     )
     go_repository(
         name = "com_github_rivo_uniseg",
@@ -1404,12 +1380,6 @@ def go_deps():
         importpath = "cloud.google.com/go/storage",
         sum = "h1:B59ahL//eDfx2IIKFBeT5Atm9wnNmj3+8xG/W4WB//w=",
         version = "v1.35.1",
-    )
-    go_repository(
-        name = "com_lukechampine_uint128",
-        importpath = "lukechampine.com/uint128",
-        sum = "h1:mBi/5l91vocEN8otkC5bDLhi2KdCticRiwbdB0O+rjI=",
-        version = "v1.2.0",
     )
     go_repository(
         name = "com_shuralyov_dmitri_gpu_mtl",
@@ -1676,96 +1646,6 @@ def go_deps():
         importpath = "gonum.org/v1/plot",
         sum = "h1:Qh4dB5D/WpoUUp3lSod7qgoyEHbDGPUWjIbnqdqqe1k=",
         version = "v0.0.0-20190515093506-e2840ee46a6b",
-    )
-    go_repository(
-        name = "org_modernc_cc_v3",
-        importpath = "modernc.org/cc/v3",
-        sum = "h1:QoR1Sn3YWlmA1T4vLaKZfawdVtSiGx8H+cEojbC7v1Q=",
-        version = "v3.41.0",
-    )
-    go_repository(
-        name = "org_modernc_cc_v4",
-        importpath = "modernc.org/cc/v4",
-        sum = "h1:D/gLKtcztomvWbsbvBKo3leKQv+86f+DdqEZBBXhnag=",
-        version = "v4.21.0",
-    )
-    go_repository(
-        name = "org_modernc_ccgo_v3",
-        importpath = "modernc.org/ccgo/v3",
-        sum = "h1:o3OmOqx4/OFnl4Vm3G8Bgmqxnvxnh0nbxeT5p/dWChA=",
-        version = "v3.17.0",
-    )
-    go_repository(
-        name = "org_modernc_ccgo_v4",
-        importpath = "modernc.org/ccgo/v4",
-        sum = "h1:t2CQci84jnxKw3GGnHvjGKjiNZeZqyQx/023spkk4hU=",
-        version = "v4.17.3",
-    )
-    go_repository(
-        name = "org_modernc_fileutil",
-        importpath = "modernc.org/fileutil",
-        sum = "h1:gQ5SIzK3H9kdfai/5x41oQiKValumqNTDXMvKo62HvE=",
-        version = "v1.3.0",
-    )
-    go_repository(
-        name = "org_modernc_gc_v2",
-        importpath = "modernc.org/gc/v2",
-        sum = "h1:9cNzOqPyMJBvrUipmynX0ZohMhcxPtMccYgGOJdOiBw=",
-        version = "v2.4.1",
-    )
-    go_repository(
-        name = "org_modernc_gc_v3",
-        importpath = "modernc.org/gc/v3",
-        sum = "h1:BnN1t+pb1cy61zbvSUV7SeI0PwosMhlAEi/vBY4qxp8=",
-        version = "v3.0.0-20240304020402-f0dba7c97c2b",
-    )
-    go_repository(
-        name = "org_modernc_libc",
-        importpath = "modernc.org/libc",
-        sum = "h1:ZzeUd0dIc/sUtoPTCYIrgypkuzoGzNu6kbEWj2VuEmk=",
-        version = "v1.50.5",
-    )
-    go_repository(
-        name = "org_modernc_mathutil",
-        importpath = "modernc.org/mathutil",
-        sum = "h1:fRe9+AmYlaej+64JsEEhoWuAYBkOtQiMEU7n/XgfYi4=",
-        version = "v1.6.0",
-    )
-    go_repository(
-        name = "org_modernc_memory",
-        importpath = "modernc.org/memory",
-        sum = "h1:IqGTL6eFMaDZZhEWwcREgeMXYwmW83LYW8cROZYkg+E=",
-        version = "v1.8.0",
-    )
-    go_repository(
-        name = "org_modernc_opt",
-        importpath = "modernc.org/opt",
-        sum = "h1:3XOZf2yznlhC+ibLltsDGzABUGVx8J6pnFMS3E4dcq4=",
-        version = "v0.1.3",
-    )
-    go_repository(
-        name = "org_modernc_sortutil",
-        importpath = "modernc.org/sortutil",
-        sum = "h1:jQiD3PfS2REGJNzNCMMaLSp/wdMNieTbKX920Cqdgqc=",
-        version = "v1.2.0",
-    )
-    go_repository(
-        name = "org_modernc_sqlite",
-        importpath = "modernc.org/sqlite",
-        sum = "h1:9RhNMklxJs+1596GNuAX+O/6040bvOwacTxuFcRuQow=",
-        version = "v1.29.9",
-    )
-    go_repository(
-        name = "org_modernc_strutil",
-        importpath = "modernc.org/strutil",
-        sum = "h1:agBi9dp1I+eOnxXeiZawM8F4LawKv4NzGWSaLfyeNZA=",
-        version = "v1.2.0",
-    )
-    go_repository(
-        name = "org_modernc_token",
-        importpath = "modernc.org/token",
-        sum = "h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=",
-        version = "v1.1.0",
     )
     go_repository(
         name = "org_uber_go_atomic",
