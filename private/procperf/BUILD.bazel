@@ -1,0 +1,9 @@
+load("//tools/lint:go.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["procperf.go"],
+    importpath = "github.com/scionproto/scion/private/procperf",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/private/serrors:go_default_library", "//pkg/log:go_default_library"],
+)

@@ -43,6 +43,7 @@ go_library(
         "//pkg/segment:go_default_library",
         "//pkg/snet:go_default_library",
         "//pkg/snet/addrutil:go_default_library",
+        "//private/procperf:go_default_library",
         "//private/app:go_default_library",
         "//private/app/appnet:go_default_library",
         "//private/app/command:go_default_library",

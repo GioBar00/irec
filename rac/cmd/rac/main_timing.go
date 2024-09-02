@@ -17,7 +17,9 @@ import (
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
+	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/private/app"
+	"github.com/scionproto/scion/private/procperf"
 	"github.com/scionproto/scion/private/topology"
 	"github.com/scionproto/scion/rac"
 	env2 "github.com/scionproto/scion/rac/env"
@@ -27,6 +29,9 @@ import (
 )
 
 func realMain(ctx context.Context) error {
+
+	procperf.Init()
+	defer procperf.Close()
 
 	topo, err := topology.NewLoader(topology.LoaderCfg{
 		File:      globalCfg.General.Topology(),
@@ -120,6 +125,16 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
+			segment_ids := make([]string, len(exec.BeaconsUnopt))
+			for _, beacon := range exec.BeaconsUnopt {
+				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				if err != nil {
+					log.Error("Error when converting path segment", "err", err)
+					time.Sleep(1 * time.Second)
+					return
+				}
+				segment_ids = append(segment_ids, ps.GetLoggingID())
+			}
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 			// RACS do not reprocess them.
 			algorithm, _ := algCache.Algorithms[string(exec.AlgorithmHash)]
@@ -154,6 +169,10 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
 			ctr.Add(1)
 
+			for _, seg_id := range segment_ids {
+				procperf.AddBeaconTime(seg_id, timeAlgorithmRetS)
+				procperf.DoneBeacon(seg_id, procperf.Processed, timeGrpcIngress2E)
+			}
 		}()
 	}
 }
@@ -177,7 +196,17 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			//startEbpf := time.Now()
+			segment_ids := make([]string, len(exec.BeaconsUnopt))
+			for _, beacon := range exec.BeaconsUnopt {
+				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				if err != nil {
+					log.Error("Error when converting path segment", "err", err)
+					time.Sleep(1 * time.Second)
+					return
+				}
+				segment_ids = append(segment_ids, ps.GetLoggingID())
+			}
+			startEbpf := time.Now()
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			res, err := env.ExecuteStatic(ctx, exec, int32(ctr.Load()))
 
@@ -192,8 +221,13 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
+			stopEbpf := time.Now()
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
+			for _, seg_id := range segment_ids {
+				procperf.AddBeaconTime(seg_id, startEbpf)
+				procperf.DoneBeacon(seg_id, procperf.Processed, stopEbpf)
+			}
 		}()
 	}
 }

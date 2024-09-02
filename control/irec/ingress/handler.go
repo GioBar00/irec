@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/scionproto/scion/private/procperf"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -40,6 +41,8 @@ type Handler struct {
 }
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
+	bcnId := b.Segment.GetLoggingID()
+	procperf.AddBeaconTime(bcnId, time.Now())
 	span := opentracing.SpanFromContext(ctx)
 	intf := h.Interfaces.Get(b.InIfID)
 	if intf == nil {
@@ -104,6 +107,11 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 		return serrors.WrapStr("inserting beacon", err)
 	}
 	logger.Debug("Inserted beacon")
+
+	if err := procperf.DoneBeacon(bcnId, procperf.Received, time.Now()); err != nil {
+		return serrors.WrapStr("PROCPERF: error done receive", err)
+	}
+
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"github.com/scionproto/scion/private/procperf"
 	"net"
 	"sync"
 	"time"
@@ -90,7 +91,6 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	for _, bcn := range request.Beacon {
 		// If the beacon is a pull-based beacon, handle the beacon separately.
 		segment, err := seg.BeaconFromPB(bcn.PathSeg)
-
 		if err != nil {
 			log.Error("Could not parse beacon segment", "err", err)
 			continue
@@ -105,6 +105,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 			continue
 		}
+		bcnId := segment.GetLoggingID()
+		procperf.AddBeaconTime(bcnId, time.Now())
 		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
 		// TODO(jvb); ALternatively, we can write these to the egress database and use a periodic writer to write to the path servers.
@@ -242,6 +244,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					intf.Propagate(time.Now(), "")
 				}
 				log.Debug("NOTIF; here6")
+				t := time.Now()
+				if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, segment.GetLoggingID()); err != nil {
+					log.Error("PROCPERF: error done beacon propagated", "err", err)
+				}
 			}()
 		}
 	}

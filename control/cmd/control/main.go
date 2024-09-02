@@ -90,6 +90,7 @@ import (
 	"github.com/scionproto/scion/private/mgmtapi/jwtauth"
 	segapi "github.com/scionproto/scion/private/mgmtapi/segments/api"
 	"github.com/scionproto/scion/private/periodic"
+	"github.com/scionproto/scion/private/procperf"
 	segfetchergrpc "github.com/scionproto/scion/private/segment/segfetcher/grpc"
 	"github.com/scionproto/scion/private/segment/seghandler"
 	"github.com/scionproto/scion/private/service"
@@ -129,6 +130,11 @@ func realMain(ctx context.Context) error {
 		http.ListenAndServe(strings.Split(globalCfg.API.Addr, ":")[0]+":"+portstr, nil)
 	}()
 	metrics := cs.NewMetrics()
+
+	if err := procperf.Init(); err != nil {
+		return serrors.WrapStr("PROCPERF: error initialising", err)
+	}
+	defer procperf.Close()
 
 	topo, err := topology.NewLoader(topology.LoaderCfg{
 		File:      globalCfg.General.Topology(),
@@ -359,7 +365,7 @@ func realMain(ctx context.Context) error {
 	//})
 	policies, err := cs.LoadNonCorePolicies(globalCfg.BS.Policies)
 	if err != nil {
-		serrors.WrapStr("policies", err)
+		return serrors.WrapStr("policies", err)
 	}
 	db, err := storage2.NewIngressDB(policies, ingressDB)
 	if err != nil {
