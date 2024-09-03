@@ -107,8 +107,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 			continue
 		}
-		bcnId := fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)
-		procperf.AddBeaconTime(bcnId, time.Now())
+		propStart := time.Now()
 		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
 		// TODO(jvb); ALternatively, we can write these to the egress database and use a periodic writer to write to the path servers.
@@ -140,7 +139,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 			}()
 		}
-
+		idCompStart := time.Now()
+		bcnId := fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)
+		procperf.AddBeaconTime(bcnId, propStart)
+		idCompElapsed := time.Since(idCompStart)
 		// Every beacon is to be propagated on a set of interfaces
 		for _, intfId := range bcn.EgressIntfs {
 			wg.Add(1)
@@ -148,6 +150,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			intfId := intfId
 			bcn := bcn
 			bcnId := bcnId
+			idCompElapsed := idCompElapsed
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
@@ -247,7 +250,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					intf.Propagate(time.Now(), "")
 				}
 				log.Debug("NOTIF; here6")
-				t := time.Now()
+				t := time.Now().Add(-idCompElapsed)
 				if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error done beacon propagated", "err", err)
 				}
