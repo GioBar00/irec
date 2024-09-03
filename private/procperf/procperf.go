@@ -19,7 +19,7 @@ const (
 	Processed  Type = "Processed"
 )
 
-var beaconTime = sync.Map{}
+// var beaconTime = sync.Map{}
 var file *os.File
 var once sync.Once
 
@@ -40,27 +40,31 @@ func Close() {
 	_ = file.Close()
 }
 
-func AddBeaconTime(id string, t time.Time) {
-	beaconTime.Store(id, t)
-}
+//func AddBeaconTime(id string, t time.Time) {
+//	beaconTime.Store(id, t)
+//}
+//
+//func DoneBeacon(id string, procPerfType Type, t time.Time, newId ...string) error {
+//	if bt, ok := beaconTime.Load(id); ok {
+//		bt := bt.(time.Time)
+//		return AddTimeDoneBeacon(id, procPerfType, bt, t, newId...)
+//	} else {
+//		return serrors.New("beacon not found in beaconTime")
+//	}
+//}
 
-func DoneBeacon(id string, procPerfType Type, t time.Time, newId ...string) error {
-	if bt, ok := beaconTime.Load(id); ok {
-		if procPerfType == Propagated && len(newId) == 0 {
-			return serrors.New("newId not found for propagated beacon")
-		}
-		newIdStr := ""
-		if len(newId) > 0 {
-			newIdStr = newId[0]
-		}
-		ppt := string(procPerfType)
-		// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
-		bt := bt.(time.Time)
-		_, err := file.WriteString(id + "; " + newIdStr + "; " + ppt + "; " + bt.String() + "; " + t.String() + "\n")
-		beaconTime.Delete(id)
-		//return nil
-		return err
-	} else {
-		return serrors.New("beacon not found in beaconTime")
+func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.Time, newId ...string) error {
+	if procPerfType == Propagated && len(newId) == 0 {
+		return serrors.New("newId not found for propagated beacon")
 	}
+	newIdStr := ""
+	if len(newId) > 0 {
+		newIdStr = newId[0]
+	}
+	ppt := string(procPerfType)
+	// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
+	_, err := file.WriteString(id + "; " + newIdStr + "; " + ppt + "; " + start.String() + "; " + end.String() + "\n")
+	//beaconTime.Delete(id)
+	//return nil
+	return err
 }

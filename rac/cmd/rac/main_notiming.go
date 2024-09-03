@@ -173,8 +173,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			ctr.Add(1)
 
 			for _, segId := range bcnIds {
-				procperf.AddBeaconTime(segId, timeAlgorithmRetS)
-				if err := procperf.DoneBeacon(segId, procperf.Processed, timeGrpcIngress2E); err != nil {
+				if err := procperf.AddTimeDoneBeacon(segId, procperf.Processed, timeAlgorithmRetS, timeGrpcIngress2E); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
 				}
 			}
@@ -230,8 +229,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
 			for _, segId := range bcnIds {
-				procperf.AddBeaconTime(segId, startEbpf)
-				if err := procperf.DoneBeacon(segId, procperf.Processed, stopEbpf); err != nil {
+				if err := procperf.AddTimeDoneBeacon(segId, procperf.Processed, startEbpf, stopEbpf); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
 				}
 			}

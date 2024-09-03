@@ -183,14 +183,14 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 			}
 			idCompStart := time.Now()
 			bcnId := fmt.Sprintf("%s %x", beacon.GetLoggingID(), beacon.Info.SegmentID)
-			procperf.AddBeaconTime(bcnId, sendStart)
 			idCompElapsed := time.Since(idCompStart)
 			if err := sender.Send(ctx, beacon); err != nil {
 				return serrors.WrapStr("sending beacon", err,
 					"waited_for", time.Since(sendStart).String(),
 				)
 			}
-			if err := procperf.DoneBeacon(bcnId, procperf.Originated, time.Now().Add(-idCompElapsed), bcnId); err != nil {
+			t := time.Now().Add(-idCompElapsed)
+			if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Originated, sendStart, t, bcnId); err != nil {
 				return serrors.WrapStr("PROCPERF: error done beacon", err)
 			}
 		}
@@ -205,14 +205,14 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 		}
 		idCompStart := time.Now()
 		bcnId := fmt.Sprintf("%s %x", beacon.GetLoggingID(), beacon.Info.SegmentID)
-		procperf.AddBeaconTime(bcnId, sendStart)
 		idCompElapsed := time.Since(idCompStart)
 		if err := sender.Send(ctx, beacon); err != nil {
 			return serrors.WrapStr("sending beacon", err,
 				"waited_for", time.Since(sendStart).String(),
 			)
 		}
-		if err := procperf.DoneBeacon(bcnId, procperf.Originated, time.Now().Add(-idCompElapsed), bcnId); err != nil {
+		t := time.Now().Add(-idCompElapsed)
+		if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Originated, sendStart, t, bcnId); err != nil {
 			return serrors.WrapStr("PROCPERF: error done beacon", err)
 		}
 	}

@@ -24,7 +24,7 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 		return serrors.WrapStr("Parsing pull-based beacon failed; ", err)
 	}
 	bcnId := fmt.Sprintf("%s %x", segCopy.GetLoggingID(), segCopy.Info.SegmentID)
-	procperf.AddBeaconTime(bcnId, time.Now())
+	startTime := time.Now()
 	if segCopy.ASEntries[0].Extensions.Irec == nil {
 		return serrors.New("Beacon is not an IREC beacon")
 	}
@@ -56,8 +56,7 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 		return err
 	}
 	t := time.Now()
-
-	if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, fmt.Sprintf("%s %x", segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
+	if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, startTime, t, fmt.Sprintf("%s %x", segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
 		return serrors.WrapStr("PROCPERF: error done propagate Pullbased", err)
 	}
 	return nil

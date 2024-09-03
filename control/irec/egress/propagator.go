@@ -247,8 +247,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				log.Debug("NOTIF; here6")
 				t := time.Now()
-				procperf.AddBeaconTime(bcnId, propStart)
-				if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
+				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, propStart, t, fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error done beacon propagated", "err", err)
 				}
 			}()
