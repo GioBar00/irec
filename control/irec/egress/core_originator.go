@@ -3,6 +3,8 @@ package egress
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	"github.com/scionproto/scion/private/procperf"
 	"math/big"
 	"net"
 	"sort"
@@ -179,10 +181,17 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 			if err != nil {
 				return serrors.WrapStr("creating beacon", err)
 			}
+			idCompStart := time.Now()
+			bcnId := fmt.Sprintf("%s %x", beacon.GetLoggingID(), beacon.Info.SegmentID)
+			procperf.AddBeaconTime(bcnId, sendStart)
+			idCompElapsed := time.Since(idCompStart)
 			if err := sender.Send(ctx, beacon); err != nil {
 				return serrors.WrapStr("sending beacon", err,
 					"waited_for", time.Since(sendStart).String(),
 				)
+			}
+			if err := procperf.DoneBeacon(bcnId, procperf.Originated, time.Now().Add(-idCompElapsed), bcnId); err != nil {
+				return serrors.WrapStr("PROCPERF: error done beacon", err)
 			}
 		}
 	} else {
@@ -194,10 +203,17 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 		if err != nil {
 			return serrors.WrapStr("creating beacon", err)
 		}
+		idCompStart := time.Now()
+		bcnId := fmt.Sprintf("%s %x", beacon.GetLoggingID(), beacon.Info.SegmentID)
+		procperf.AddBeaconTime(bcnId, sendStart)
+		idCompElapsed := time.Since(idCompStart)
 		if err := sender.Send(ctx, beacon); err != nil {
 			return serrors.WrapStr("sending beacon", err,
 				"waited_for", time.Since(sendStart).String(),
 			)
+		}
+		if err := procperf.DoneBeacon(bcnId, procperf.Originated, time.Now().Add(-idCompElapsed), bcnId); err != nil {
+			return serrors.WrapStr("PROCPERF: error done beacon", err)
 		}
 	}
 	return nil
