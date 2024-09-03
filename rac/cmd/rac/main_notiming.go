@@ -33,6 +33,9 @@ import (
 
 func realMain(ctx context.Context) error {
 
+	procperf.Init()
+	defer procperf.Close()
+
 	topo, err := topology.NewLoader(topology.LoaderCfg{
 		File:      globalCfg.General.Topology(),
 		Reload:    app.SIGHUPChannel(ctx),
