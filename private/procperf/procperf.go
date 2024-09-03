@@ -26,12 +26,12 @@ var once sync.Once
 func Init() error {
 	var err error = nil
 	once.Do(func() {
-		// hostname, err := os.Hostname()
-		// if err != nil {
-		// 	log.Error("Error getting hostname", "err", err)
-		// }
-		// file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
-		// _, err = file.WriteString("ID; Next ID; Type; Start Time; End Time\n")
+		hostname, err := os.Hostname()
+		if err != nil {
+			log.Error("Error getting hostname", "err", err)
+		}
+		file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
+		_, err = file.WriteString("ID; Next ID; Type; Start Time; End Time\n")
 	})
 	return err
 }
@@ -45,7 +45,7 @@ func AddBeaconTime(id string, t time.Time) {
 }
 
 func DoneBeacon(id string, procPerfType Type, t time.Time, newId ...string) error {
-	if _, ok := beaconTime.Load(id); ok {
+	if bt, ok := beaconTime.Load(id); ok {
 		if procPerfType == Propagated && len(newId) == 0 {
 			return serrors.New("newId not found for propagated beacon")
 		}
@@ -54,11 +54,12 @@ func DoneBeacon(id string, procPerfType Type, t time.Time, newId ...string) erro
 			newIdStr = newId[0]
 		}
 		ppt := string(procPerfType)
-		log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
-		// _, err := file.WriteString(id + "; " + newIdStr + "; " + ppt + "; " + beaconTime[id].String() + "; " + t.String() + "\n")
+		// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
+		bt := bt.(time.Time)
+		_, err := file.WriteString(id + "; " + newIdStr + "; " + ppt + "; " + bt.String() + "; " + t.String() + "\n")
 		beaconTime.Delete(id)
-		return nil
-		// return err
+		//return nil
+		return err
 	} else {
 		return serrors.New("beacon not found in beaconTime")
 	}

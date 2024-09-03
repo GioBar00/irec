@@ -6,10 +6,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/private/procperf"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/scionproto/scion/private/procperf"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/ifstate"
@@ -146,6 +147,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			// Copy to have the vars in the goroutine
 			intfId := intfId
 			bcn := bcn
+			bcnId := bcnId
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
