@@ -5,12 +5,13 @@ package main
 import (
 	"context"
 	"fmt"
-	seg "github.com/scionproto/scion/pkg/segment"
-	"github.com/scionproto/scion/private/procperf"
 	_ "net/http/pprof"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	seg "github.com/scionproto/scion/pkg/segment"
+	"github.com/scionproto/scion/private/procperf"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/resolver"
@@ -125,9 +126,9 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
-			segmentIds := make([]string, len(exec.BeaconsUnopt))
+			segmentIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
-				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
 					time.Sleep(1 * time.Second)
@@ -197,9 +198,9 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			segmentIds := make([]string, len(exec.BeaconsUnopt))
+			segmentIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
-				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
 					time.Sleep(1 * time.Second)

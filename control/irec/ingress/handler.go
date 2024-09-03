@@ -5,8 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"github.com/scionproto/scion/private/procperf"
 	"time"
+
+	"github.com/scionproto/scion/private/procperf"
 
 	"github.com/opentracing/opentracing-go"
 
@@ -69,10 +70,10 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 		logger.Info("Beacon validation failed", "err", err)
 		return err
 	}
-	// if err := h.verifySegment(ctx, b.Segment, peer); err != nil {
-	// 	logger.Info("Beacon verification failed", "err", err)
-	// 	return serrors.WrapStr("verifying beacon", err)
-	// }
+	if err := h.verifySegment(ctx, b.Segment, peer); err != nil {
+		logger.Info("Beacon verification failed", "err", err)
+		return serrors.WrapStr("verifying beacon", err)
+	}
 	if len(b.Segment.ASEntries) == 0 { // Should not happen
 		logger.Info("Not enough AS entries to process")
 		return serrors.New("Not enough AS entries to process")
