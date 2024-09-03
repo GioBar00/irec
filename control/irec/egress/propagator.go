@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"github.com/scionproto/scion/private/procperf"
 	"net"
 	"sync"
@@ -105,7 +106,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 			continue
 		}
-		bcnId := segment.GetLoggingID()
+		bcnId := fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)
 		procperf.AddBeaconTime(bcnId, time.Now())
 		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
@@ -245,7 +246,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				log.Debug("NOTIF; here6")
 				t := time.Now()
-				if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, segment.GetLoggingID()); err != nil {
+				if err := procperf.DoneBeacon(bcnId, procperf.Propagated, t, fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error done beacon propagated", "err", err)
 				}
 			}()

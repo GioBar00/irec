@@ -17,6 +17,7 @@ package beaconing
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"github.com/scionproto/scion/private/procperf"
 	"math/big"
 	"net"
@@ -166,7 +167,7 @@ func (o *beaconOriginator) originateBeacon(ctx context.Context) error {
 		o.incrementMetrics(labels.WithResult("err_create"))
 		return serrors.WrapStr("creating beacon", err, "egress_interface", o.intf.TopoInfo().ID)
 	}
-	bcnId := beacon.GetLoggingID()
+	bcnId := fmt.Sprintf("%s %x", beacon.GetLoggingID(), beacon.Info.SegmentID)
 	senderStart := time.Now()
 	procperf.AddBeaconTime(bcnId, senderStart)
 	senderCtx, cancelF := context.WithTimeout(ctx, defaultNewSenderTimeout)

@@ -126,7 +126,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
-			segmentIds := make([]string, 0)
+			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
@@ -134,7 +134,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 					time.Sleep(1 * time.Second)
 					return
 				}
-				segmentIds = append(segmentIds, ps.GetLoggingID())
+				bcnIds = append(bcnIds, fmt.Sprintf("%s %x", ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 			// RACS do not reprocess them.
@@ -169,7 +169,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			log.Info("Called to say job is complete")
 			ctr.Add(1)
 
-			for _, segId := range segmentIds {
+			for _, segId := range bcnIds {
 				procperf.AddBeaconTime(segId, timeAlgorithmRetS)
 				if err := procperf.DoneBeacon(segId, procperf.Processed, timeGrpcIngress2E); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
@@ -198,7 +198,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			segmentIds := make([]string, 0)
+			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
@@ -206,7 +206,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 					time.Sleep(1 * time.Second)
 					return
 				}
-				segmentIds = append(segmentIds, ps.GetLoggingID())
+				bcnIds = append(bcnIds, fmt.Sprintf("%s %x", ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			startEbpf := time.Now()
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
@@ -226,7 +226,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 			stopEbpf := time.Now()
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
-			for _, segId := range segmentIds {
+			for _, segId := range bcnIds {
 				procperf.AddBeaconTime(segId, startEbpf)
 				if err := procperf.DoneBeacon(segId, procperf.Processed, stopEbpf); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
