@@ -367,7 +367,7 @@ func (e *executor) updateExistingBeacon(
 	inst := `UPDATE Beacons SET FullID=?, InIntfID=?, HopsLength=?, InfoTime=?,
 			ExpirationTime=?, LastUpdated=?, Usage=?, Beacon=?, FetchStatus = 0, PullBasedMinBeacons=?, PullBasedPeriod=?, PullBasedHyperPeriod=?
 			WHERE RowID=?`
-	_, err = e.db.ExecContext(ctx, inst, fullID, b.InIfId, len(b.Segment.ASEntries), infoTime,
+	_, err = e.db.ExecContext(ctx, inst, fullID, b.InIfID, len(b.Segment.ASEntries), infoTime,
 		expTime, lastUpdated, usage, packedSeg, pullBasedMinBeacons, pullBasedPeriod, pullBasedHyperPeriod, rowID)
 	if err != nil {
 		return db.NewWriteError("update segment", err)
@@ -428,7 +428,7 @@ func insertNewBeacon(
 	_, err = tx.ExecContext(ctx, inst, segID, fullID, start.ISD(), start.AS(),
 		intfGroup,
 		algorithmHash,
-		algorithmId, b.InIfId,
+		algorithmId, b.InIfID,
 		len(b.Segment.ASEntries), infoTime, expTime, lastUpdated, usage, packed, pullBased, pullBasedMinBeacons, pullBasedPeriod, pullBasedHyperPeriod, pullBasedTargetAs, pullBasedTargetIsd)
 	if err != nil {
 		return db.NewWriteError("insert beacon", err)

@@ -10,7 +10,10 @@ scion_go_binary(
 go_library(
     name = "go_default_library",
     srcs = [
+        "build_native.go",
         "build_ubpf.go",
+        "build_wa.go",
+        "build_waopt.go",
         "config.go",
         "main.go",
         "selection_algo.go",

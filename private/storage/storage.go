@@ -23,7 +23,7 @@ import (
 
 	"github.com/scionproto/scion/control/beacon"
 	storage2 "github.com/scionproto/scion/control/irec/egress/storage"
-	"github.com/scionproto/scion/control/irec/ingress/storage"
+	storage "github.com/scionproto/scion/control/irec/ingress/storage"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/drkey"
 	"github.com/scionproto/scion/pkg/log"

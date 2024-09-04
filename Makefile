@@ -99,6 +99,12 @@ docker-images-ubpfjit:
 	@echo "Load images"
 	@bazel cquery '//docker:prod union //docker:test' --output=files 2>/dev/null | xargs -I{} docker load --input {}
 
+docker-images-wa:
+	@echo "Build images"
+	bazel build //docker:prod //docker:test --define gotags=wa
+	@echo "Load images"
+	@bazel cquery '//docker:prod union //docker:test' --output=files 2>/dev/null | xargs -I{} docker load --input {}
+
 scion-topo:
 	bazel build //:scion-topo
 	tar --overwrite -xf bazel-bin/scion-topo.tar -C bin
