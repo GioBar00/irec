@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
 	"time"
 
 	"github.com/scionproto/scion/private/procperf"
@@ -43,7 +42,7 @@ type Handler struct {
 }
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
-	bcnId := fmt.Sprintf("%s %x", b.Segment.GetLoggingID(), b.Segment.Info.SegmentID)
+	bcnId := procperf.GetFullId(b.Segment.GetLoggingID(), b.Segment.Info.SegmentID)
 	startTime := time.Now()
 	span := opentracing.SpanFromContext(ctx)
 	intf := h.Interfaces.Get(b.InIfID)

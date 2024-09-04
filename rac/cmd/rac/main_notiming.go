@@ -137,7 +137,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 					time.Sleep(1 * time.Second)
 					return
 				}
-				bcnIds = append(bcnIds, fmt.Sprintf("%s %x", ps.GetLoggingID(), ps.Info.SegmentID))
+				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 			// RACS do not reprocess them.
@@ -172,8 +172,8 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			log.Info("Called to say job is complete")
 			ctr.Add(1)
 
-			for _, segId := range bcnIds {
-				if err := procperf.AddTimeDoneBeacon(segId, procperf.Processed, timeAlgorithmRetS, timeGrpcIngress2E); err != nil {
+			for _, bcnId := range bcnIds {
+				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Processed, timeAlgorithmRetS, timeGrpcIngress2E); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
 				}
 			}
@@ -208,7 +208,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 					time.Sleep(1 * time.Second)
 					return
 				}
-				bcnIds = append(bcnIds, fmt.Sprintf("%s %x", ps.GetLoggingID(), ps.Info.SegmentID))
+				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			startEbpf := time.Now()
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
@@ -228,8 +228,8 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 			stopEbpf := time.Now()
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
-			for _, segId := range bcnIds {
-				if err := procperf.AddTimeDoneBeacon(segId, procperf.Processed, startEbpf, stopEbpf); err != nil {
+			for _, bcnId := range bcnIds {
+				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Processed, startEbpf, stopEbpf); err != nil {
 					log.Error("PROCPERF: Error when processing beacon", "err", err)
 				}
 			}

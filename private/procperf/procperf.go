@@ -68,3 +68,7 @@ func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.T
 	//return nil
 	return err
 }
+
+func GetFullId(id string, segID uint16) string {
+	return fmt.Sprintf("%s %04x", id, segID)
+}

@@ -1,9 +1,16 @@
 load("@aspect_bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_tarball")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
+load("@tester_debian10_packages//:packages.bzl", "debian_package_layer")
 
 # Defines a common base image for all app images.
 def scion_app_base_kathara():
+    pkg_tar(
+        name = "base_kathara_layer_packages",
+        deps = [
+            debian_package_layer("ntp"),
+        ],
+    )
     pkg_tar(
         name = "share_dirs_layer_kathara",
         empty_dirs = [
@@ -27,6 +34,7 @@ def scion_app_base_kathara():
         env = env,
         tars = [
             "//licenses:licenses",
+            ":base_kathara_layer_packages",
             ":share_dirs_layer_kathara",
         ],
         labels = ":labels",

@@ -12,6 +12,7 @@
     - tshark
     - wget
     - python3
+    - ntp
   exclude_packages:
     # generally excluded from distroless
     - debconf

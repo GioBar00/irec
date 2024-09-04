@@ -186,6 +186,8 @@ class KatharaLabGenerator(object):
                 #     # Add default route to eth0 to allow prometheus to scrape the metrics
                 #     self.device_startup[dev_id]["startup"] += "ip route add 100.64.0.0/10 dev eth0\n"
 
+                self.device_info[dev_id]["startup"] += f'ntpd\n'
+
                 if dev_id.startswith("br"):
                     self.device_info[dev_id]["startup"] += f'/app/router --config /{self.config_dir}/br.toml &\n'
                 elif dev_id.startswith("cs"):

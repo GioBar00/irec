@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -107,7 +106,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 			continue
 		}
-		bcnId := fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)
+		bcnId := procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)
 		propStart := time.Now()
 		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
@@ -247,7 +246,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				log.Debug("NOTIF; here6")
 				t := time.Now()
-				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, propStart, t, fmt.Sprintf("%s %x", segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
+				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, propStart, t, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error done beacon propagated", "err", err)
 				}
 			}()

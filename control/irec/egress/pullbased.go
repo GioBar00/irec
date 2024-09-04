@@ -3,8 +3,9 @@ package egress
 import (
 	"context"
 	"fmt"
-	"github.com/scionproto/scion/private/procperf"
 	"time"
+
+	"github.com/scionproto/scion/private/procperf"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/pkg/addr"
@@ -23,7 +24,7 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 	if err != nil {
 		return serrors.WrapStr("Parsing pull-based beacon failed; ", err)
 	}
-	bcnId := fmt.Sprintf("%s %x", segCopy.GetLoggingID(), segCopy.Info.SegmentID)
+	bcnId := procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)
 	startTime := time.Now()
 	if segCopy.ASEntries[0].Extensions.Irec == nil {
 		return serrors.New("Beacon is not an IREC beacon")
