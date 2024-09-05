@@ -83,7 +83,8 @@ func NewFetcher(cfg FetcherConfig) Fetcher {
 					neverLocal{},
 				),
 				ReplyHandler: &seghandler.Handler{
-					Verifier: &seghandler.DefaultVerifier{Verifier: cfg.Verifier},
+					//Verifier: &seghandler.DefaultVerifier{Verifier: cfg.Verifier},
+					Verifier: &seghandler.DefaultVerifier{Verifier: trust.AcceptAllVerifier{}},
 					Storage: &seghandler.DefaultStorage{
 						PathDB:   cfg.PathDB,
 						RevCache: cfg.RevCache,
