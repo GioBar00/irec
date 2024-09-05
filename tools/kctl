@@ -203,7 +203,7 @@ get_devices() {
         return 1
     fi
 
-    kubectl get deployments -n db6hxe5novtclba8r4wpa -l app=kathara -o=jsonpath='{.items[*].metadata.labels.name}'
+    kubectl get deployments -n "$namespace" -l app=kathara -o=jsonpath='{.items[*].metadata.labels.name}'
 }
 
 cmd_collect_logs() {
