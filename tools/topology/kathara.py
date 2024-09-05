@@ -231,6 +231,8 @@ class KatharaLabGenerator(object):
                     conf["metrics"]["prometheus"] = "0.0.0.0:" + str(conf["metrics"]["prometheus"]).split(":")[-1]
                     if "tracing" in conf:
                         conf["tracing"]["agent"] = "jaeger-all-in-one.monitoring.svc.cluster.local:" + str(conf["tracing"]["agent"]).split(":")[1]
+                    if dev_id.startswith("sd"):
+                        conf["sd"]["disable_seg_verification"] = True
                     f.seek(0)
                     f.write(toml.dumps(conf))
                     f.truncate()
