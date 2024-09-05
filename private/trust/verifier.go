@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	infra "github.com/scionproto/scion/private/segment/verifier"
 	"math/rand"
 	"net"
 	"time"
@@ -199,4 +200,24 @@ func (v *Verifier) cacheExpiration(chains [][]*x509.Certificate) time.Duration {
 		}
 	}
 	return time.Until(expiration)
+}
+
+type AcceptAllVerifier struct{}
+
+func (AcceptAllVerifier) Verify(ctx context.Context, signedMsg *cryptopb.SignedMessage,
+	associatedData ...[]byte) (*signed.Message, error) {
+
+	return nil, nil
+}
+
+func (v AcceptAllVerifier) WithServer(net.Addr) infra.Verifier {
+	return v
+}
+
+func (v AcceptAllVerifier) WithIA(addr.IA) infra.Verifier {
+	return v
+}
+
+func (v AcceptAllVerifier) WithValidity(cppki.Validity) infra.Verifier {
+	return v
 }

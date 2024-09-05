@@ -46,10 +46,7 @@ import (
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/prom"
 	"github.com/scionproto/scion/pkg/private/serrors"
-	cryptopb "github.com/scionproto/scion/pkg/proto/crypto"
 	sdpb "github.com/scionproto/scion/pkg/proto/daemon"
-	"github.com/scionproto/scion/pkg/scrypto/cppki"
-	"github.com/scionproto/scion/pkg/scrypto/signed"
 	"github.com/scionproto/scion/private/app"
 	"github.com/scionproto/scion/private/app/launcher"
 	cppkiapi "github.com/scionproto/scion/private/mgmtapi/cppki/api"
@@ -242,7 +239,7 @@ func realMain(ctx context.Context) error {
 
 	createVerifier := func() infra.Verifier {
 		if globalCfg.SD.DisableSegVerification {
-			return acceptAllVerifier{}
+			return trust.AcceptAllVerifier{}
 		}
 		return compat.Verifier{Verifier: trust.Verifier{
 			Engine:             engine,
@@ -352,26 +349,6 @@ func realMain(ctx context.Context) error {
 	})
 
 	return g.Wait()
-}
-
-type acceptAllVerifier struct{}
-
-func (acceptAllVerifier) Verify(ctx context.Context, signedMsg *cryptopb.SignedMessage,
-	associatedData ...[]byte) (*signed.Message, error) {
-
-	return nil, nil
-}
-
-func (v acceptAllVerifier) WithServer(net.Addr) infra.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithIA(addr.IA) infra.Verifier {
-	return v
-}
-
-func (v acceptAllVerifier) WithValidity(cppki.Validity) infra.Verifier {
-	return v
 }
 
 func loaderMetrics() topology.LoaderMetrics {
