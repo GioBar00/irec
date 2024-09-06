@@ -31,7 +31,10 @@ func Init() error {
 			log.Error("Error getting hostname", "err", err)
 		}
 		file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
-		_, err = file.WriteString("ID; Next ID; Type; Start Time; End Time\n")
+		_, err = file.WriteString("Type;ID;Next ID;Start Time;End Time\n")
+		if err != nil {
+			log.Error("Error writing header", "err", err)
+		}
 	})
 	return err
 }
@@ -63,7 +66,7 @@ func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.T
 	}
 	ppt := string(procPerfType)
 	// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
-	_, err := file.WriteString(id + "; " + newIdStr + "; " + ppt + "; " + start.String() + "; " + end.String() + "\n")
+	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.String() + ";" + end.String() + "\n")
 	//beaconTime.Delete(id)
 	//return nil
 	return err
