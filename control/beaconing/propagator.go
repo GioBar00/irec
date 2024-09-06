@@ -80,7 +80,7 @@ func (p *Propagator) Name() string {
 func (p *Propagator) Run(ctx context.Context) {
 	p.Tick.SetNow(time.Now())
 	if err := p.run(ctx); err != nil {
-		withSilent(ctx, p.Tick.Passed()).Error("Unable to propagate beacons", "err", err)
+		WithSilent(ctx, p.Tick.Passed()).Error("Unable to propagate beacons", "err", err)
 	}
 	p.Tick.UpdateLast()
 }
@@ -101,7 +101,7 @@ func (p *Propagator) run(ctx context.Context) error {
 	// Only log on info and error level every propagation period to reduce
 	// noise. The offending logs events are redirected to debug level.
 	silent := !p.Tick.Passed()
-	logger := withSilent(ctx, silent)
+	logger := WithSilent(ctx, silent)
 
 	p.logCandidateBeacons(logger, beacons)
 
@@ -247,7 +247,7 @@ type propagator struct {
 
 func (p *propagator) Propagate(ctx context.Context) error {
 	var (
-		logger   = withSilent(ctx, p.silent)
+		logger   = WithSilent(ctx, p.silent)
 		topoInfo = p.intf.TopoInfo()
 		egress   = topoInfo.ID
 

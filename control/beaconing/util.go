@@ -108,10 +108,10 @@ func hopsDescription(entries []seg.ASEntry) string {
 	return desc.String()
 }
 
-// withSilent creates a logger based on the logger in the context that only logs
+// WithSilent creates a logger based on the logger in the context that only logs
 // at debug level if silent is set. Otherwise, the logger in the context is
 // returned.
-func withSilent(ctx context.Context, silent bool) log.Logger {
+func WithSilent(ctx context.Context, silent bool) log.Logger {
 	if silent {
 		return silentLogger{Logger: log.FromCtx(ctx)}
 	}

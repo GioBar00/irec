@@ -149,7 +149,7 @@ func (r *LocalWriter) Write(
 			if r.Intfs.Get(b.InIfID) == nil {
 				continue
 			}
-			logger.Debug("terminating beacon")
+			//logger.Debug("terminating beacon")
 			err := r.Extender.Extend(ctx, b.Segment, b.InIfID, 0, false, nil, peers)
 
 			if err != nil {

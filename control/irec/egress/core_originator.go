@@ -7,10 +7,12 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/scionproto/scion/private/procperf"
 
+	beaconing "github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/log"
@@ -38,6 +40,9 @@ type BasicOriginator struct {
 type AlgorithmOriginator struct {
 	*BasicOriginator
 	OriginationAlgorithms []OriginationAlgorithm
+
+	// Tick is mutable.
+	Tick beaconing.Tick
 }
 
 // The on-demand originator for pull-based beacons, executed on a request given through the SCION Daemon.
@@ -52,23 +57,47 @@ func (o *AlgorithmOriginator) Name() string {
 
 // Run originates core and downstream beacons.
 func (o *AlgorithmOriginator) Run(ctx context.Context) {
+	o.Tick.SetNow(time.Now())
 	o.originateBeacons(ctx)
+	o.Tick.UpdateLast()
 }
 
 // Responsible for orginating beacons for each of the IREC algorithm hashes that are configured for this AS.
 func (o *AlgorithmOriginator) originateBeacons(ctx context.Context) {
-	intfs := o.Intfs
+	//intfs := o.Intfs
+	intfs, groupsPerIntf := o.needBeacon(o.Intfs)
 	sort.Slice(intfs, func(i, j int) bool {
+		return intfs[i].TopoInfo().ID < intfs[j].TopoInfo().ID
+	})
+	sort.Slice(groupsPerIntf, func(i, j int) bool {
 		return intfs[i].TopoInfo().ID < intfs[j].TopoInfo().ID
 	})
 	if len(intfs) == 0 || len(o.OriginationAlgorithms) == 0 {
 		return
 	}
+	// Only log on info and error level every propagation period to reduce
+	// noise. The offending logs events are redirected to debug level.
+	silent := !o.Tick.Passed()
+	logger := beaconing.WithSilent(ctx, silent)
+
+	numOrigBeacons := 0
+	for i, intf := range intfs {
+		if groupsPerIntf[i] != nil {
+			numOrigBeacons += len(groupsPerIntf[i])
+		} else if len(intf.TopoInfo().Groups) > 0 {
+			numOrigBeacons += len(intf.TopoInfo().Groups)
+		} else {
+			numOrigBeacons++
+		}
+	}
+
+	// Create atomic counter for number of beacons originated.
+	var numBeacons atomic.Uint32
 
 	var wg sync.WaitGroup
 	wg.Add(len(intfs) * len(o.OriginationAlgorithms))
 	for _, alg := range o.OriginationAlgorithms {
-		for _, intf := range intfs {
+		for i, intf := range intfs {
 			b := intfOriginator{
 				BasicOriginator: o.BasicOriginator,
 				intf:            intf,
@@ -77,18 +106,63 @@ func (o *AlgorithmOriginator) originateBeacons(ctx context.Context) {
 				algHash:         alg.Hash,
 				pullbased:       false,
 			}
+			i := i
+			intf := intf
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
 
-				if err := b.originateMessage(ctx); err != nil {
-					log.Info("Unable to originate on interface",
+				if err := b.originateMessage(ctx, groupsPerIntf[i]); err != nil {
+					logger.Info("Unable to originate on interface",
 						"egress_interface", b.intf.TopoInfo().ID, "err", err)
+				} else {
+					if groupsPerIntf[i] != nil {
+						numBeacons.Add(uint32(len(groupsPerIntf[i])))
+					} else if len(intf.TopoInfo().Groups) > 0 {
+						numBeacons.Add(uint32(len(intf.TopoInfo().Groups)))
+					} else {
+						numBeacons.Add(1)
+					}
 				}
 			}()
 		}
 	}
 	wg.Wait()
+	logger.Debug("Originated beacons", "Real", numBeacons.Load(), "Expected", numOrigBeacons)
+}
+
+// needBeacon returns a list of interfaces that need a beacon.
+func (o *AlgorithmOriginator) needBeacon(active []*ifstate.Interface) ([]*ifstate.Interface, [][]uint16) {
+	var groupsPerIntf [][]uint16
+	if o.Tick.Passed() {
+		for i := 0; i < len(active); i++ {
+			groupsPerIntf = append(groupsPerIntf, nil)
+		}
+		return active, groupsPerIntf
+	}
+	var stale []*ifstate.Interface
+	for _, intf := range active {
+		topoInfo := intf.TopoInfo()
+		var groups []uint16
+		if len(topoInfo.Groups) == 0 {
+			groups = []uint16{0} // Default to sending to all groups.
+		} else {
+			groups = topoInfo.Groups
+		}
+		addedIntf := false
+		for _, intfGroup := range groups {
+			if o.Tick.Overdue(intf.LastOriginate(intfGroup)) {
+				if !addedIntf {
+					stale = append(stale, intf)
+					groupsPerIntf = append(groupsPerIntf, []uint16{intfGroup})
+					addedIntf = true
+				} else {
+					groupsPerIntf[len(groupsPerIntf)-1] = append(groupsPerIntf[len(groupsPerIntf)-1], intfGroup)
+				}
+			}
+		}
+	}
+	return stale, groupsPerIntf
 }
 
 // Responsible for originating a pull-based beacon
@@ -120,7 +194,7 @@ func (o *PullBasedOriginator) OriginatePullBasedBeacon(ctx context.Context, alg 
 			defer log.HandlePanic()
 			defer wg.Done()
 
-			if err := b.originateMessage(ctx); err != nil {
+			if err := b.originateMessage(ctx, nil); err != nil {
 				log.Info("Unable to originate pullbased beacon on interface",
 					"egress_interface", b.intf.TopoInfo().ID, "err", err)
 			}
@@ -145,7 +219,7 @@ type intfOriginator struct {
 }
 
 // originateBeacon originates a beacon on the given ifid.
-func (o *intfOriginator) originateMessage(ctx context.Context) error {
+func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) error {
 	topoInfo := o.intf.TopoInfo()
 
 	senderStart := time.Now()
@@ -165,13 +239,16 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 			"waited_for", time.Since(senderStart).String())
 	}
 	defer sender.Close()
-	if o.OriginatePerIntfGroup {
-		var groups []uint16
+
+	if groups == nil {
 		if len(topoInfo.Groups) == 0 {
 			groups = []uint16{0} // Default to sending to all groups.
 		} else {
 			groups = topoInfo.Groups
 		}
+	}
+
+	if o.OriginatePerIntfGroup {
 		for _, intfGroup := range groups {
 			sendStart := time.Now()
 			beacon, err := o.createBeacon(ctx, intfGroup)
@@ -193,6 +270,7 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 			if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Originated, sendStart, t, bcnId); err != nil {
 				return serrors.WrapStr("PROCPERF: error done beacon", err)
 			}
+			o.intf.Originate(time.Now(), intfGroup)
 		}
 	} else {
 		sendStart := time.Now()
@@ -215,6 +293,7 @@ func (o *intfOriginator) originateMessage(ctx context.Context) error {
 		if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Originated, sendStart, t, bcnId); err != nil {
 			return serrors.WrapStr("PROCPERF: error done beacon", err)
 		}
+		o.intf.Originate(time.Now(), 0)
 	}
 	return nil
 }

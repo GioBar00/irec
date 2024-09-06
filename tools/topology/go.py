@@ -219,6 +219,7 @@ class GoGenerator(object):
             },
             'sd': {
                 'address': socket_address_str(ip, SD_API_PORT),
+                'disable_seg_verification': True,
             },
             'tracing': self._tracing_entry(),
             'metrics': {

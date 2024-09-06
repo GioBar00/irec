@@ -130,10 +130,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				// writer has side-effects for beacon, therefore recreate beacon arr for each writer
 
-				log.Info("NOTIF; writing", "bcn", segment)
+				//log.Info("NOTIF; writing", "bcn", segment)
 				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
 					InIfID: uint16(bcn.InIfId)}}, p.Peers, true)
-				log.Debug("NOTIF; finished writing", "bcn", segment)
+				//log.Debug("NOTIF; finished writing", "bcn", segment)
 				if err != nil {
 					log.Error("Could not write beacon to path servers", "err", err)
 				}
@@ -150,7 +150,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				defer log.HandlePanic()
 				defer wg.Done()
 				intf := p.Interfaces[intfId]
-				log.Debug("NOTIF; here1")
+				//log.Debug("NOTIF; here1")
 				if intf == nil {
 					log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
 					return
@@ -165,7 +165,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB propagation segment failed", "err", err)
 					return
 				}
-				log.Debug("NOTIF; here2")
+				//log.Debug("NOTIF; here2")
 
 				if p.shouldIgnore(segment, intf) {
 					return
@@ -190,7 +190,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
-				log.Debug("NOTIF; here3")
+				//log.Debug("NOTIF; here3")
 				// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 				peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -213,7 +213,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 
-				log.Debug("NOTIF; here4")
+				//log.Debug("NOTIF; here4")
 				//TODO(jvb): hangs between 4 and 5
 				//	Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
@@ -236,7 +236,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 						err)
 					return
 				}
-				log.Debug("NOTIF; here5")
+				//log.Debug("NOTIF; here5")
 				// Here we keep track of the last time a beacon has been sent on an interface per algorithm hash.
 				// Such that the egress gateway can plan origination scripts for those algorithms that need origination.
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -244,7 +244,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				} else {
 					intf.Propagate(time.Now(), "")
 				}
-				log.Debug("NOTIF; here6")
+				//log.Debug("NOTIF; here6")
 				t := time.Now()
 				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, propStart, t, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error done beacon propagated", "err", err)
@@ -253,9 +253,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		}
 	}
 
-	log.Debug("NOTIF; waiting")
+	//log.Debug("NOTIF; waiting")
 	wg.Wait() // Necessary for tests, but possible optimization is not waiting for this.
-	log.Debug("NOTIF; DONE1!!!@!")
+	//log.Debug("NOTIF; DONE1!!!@!")
 	return &cppb.PropagationRequestResponse{}, nil
 }
 

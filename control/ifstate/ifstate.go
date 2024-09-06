@@ -162,7 +162,7 @@ func (intfs *Interfaces) Get(ifID uint16) *Interface {
 type Interface struct {
 	mu            sync.RWMutex
 	topoInfo      InterfaceInfo
-	lastOriginate time.Time
+	lastOriginate map[uint16]time.Time
 	lastPropagate map[string]time.Time
 	cfg           Config
 }
@@ -185,17 +185,24 @@ func (intf *Interface) TopoInfo() InterfaceInfo {
 }
 
 // Originate sets the time this interface has been originated on last.
-func (intf *Interface) Originate(now time.Time) {
+func (intf *Interface) Originate(now time.Time, intfGroup uint16) {
 	intf.mu.Lock()
 	defer intf.mu.Unlock()
-	intf.lastOriginate = now
+	if intf.lastOriginate == nil {
+		intf.lastOriginate = map[uint16]time.Time{}
+	}
+	intf.lastOriginate[intfGroup] = now
 }
 
 // LastOriginate indicates the last time this interface has been originated on.
-func (intf *Interface) LastOriginate() time.Time {
+func (intf *Interface) LastOriginate(intfGroup uint16) time.Time {
 	intf.mu.RLock()
 	defer intf.mu.RUnlock()
-	return intf.lastOriginate
+	if v, ok := intf.lastOriginate[intfGroup]; ok {
+		return v
+	} else {
+		return time.Time{}
+	}
 }
 
 // Propagate sets the time this interface has been propagated on last.
@@ -222,7 +229,7 @@ func (intf *Interface) LastPropagate(algHashString string) time.Time {
 func (intf *Interface) reset() {
 	intf.mu.Lock()
 	defer intf.mu.Unlock()
-	intf.lastOriginate = time.Time{}
+	intf.lastOriginate = map[uint16]time.Time{}
 	intf.lastPropagate = map[string]time.Time{}
 }
 

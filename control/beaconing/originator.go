@@ -98,7 +98,7 @@ func (o *Originator) originateBeacons(ctx context.Context) {
 	// Only log on info and error level every propagation period to reduce
 	// noise. The offending logs events are redirected to debug level.
 	silent := !o.Tick.Passed()
-	logger := withSilent(ctx, silent)
+	logger := WithSilent(ctx, silent)
 
 	s := newSummary()
 	var wg sync.WaitGroup
@@ -131,7 +131,7 @@ func (o *Originator) needBeacon(active []*ifstate.Interface) []*ifstate.Interfac
 	}
 	var stale []*ifstate.Interface
 	for _, intf := range active {
-		if o.Tick.Overdue(intf.LastOriginate()) {
+		if o.Tick.Overdue(intf.LastOriginate(0)) {
 			stale = append(stale, intf)
 		}
 	}
@@ -212,7 +212,7 @@ func (o *beaconOriginator) createBeacon(ctx context.Context) (*seg.PathSegment, 
 }
 
 func (o *beaconOriginator) onSuccess(intf *ifstate.Interface) {
-	intf.Originate(o.Tick.Now())
+	intf.Originate(o.Tick.Now(), 0)
 	o.summary.AddIfID(o.intf.TopoInfo().ID)
 	o.summary.Inc()
 }

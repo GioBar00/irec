@@ -19,6 +19,7 @@ go_library(
         "//control/ifstate:go_default_library",
         "//control/irec/egress/storage:go_default_library",
         "//control/onehop:go_default_library",
+        "//control/beaconing:go_default_library",
         "//pkg/addr:go_default_library",
         "//pkg/grpc:go_default_library",
         "//pkg/log:go_default_library",
