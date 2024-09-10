@@ -260,13 +260,13 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			}
 			idCompStart := time.Now()
 			bcnId := procperf.GetFullId(beacon.GetLoggingID(), beacon.Info.SegmentID)
-			idCompElapsed := time.Since(idCompStart)
+			idCompStop := time.Now()
 			if err := sender.Send(ctx, beacon); err != nil {
 				return serrors.WrapStr("sending beacon", err,
 					"waited_for", time.Since(sendStart).String(),
 				)
 			}
-			t := time.Now().Add(-idCompElapsed)
+			t := time.Now().Add(-idCompStop.Sub(idCompStart))
 			if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Originated, sendStart, t, bcnId); err != nil {
 				return serrors.WrapStr("PROCPERF: error done beacon", err)
 			}
