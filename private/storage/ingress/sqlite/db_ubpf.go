@@ -45,25 +45,121 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
+	_, err = tx.ExecContext(ctx, `CREATE TEMP TABLE ValidSources (
+											StartIsd INTEGER,
+											StartAs INTEGER,
+											StartIntfGroup INTEGER,
+											AlgorithmHash DATA,
+											AlgorithmId DATA,
+											InIntfID INTEGER,
+											PullBased BOOL,
+											PullBasedTargetIsd INTEGER,
+											PullBasedTargetAs INTEGER
+										);`)
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+	}
 	//(SELECT DISTINCT b.StartIsd, b.StartAs, b.StartIntfGroup, b.AlgorithmHash, b.AlgorithmId FROM Beacons b, Algorithm a WHERE FetchStatus = 0 AND b.AlgorithmHash = a.AlgorithmHash ORDER BY RANDOM() LIMIT 1)
-	query := `INSERT INTO Retrieved(RowID)
-	SELECT DISTINCT b2.RowID from Beacons b2,
-		(SELECT DISTINCT b.StartIsd, b.StartAs, b.StartIntfGroup, b.AlgorithmHash, b.AlgorithmId, b.PullBased, b.PullBasedTargetAs, b.PullBasedTargetIsd
-FROM Beacons b, Algorithm a
-WHERE FetchStatus = 0 AND b.AlgorithmHash = a.AlgorithmHash
-GROUP BY b.StartIsd, b.StartAs, b.StartIntfGroup, b.AlgorithmHash, b.AlgorithmId, b.PullBased, b.PullBasedTargetAs, b.PullBasedTargetIsd
-HAVING COUNT(b.RowID) > b.PullBasedMinBeacons AND min(b.PullBasedPeriod) <= ?
-ORDER BY RANDOM()
-LIMIT 1)
-		    selected WHERE b2.StartIsd = selected.StartIsd AND b2.StartAs = selected.StartAs  AND b2.AlgorithmHash = selected.AlgorithmHash AND b2.AlgorithmId = selected.AlgorithmId AND b2.PullBased = selected.PullBased AND b2.PullBasedTargetIsd = selected.PullBasedTargetIsd AND b2.PullBasedTargetAs = selected.PullBasedTargetAs`
+	query := `INSERT INTO
+					ValidSources (
+						StartIsd,
+						StartAs,
+						StartIntfGroup,
+						AlgorithmHash,
+						AlgorithmId,
+						PullBased,
+						PullBasedTargetIsd,
+						PullBasedTargetAs
+					)
+				SELECT
+					b.startisd,
+					b.startas,
+					b.startintfgroup,
+					b.algorithmhash,
+					b.algorithmid,
+					b.pullbased,
+					b.pullbasedtargetisd,
+					b.pullbasedtargetas
+				FROM
+					beacons b,
+					algorithm a
+				WHERE
+					fetchstatus = 0
+					AND b.algorithmhash = a.algorithmhash
+				GROUP BY
+					b.startisd,
+					b.startas,
+					b.startintfgroup,
+					b.algorithmhash,
+					b.algorithmid,
+					b.pullbased,
+					b.pullbasedtargetisd,
+					b.pullbasedtargetas
+				HAVING
+					Count(b.rowid) > b.pullbasedminbeacons
+					AND Min(b.pullbasedperiod) <= ?`
+
+	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+	}
+	query = `INSERT INTO
+					Retrieved (rowid)
+				SELECT DISTINCT
+					b.rowid
+				FROM
+					Beacons b,
+					ValidSources vs,
+					(
+						SELECT DISTINCT
+							st.startisd,
+							st.startas,
+							vs2.algorithmhash,
+							vs2.algorithmid
+						FROM
+							ValidSources vs2,
+							(
+								SELECT DISTINCT
+									startisd,
+									startas
+								FROM
+									ValidSources
+								ORDER BY
+									Random ()
+								LIMIT
+									1
+							) st
+						WHERE
+							vs2.startisd = st.startisd
+							AND vs2.startas = st.startas
+							AND vs2.algorithmhash = st.algorithmhash
+							AND vs2.algorithmid = st.algorithmid
+						ORDER BY
+							Random ()
+						LIMIT
+							1
+					) selected
+				WHERE
+					b.startisd = vs.startisd
+					AND b.startas = vs.startas
+					AND b.algorithmhash = vs.algorithmhash
+					AND b.algorithmid = vs.algorithmid
+					AND b.pullbased = vs.pullbased
+					AND b.pullbasedtargetisd = vs.pullbasedtargetisd
+					AND b.pullbasedtargetas = vs.pullbasedtargetas
+					AND b.startisd = selected.startisd
+					AND b.startas = selected.startas
+					AND b.algorithmhash = selected.algorithmhash
+					AND b.algorithmid = selected.algorithmid `
 	if !ignoreIntfGroup {
-		query = query + ` AND b2.StartIntfGroup = selected.StartIntfGroup`
+		query = query + ` AND b.StartIntfGroup = vs.StartIntfGroup`
 	}
 
 	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
+
 	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? FROM Retrieved r WHERE Beacons.RowID = r.RowId AND Beacons.FetchStatus =0;", fetchExpirationTime.Unix())
 
 	if err != nil {
@@ -112,7 +208,10 @@ LIMIT 1)
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
 	_, err = tx.ExecContext(ctx, "DROP TABLE Retrieved;")
-
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+	}
+	_, err = tx.ExecContext(ctx, "DROP TABLE ValidSources;")
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
