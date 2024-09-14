@@ -101,7 +101,7 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 		return nil, serrors.New("peer must exist")
 	}
 	logger := log.FromCtx(ctx)
-	logger.Debug("Received Beacon from " + fmt.Sprintf("%T", gPeer.Addr.(*snet.UDPAddr)) + ", msg:" + req.String())
+	//logger.Debug("Received Beacon from " + fmt.Sprintf("%T", gPeer.Addr.(*snet.UDPAddr)) + ", msg:" + req.String())
 
 	peer, ok := gPeer.Addr.(*snet.UDPAddr)
 	if !ok {

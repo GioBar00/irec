@@ -184,12 +184,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Info("Beacon is known in egress database, skipping propagation.")
 					return
 				}
-				// If not, mark it as propagated
-				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
-				if err != nil {
-					log.Error("Beacon DB Propagation add failed", "err", err)
-					return
-				}
+
 				//log.Debug("NOTIF; here3")
 				// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 				peers := SortedIntfs(p.AllInterfaces, topology.Peer)
@@ -234,6 +229,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
 						"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
 						err)
+					return
+				}
+				// TODO(gb): Could be problem with multiple racs concurrently propagating the same beacon.
+				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
+				if err != nil {
+					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
 				//log.Debug("NOTIF; here5")

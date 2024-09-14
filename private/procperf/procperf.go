@@ -66,7 +66,7 @@ func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.T
 	}
 	ppt := string(procPerfType)
 	// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
-	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.String() + ";" + end.String() + "\n")
+	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n")
 	//beaconTime.Delete(id)
 	//return nil
 	return err
