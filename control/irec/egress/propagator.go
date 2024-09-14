@@ -231,7 +231,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 						err)
 					return
 				}
-				// TODO(gb): Could be problem with multiple racs concurrently propagating the same beacon.
+				// TODO(gb): Could be problem with multiple racs concurrently propagating the same beacon or takes more than 1 second to propagate.
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
 				if err != nil {
 					log.Error("Beacon DB Propagation add failed", "err", err)
