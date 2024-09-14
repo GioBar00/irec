@@ -51,7 +51,6 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 											StartIntfGroup INTEGER,
 											AlgorithmHash DATA,
 											AlgorithmId DATA,
-											InIntfID INTEGER,
 											PullBased BOOL,
 											PullBasedTargetIsd INTEGER,
 											PullBasedTargetAs INTEGER
@@ -72,56 +71,59 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 						PullBasedTargetAs
 					)
 				SELECT
-					b.startisd,
-					b.startas,
-					b.startintfgroup,
-					b.algorithmhash,
-					b.algorithmid,
-					b.pullbased,
-					b.pullbasedtargetisd,
-					b.pullbasedtargetas
+					b.StartIsd,
+					b.StartAs,
+					b.StartIntfGroup,
+					b.AlgorithmHash,
+					b.AlgorithmId,
+					b.PullBased,
+					b.PullBasedTargetIsd,
+					b.PullBasedTargetAs
 				FROM
-					beacons b,
-					algorithm a
+					Beacons b,
+					Algorithm a
 				WHERE
-					fetchstatus = 0
-					AND b.algorithmhash = a.algorithmhash
+					FetchStatus = 0
+					AND b.AlgorithmHash = a.AlgorithmHash
 				GROUP BY
-					b.startisd,
-					b.startas,
-					b.startintfgroup,
-					b.algorithmhash,
-					b.algorithmid,
-					b.pullbased,
-					b.pullbasedtargetisd,
-					b.pullbasedtargetas
+					b.StartIsd,
+					b.StartAs,
+					b.StartIntfGroup,
+					b.AlgorithmHash,
+					b.AlgorithmId,
+					b.PullBased,
+					b.PullBasedTargetIsd,
+					b.PullBasedTargetAs
 				HAVING
-					Count(b.rowid) > b.pullbasedminbeacons
-					AND Min(b.pullbasedperiod) <= ?`
+					Count(b.RowID) > b.PullBasedMinBeacons
+					AND Min(b.PullBasedHyperPeriod) <= ?`
 
 	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
 	query = `INSERT INTO
-					Retrieved (rowid)
+					Retrieved (RowID)
 				SELECT DISTINCT
-					b.rowid
+					b.RowID
 				FROM
 					Beacons b,
-					ValidSources vs,
 					(
 						SELECT DISTINCT
-							st.startisd,
-							st.startas,
-							vs2.algorithmhash,
-							vs2.algorithmid
+							st.StartIsd,
+							st.StartAs,
+							vs.StartIntfGroup,
+							vs.AlgorithmHash,
+							vs.AlgorithmId,
+							vs.PullBased,
+							vs.PullBasedTargetIsd,
+							vs.PullBasedTargetAs
 						FROM
-							ValidSources vs2,
+							ValidSources vs,
 							(
 								SELECT DISTINCT
-									startisd,
-									startas
+									StartIsd,
+									StartAs
 								FROM
 									ValidSources
 								ORDER BY
@@ -130,29 +132,23 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 									1
 							) st
 						WHERE
-							vs2.startisd = st.startisd
-							AND vs2.startas = st.startas
-							AND vs2.algorithmhash = st.algorithmhash
-							AND vs2.algorithmid = st.algorithmid
+							vs.StartIsd = st.StartIsd
+							AND vs.StartAs = st.StartAs
 						ORDER BY
 							Random ()
 						LIMIT
 							1
 					) selected
 				WHERE
-					b.startisd = vs.startisd
-					AND b.startas = vs.startas
-					AND b.algorithmhash = vs.algorithmhash
-					AND b.algorithmid = vs.algorithmid
-					AND b.pullbased = vs.pullbased
-					AND b.pullbasedtargetisd = vs.pullbasedtargetisd
-					AND b.pullbasedtargetas = vs.pullbasedtargetas
-					AND b.startisd = selected.startisd
-					AND b.startas = selected.startas
-					AND b.algorithmhash = selected.algorithmhash
-					AND b.algorithmid = selected.algorithmid `
+					b.StartIsd = selected.StartIsd
+					AND b.StartAs = selected.StartAs
+					AND b.AlgorithmHash = selected.AlgorithmHash
+					AND b.AlgorithmId = selected.AlgorithmId
+					AND b.PullBased = selected.PullBased
+					AND b.PullBasedTargetIsd = selected.PullBasedTargetIsd
+					AND b.PullBasedTargetAs = selected.PullBasedTargetAs `
 	if !ignoreIntfGroup {
-		query = query + ` AND b.StartIntfGroup = vs.StartIntfGroup`
+		query = query + ` AND b.StartIntfGroup = selected.StartIntfGroup`
 	}
 
 	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
