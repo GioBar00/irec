@@ -2,7 +2,7 @@
 
 build-dev:
 	rm -f bin/*
-	bazel build //:scion //:scion-ci
+	bazel build //:scion //:scion-ci --define gotags=timing
 	tar -kxf bazel-bin/scion.tar -C bin
 	tar -kxf bazel-bin/scion-ci.tar -C bin
 
