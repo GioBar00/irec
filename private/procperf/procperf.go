@@ -19,6 +19,7 @@ const (
 	Originated Type = "Originated"
 	Processed  Type = "Processed"
 	Executed   Type = "Executed"
+	Completed  Type = "Completed"
 )
 
 // var beaconTime = sync.Map{}

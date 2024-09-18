@@ -100,17 +100,19 @@ func (e *EbpfEnv) executeVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 	// timeTillSubmitNoLoad := time.Since(loadedTime)
 
 	// fmt.Printf("EBPF TIME; %d, %d, %d, %d, %d\n", time.Since(totalExec), timeEgressGrpcE.Sub(timeEgressGrpcS).Nanoseconds(), timeTillSubmitNoLoad.Nanoseconds(), execTime.Sub(prepareMemTime).Nanoseconds(), totalExec.Sub(execTime).Nanoseconds())
-	if err := procperf.AddTimestampsDoneBeacon(job.JobID, procperf.Executed, []time.Time{loadedTime, prepareMemTime, execTime, totalExec, timeEgressGrpcS, timeEgressGrpcE}); err != nil {
-		log.Error("PROCPERF: Error when processing beacon", "err", err)
+	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", job.JobID), procperf.Executed, []time.Time{loadedTime, prepareMemTime, execTime, totalExec, timeEgressGrpcS, timeEgressGrpcE}); err != nil {
+		log.Error("PROCPERF: Error when executing job", "err", err)
 	}
 	if e.Static {
 		return &cppb.JobCompleteNotify{
 			RowIDs:    []int64{},
 			Selection: selection,
+			JobID:     job.JobID,
 		}, nil
 	}
 	return &cppb.JobCompleteNotify{
 		RowIDs:    job.RowIds,
 		Selection: selection,
+		JobID:     job.JobID,
 	}, nil
 }

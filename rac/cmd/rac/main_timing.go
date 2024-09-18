@@ -147,8 +147,8 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			for _, bcnId := range bcnIds {
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{exec.JobID}...); err != nil {
-					log.Error("PROCPERF: Error when processing beacon", "err", err)
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{fmt.Sprintf("%d", exec.JobID)}...); err != nil {
+					log.Error("PROCPERF: Error when receiving beacon", "err", err)
 				}
 			}
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
@@ -185,8 +185,8 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
 			ctr.Add(1)
 
-			if err := procperf.AddTimestampsDoneBeacon(exec.JobID, procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
-				log.Error("PROCPERF: Error when processing beacon", "err", err)
+			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+				log.Error("PROCPERF: Error when processing job", "err", err)
 			}
 		}()
 	}
@@ -232,8 +232,8 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			for _, bcnId := range bcnIds {
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{exec.JobID}...); err != nil {
-					log.Error("PROCPERF: Error when processing beacon", "err", err)
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{fmt.Sprintf("%d", exec.JobID)}...); err != nil {
+					log.Error("PROCPERF: Error when receiving beacon", "err", err)
 				}
 			}
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
@@ -254,8 +254,8 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 			timeGrpcIngress2E := time.Now()
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
-			if err := procperf.AddTimestampsDoneBeacon(exec.JobID, procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
-				log.Error("PROCPERF: Error when processing beacon", "err", err)
+			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+				log.Error("PROCPERF: Error when processing job", "err", err)
 			}
 		}()
 	}

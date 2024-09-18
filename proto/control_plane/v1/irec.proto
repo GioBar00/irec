@@ -36,6 +36,7 @@ message JobCompleteNotify {
     repeated int64 rowIDs = 1; // Specifies the row IDs of the job that has been completed. Alternative mechanisms would
     // also be possible, e.g. by giving jobs unique identifiers.
     repeated BeaconAndEgressIntf selection = 2; // The beacons that have been selected by the RAC.
+    uint32 jobID = 3; // The job ID that has been completed
 }
 message JobCompleteResponse {
 }
