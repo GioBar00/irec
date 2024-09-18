@@ -3,6 +3,7 @@ package procperf
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ const (
 	Propagated Type = "Propagated"
 	Originated Type = "Originated"
 	Processed  Type = "Processed"
+	Executed   Type = "Executed"
 )
 
 // var beaconTime = sync.Map{}
@@ -31,7 +33,7 @@ func Init() error {
 			log.Error("Error getting hostname", "err", err)
 		}
 		file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
-		_, err = file.WriteString("Type;ID;Next ID;Start Time;End Time\n")
+		_, err = file.WriteString("Type;ID;Next ID;Time Array\n")
 		if err != nil {
 			log.Error("Error writing header", "err", err)
 		}
@@ -55,6 +57,24 @@ func Close() {
 //		return serrors.New("beacon not found in beaconTime")
 //	}
 //}
+
+func AddTimestampsDoneBeacon(id string, procPerfType Type, times []time.Time, newId ...string) error {
+	if procPerfType == Propagated && len(newId) == 0 {
+		return serrors.New("newId not found for propagated beacon")
+	}
+	newIdStr := ""
+	if len(newId) > 0 {
+		newIdStr = newId[0]
+	}
+	ppt := string(procPerfType)
+	var timeStrings []string
+	for _, t := range times {
+		timeStrings = append(timeStrings, t.Format(time.RFC3339Nano))
+	}
+	timeStr := "[" + strings.Join(timeStrings, ",") + "]"
+	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + timeStr + "\n")
+	return err
+}
 
 func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.Time, newId ...string) error {
 	if procPerfType == Propagated && len(newId) == 0 {

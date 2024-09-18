@@ -8,7 +8,7 @@ build-dev:
 
 build:
 	rm -f bin/*
-	bazel build //:scion
+	bazel build //:scion --define gotags=timing
 	tar -kxf bazel-bin/scion.tar -C bin
 
 # BFLAGS is optional. It may contain additional command line flags for CI builds. Currently this is:

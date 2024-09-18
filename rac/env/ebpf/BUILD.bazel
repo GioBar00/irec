@@ -2,7 +2,10 @@ load("//tools/lint:go.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["environment.go"],
+    srcs = [
+        "environment.go",
+        "environment_timing.go",
+        ],
     cdeps = [
         "//pkg/irec",
     ],
@@ -14,6 +17,7 @@ go_library(
         "//pkg/proto/control_plane:go_default_library",
         "//rac:go_default_library",
         "//rac/config:go_default_library",
+        "//private/procperf:go_default_library",
     ],
 )
 #

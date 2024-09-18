@@ -7,6 +7,7 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"github.com/scionproto/scion/rac/config"
 	"os"
 	"path"
 	"time"
@@ -14,8 +15,8 @@ import (
 
 	"github.com/scionproto/scion/pkg/log"
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
+	"github.com/scionproto/scion/private/procperf"
 	"github.com/scionproto/scion/rac"
-	"github.com/scionproto/scion/rac/config"
 )
 
 type EbpfEnv struct {
@@ -96,9 +97,12 @@ func (e *EbpfEnv) executeVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 		//	return &racpb.ExecutionResponse{}, selection, err
 	}
 	timeEgressGrpcE := time.Now()
-	timeTillSubmitNoLoad := time.Since(loadedTime)
+	// timeTillSubmitNoLoad := time.Since(loadedTime)
 
-	fmt.Printf("EBPF TIME; %d, %d, %d, %d, %d\n", time.Since(totalExec), timeEgressGrpcE.Sub(timeEgressGrpcS).Nanoseconds(), timeTillSubmitNoLoad.Nanoseconds(), execTime.Sub(prepareMemTime).Nanoseconds(), totalExec.Sub(execTime).Nanoseconds())
+	// fmt.Printf("EBPF TIME; %d, %d, %d, %d, %d\n", time.Since(totalExec), timeEgressGrpcE.Sub(timeEgressGrpcS).Nanoseconds(), timeTillSubmitNoLoad.Nanoseconds(), execTime.Sub(prepareMemTime).Nanoseconds(), totalExec.Sub(execTime).Nanoseconds())
+	if err := procperf.AddTimestampsDoneBeacon(job.JobID, procperf.Executed, []time.Time{loadedTime, prepareMemTime, execTime, totalExec, timeEgressGrpcS, timeEgressGrpcE}); err != nil {
+		log.Error("PROCPERF: Error when processing beacon", "err", err)
+	}
 	if e.Static {
 		return &cppb.JobCompleteNotify{
 			RowIDs:    []int64{},

@@ -10,6 +10,7 @@ go_library(
         "build_wa.go",
         "build_waopt.go",
         "main_notiming.go",
+        "main_timing.go",
         "main.go",
     ],
     importpath = "github.com/scionproto/scion/rac/cmd/rac",

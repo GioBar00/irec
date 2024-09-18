@@ -56,6 +56,7 @@ message RACJob {
     bytes flatbuffer = 6;
     repeated int64 rowIds = 7;
     repeated IRECBeacon_unopt beacons_unopt = 8;
+    uint32 jobID = 9;
 }
 
 message IncomingBeacon {

@@ -4,7 +4,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"github.com/scionproto/scion/pkg/snet"
+	"math/big"
 	_ "net/http/pprof"
 	"sync/atomic"
 	"time"
@@ -49,7 +52,7 @@ func realMain(ctx context.Context) error {
 	})
 
 	dialer := &libgrpc.TCPDialer{
-		SvcResolver: func(dst addr.HostSVC) []resolver.Address {
+		SvcResolver: func(dst addr.SVC) []resolver.Address {
 			if base := dst.Base(); base != addr.SvcCS {
 				panic("Unsupported address type, implementation error?")
 			}
@@ -61,7 +64,7 @@ func realMain(ctx context.Context) error {
 		},
 	}
 
-	conn, err := dialer.Dial(context.Background(), addr.SvcCS)
+	conn, err := dialer.Dial(context.Background(), &snet.SVCAddr{SVC: addr.SvcCS})
 	if err != nil {
 		log.Error("Error occurred dialing ", "err", err)
 	}
@@ -102,7 +105,7 @@ func realMain(ctx context.Context) error {
 
 func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.AlgorithmCache, env env2.Environment, ctr *atomic.Uint64) {
 
-	conn, err := dialer.DialLimit(ctx, addr.SvcCS, 100)
+	conn, err := dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
 	if err != nil {
 		log.Error("Error when retrieving job for sources", "err", err)
 		time.Sleep(1 * time.Second)
@@ -114,7 +117,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			timeGrpcIngress1S := time.Now()
 			client := cppb.NewIngressIntraServiceClient(conn)
 			// First get possible sources from the ingress gateway (source=originas, algorithmid, alghash combo)
-			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false}, libgrpc.RetryProfile...)
+			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: uint32(globalCfg.RAC.CandidateSetSize)}, libgrpc.RetryProfile...)
 			if err1 != nil {
 				log.Error("Error when retrieving beacon job", "err", err1)
 				time.Sleep(1 * time.Second)
@@ -125,15 +128,28 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
-			segment_ids := make([]string, len(exec.BeaconsUnopt))
+			// Generate random uint32 JobID
+			jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+			if err != nil {
+				log.Error("Error when generating random job ID", "err", err)
+				time.Sleep(1 * time.Second)
+				return
+			}
+			exec.JobID = uint32(jobID.Uint64())
+			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
-				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
 					time.Sleep(1 * time.Second)
 					return
 				}
-				segment_ids = append(segment_ids, ps.GetLoggingID())
+				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
+			}
+			for _, bcnId := range bcnIds {
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{exec.JobID}...); err != nil {
+					log.Error("PROCPERF: Error when processing beacon", "err", err)
+				}
 			}
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 			// RACS do not reprocess them.
@@ -169,9 +185,8 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
 			ctr.Add(1)
 
-			for _, seg_id := range segment_ids {
-				procperf.AddBeaconTime(seg_id, timeAlgorithmRetS)
-				procperf.DoneBeacon(seg_id, procperf.Processed, timeGrpcIngress2E)
+			if err := procperf.AddTimestampsDoneBeacon(exec.JobID, procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+				log.Error("PROCPERF: Error when processing beacon", "err", err)
 			}
 		}()
 	}
@@ -179,7 +194,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 
 func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.AlgorithmCache, env env2.Environment, ctr *atomic.Uint64) {
 
-	conn, err := dialer.DialLimit(ctx, addr.SvcCS, 50)
+	conn, err := dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 50)
 
 	if err != nil {
 		log.Error("Error when retrieving job for sources", "err", err)
@@ -189,24 +204,38 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 	defer conn.Close()
 	for true {
 		func() {
+			timeGrpcIngress1S := time.Now()
 			client := cppb.NewIngressIntraServiceClient(conn)
-			exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{})
+			exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{Maximum: uint32(globalCfg.RAC.CandidateSetSize)})
 			if err2 != nil {
 				log.Error("Error when retrieving job for sources", "err", err2)
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			segment_ids := make([]string, len(exec.BeaconsUnopt))
+			timeGrpcIngress1E := time.Now()
+			// Generate random uint32 JobID
+			jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+			if err != nil {
+				log.Error("Error when generating random job ID", "err", err)
+				time.Sleep(1 * time.Second)
+				return
+			}
+			exec.JobID = uint32(jobID.Uint64())
+			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
-				ps, err := seg.SegmentFromPB(beacon.PathSeg)
+				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
 					time.Sleep(1 * time.Second)
 					return
 				}
-				segment_ids = append(segment_ids, ps.GetLoggingID())
+				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
-			startEbpf := time.Now()
+			for _, bcnId := range bcnIds {
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{exec.JobID}...); err != nil {
+					log.Error("PROCPERF: Error when processing beacon", "err", err)
+				}
+			}
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			res, err := env.ExecuteStatic(ctx, exec, int32(ctr.Load()))
 
@@ -215,18 +244,18 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
+			timeGrpcIngress2S := time.Now()
 			_, err = client.JobComplete(ctx, res)
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			stopEbpf := time.Now()
+			timeGrpcIngress2E := time.Now()
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
-			for _, seg_id := range segment_ids {
-				procperf.AddBeaconTime(seg_id, startEbpf)
-				procperf.DoneBeacon(seg_id, procperf.Processed, stopEbpf)
+			if err := procperf.AddTimestampsDoneBeacon(exec.JobID, procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+				log.Error("PROCPERF: Error when processing beacon", "err", err)
 			}
 		}()
 	}
