@@ -6,6 +6,7 @@ go_library(
         "handler.go",
         "ingress_server.go",
         "ingress_server_notiming.go",
+        "ingress_server_timing.go",
         "ingress_server_ubpf.go",
         "ingress_server_ubpf_timing.go",
         "ingress_server_wa.go",

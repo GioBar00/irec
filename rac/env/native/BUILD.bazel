@@ -2,7 +2,10 @@ load("//tools/lint:go.bzl", "go_library")
 
 go_library(
     name = "go_default_library",
-    srcs = ["environment.go"],
+    srcs = [
+        "environment.go",
+        "environment_timing.go",
+        ],
     cgo = True,
     importpath = "github.com/scionproto/scion/rac/env/native",
     visibility = ["//visibility:public"],

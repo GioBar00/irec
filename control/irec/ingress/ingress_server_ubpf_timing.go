@@ -16,7 +16,7 @@ import (
 
 func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
 	timeStart := time.Now()
-	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request.IgnoreIntfGroup)
+	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request)
 	if err != nil {
 		log.Error("An error occurred when retrieving beacons from db", "err", err)
 		return &cppb.RACJob{}, err

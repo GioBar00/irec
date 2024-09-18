@@ -6,11 +6,12 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/scionproto/scion/pkg/snet"
 	"math/big"
 	_ "net/http/pprof"
 	"sync/atomic"
 	"time"
+
+	"github.com/scionproto/scion/pkg/snet"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/resolver"
@@ -77,7 +78,7 @@ func realMain(ctx context.Context) error {
 		log.Info("Running UBPF RAC")
 		env = &ebpf.EbpfEnv{Writer: &writer, Static: globalCfg.RAC.Static, JIT: false}
 	} else if MODE == "ubpfjit" {
-		log.Info("Running UBPF RAC")
+		log.Info("Running UBPF JIT RAC")
 		env = &ebpf.EbpfEnv{Writer: &writer, Static: globalCfg.RAC.Static, JIT: true}
 	} else if MODE == "native" {
 		log.Info("Running NATIVE RAC")
