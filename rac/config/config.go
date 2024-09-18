@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	defaultCtrlPort = 30256
+	defaultCtrlPort         = 30256
+	defaultCandidateSetSize = 100
 )
 
 type Config struct {
@@ -60,14 +61,20 @@ func (cfg *RACAlgorithm) ConfigName() string {
 
 type RAC struct {
 	config.NoDefaulter
-	Static          bool         `toml:"static,omitempty"`
-	CtrlAddr        string       `toml:"ctrl_addr,omitempty"`
-	RACAddr         string       `toml:"addr,omitempty"`
-	StaticAlgorithm RACAlgorithm `toml:"static_algorithm,omitempty"`
+	Static           bool         `toml:"static,omitempty"`
+	CtrlAddr         string       `toml:"ctrl_addr,omitempty"`
+	RACAddr          string       `toml:"addr,omitempty"`
+	StaticAlgorithm  RACAlgorithm `toml:"static_algorithm,omitempty"`
+	CandidateSetSize int          `toml:"candidate_set_size,omitempty"`
 }
 
 func (cfg *RAC) Validate() error {
 	cfg.CtrlAddr = DefaultAddress(cfg.CtrlAddr, defaultCtrlPort)
+	if cfg.CandidateSetSize < 0 {
+		cfg.CandidateSetSize = 0
+	} else if cfg.CandidateSetSize == 0 {
+		cfg.CandidateSetSize = defaultCandidateSetSize
+	}
 	return nil
 }
 

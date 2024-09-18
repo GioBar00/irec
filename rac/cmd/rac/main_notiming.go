@@ -115,7 +115,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 		func() {
 			client := cppb.NewIngressIntraServiceClient(conn)
 			// First get possible sources from the ingress gateway (source=originas, algorithmid, alghash combo)
-			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false}, libgrpc.RetryProfile...)
+			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: uint32(globalCfg.RAC.CandidateSetSize)}, libgrpc.RetryProfile...)
 			if err1 != nil {
 				log.Error("Error when retrieving beacon job", "err", err1)
 				if strings.Contains(err1.Error(), "locked") {
@@ -194,7 +194,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 	for true {
 		func() {
 			client := cppb.NewIngressIntraServiceClient(conn)
-			exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{})
+			exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{Maximum: uint32(globalCfg.RAC.CandidateSetSize)})
 			if err2 != nil {
 				log.Error("Error when retrieving job for sources", "err", err2)
 				time.Sleep(100 * time.Millisecond)
