@@ -34,7 +34,7 @@ import (
 )
 
 // DYNAMIC RACS
-func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
 	query := `SELECT b2.RowID, b2.LastUpdated, b2.InIntfID, b2.Usage, b2.Flatbuffer, b2.AlgorithmHash, b2.Beacon  from Beacons b2,
 		(SELECT DISTINCT b.StartIsd, b.StartAs, b.StartIntfGroup, b.AlgorithmHash, b.AlgorithmId, b.PullBased, b.PullBasedTargetAs, b.PullBasedTargetIsd
 FROM Beacons b, Algorithm a

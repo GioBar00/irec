@@ -34,16 +34,12 @@ import (
 )
 
 // DYNAMIC RACS
-func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
 	e.Lock()
 	defer e.Unlock()
 	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
 	if err != nil {
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("looking up beacons", err)
-	}
-	_, err = tx.ExecContext(ctx, "CREATE TEMP TABLE Retrieved(RowId INTEGER);")
-	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
 	_, err = tx.ExecContext(ctx, `CREATE TEMP TABLE ValidSources (
 											StartIsd INTEGER,
@@ -102,70 +98,67 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
-	query = `INSERT INTO
-					Retrieved (RowID)
-				SELECT DISTINCT
-					b.RowID
-				FROM
-					Beacons b,
-					(
-						SELECT DISTINCT
-							st.StartIsd,
-							st.StartAs,
-							vs.StartIntfGroup,
-							vs.AlgorithmHash,
-							vs.AlgorithmId,
-							vs.PullBased,
-							vs.PullBasedTargetIsd,
-							vs.PullBasedTargetAs
-						FROM
-							ValidSources vs,
-							(
-								SELECT DISTINCT
-									StartIsd,
-									StartAs
-								FROM
-									ValidSources
-								ORDER BY
-									Random ()
-								LIMIT
-									1
-							) st
-						WHERE
-							vs.StartIsd = st.StartIsd
-							AND vs.StartAs = st.StartAs
-						ORDER BY
-							Random ()
-						LIMIT
-							1
-					) selected
-				WHERE
-					b.StartIsd = selected.StartIsd
-					AND b.StartAs = selected.StartAs
-					AND b.AlgorithmHash = selected.AlgorithmHash
-					AND b.AlgorithmId = selected.AlgorithmId
-					AND b.PullBased = selected.PullBased
-					AND b.PullBasedTargetIsd = selected.PullBasedTargetIsd
-					AND b.PullBasedTargetAs = selected.PullBasedTargetAs `
+	query = `SELECT DISTINCT
+				b.RowID,
+				b.LastUpdated,
+				b.InIntfID,
+				b.Usage,
+				b.Flatbuffer,
+				b.AlgorithmHash,
+				b.Beacon
+			FROM
+				Beacons b,
+				(
+					SELECT DISTINCT
+						st.StartIsd,
+						st.StartAs,
+						vs.StartIntfGroup,
+						vs.AlgorithmHash,
+						vs.AlgorithmId,
+						vs.PullBased,
+						vs.PullBasedTargetIsd,
+						vs.PullBasedTargetAs
+					FROM
+						ValidSources vs,
+						(
+							SELECT DISTINCT
+								StartIsd,
+								StartAs
+							FROM
+								ValidSources
+							ORDER BY
+								Random ()
+							LIMIT
+								1
+						) st
+					WHERE
+						vs.StartIsd = st.StartIsd
+						AND vs.StartAs = st.StartAs
+					ORDER BY
+						Random ()
+					LIMIT
+						1
+				) selected
+			WHERE
+				b.StartIsd = selected.StartIsd
+				AND b.StartAs = selected.StartAs
+				AND b.AlgorithmHash = selected.AlgorithmHash
+				AND b.AlgorithmId = selected.AlgorithmId
+				AND b.PullBased = selected.PullBased
+				AND b.PullBasedTargetIsd = selected.PullBasedTargetIsd
+				AND b.PullBasedTargetAs = selected.PullBasedTargetAs `
 	if !ignoreIntfGroup {
 		query = query + ` AND b.StartIntfGroup = selected.StartIntfGroup`
 	}
-
-	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
-	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+	query = query + ` ORDER BY b.HopsLength ASC, b.LastUpdated DESC`
+	if maximum > 0 {
+		query = query + ` LIMIT ?`
 	}
-
-	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? FROM Retrieved r WHERE Beacons.RowID = r.RowId AND Beacons.FetchStatus =0;", fetchExpirationTime.Unix())
-
-	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
-	}
-
-	rows, err := tx.QueryContext(ctx, "SELECT DISTINCT b.RowID, LastUpdated, InIntfID, Usage, Flatbuffer, AlgorithmHash, Beacon FROM Beacons b, Retrieved r  WHERE b.RowID = r.RowId ORDER BY b.HopsLength ASC, b.LastUpdated DESC;")
+	rows, err := tx.QueryContext(ctx, query, maximum)
 	if err != nil {
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("looking up beacons", err, "query", query)
 	}
+
 	defer rows.Close()
 	var algHash sql.RawBytes
 	var fbs [][]byte
@@ -203,10 +196,12 @@ func (e *executor) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetch
 		log.Error("err when selecting beacons", "err", err)
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
-	_, err = tx.ExecContext(ctx, "DROP TABLE Retrieved;")
+	// Mark beacons as being fetched. (rowIds)
+	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
 	}
+
 	_, err = tx.ExecContext(ctx, "DROP TABLE ValidSources;")
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err

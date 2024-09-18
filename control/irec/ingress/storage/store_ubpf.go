@@ -15,7 +15,7 @@ import (
 
 type IngressStore interface {
 	GetBeacons(ctx context.Context, req *cppb.BeaconQuery) ([][]byte, []*cppb.IRECBeaconUnopt, error)
-	GetBeaconJob(ctx context.Context, ignoreIntfGroup bool) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
+	GetBeaconJob(ctx context.Context, request *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 	GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error)
 	GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBeacon, error)
 
@@ -80,7 +80,7 @@ type DB interface {
 	InsertBeacon(ctx context.Context, b beacon.Beacon, usage beacon.Usage) (beacon.InsertStats, error)
 
 	MarkBeacons(ctx context.Context, ids []int64) error
-	GetBeaconJob(ctx context.Context, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
+	GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 	GetBeacons(ctx context.Context, opts *beacon2.QueryOptions) ([][]byte, []*cppb.IRECBeaconUnopt, error)
 	GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error)
 	GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBeacon, error)
@@ -120,8 +120,8 @@ func (s *baseStore) GetAndMarkBeacons(ctx context.Context, req *cppb.RACBeaconRe
 	return fbs, bcns, nil
 }
 
-func (s *baseStore) GetBeaconJob(ctx context.Context, ignoreIntfGroup bool) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
-	return s.db.GetBeaconJob(ctx, ignoreIntfGroup, time.Now().Add(time.Second*30))
+func (s *baseStore) GetBeaconJob(ctx context.Context, request *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	return s.db.GetBeaconJob(ctx, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30))
 }
 
 func (s *baseStore) GetBeacons(ctx context.Context, req *cppb.BeaconQuery) ([][]byte, []*cppb.IRECBeaconUnopt, error) {
