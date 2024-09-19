@@ -4,7 +4,10 @@ package ingress
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"github.com/scionproto/scion/private/procperf"
+	"math/big"
 	"time"
 
 	flatbuffers "github.com/google/flatbuffers/go"
@@ -22,6 +25,11 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 		return &cppb.RACJob{}, err
 	}
 	timeDbDone := time.Now()
+	// Generate random uint32 JobID
+	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
 	//log.Debug("Queueing to RAC", "beacons", len(fbs))
 	ret := &cppb.RACJob{
 		AlgorithmHash: hash,
@@ -29,9 +37,13 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 		BeaconCount:   uint32(len(fbs)),
 		BeaconsUnopt:  bcns,
 		RowIds:        rowIds,
+		JobID:         uint32(jobID.Uint64()),
 	}
 	timeEnd := time.Now()
-	fmt.Printf("igdb=%d, ds=%d\n", timeDbDone.Sub(timeStart).Nanoseconds(), timeEnd.Sub(timeDbDone))
+	//fmt.Printf("igdb=%d, ds=%d\n", timeDbDone.Sub(timeStart).Nanoseconds(), timeEnd.Sub(timeDbDone))
+	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
+		log.Error("PROCPERF: Error when getting job", "err", err)
+	}
 	return ret, nil
 }
 
@@ -71,14 +83,27 @@ func (i *IngressServer) packBeaconsFlatbuffer(fbs [][]byte) []byte {
 }
 
 func (i *IngressServer) GetBeacons(ctx context.Context, req *cppb.BeaconQuery) (*cppb.RACJob, error) {
+	timeStart := time.Now()
 	fbs, bcns, err := i.IngressDB.GetBeacons(ctx, req)
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}
-	return &cppb.RACJob{
+	timeDbDone := time.Now()
+	// Generate random uint32 JobID
+	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	racJob := &cppb.RACJob{
 		PropIntfs:    i.PropagationInterfaces,
 		Flatbuffer:   i.packBeaconsFlatbuffer(fbs),
 		BeaconCount:  uint32(len(fbs)),
 		BeaconsUnopt: bcns,
-	}, nil
+		JobID:        uint32(jobID.Uint64()),
+	}
+	timeEnd := time.Now()
+	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", racJob.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
+		log.Error("PROCPERF: Error when getting job", "err", err)
+	}
+	return racJob, nil
 }

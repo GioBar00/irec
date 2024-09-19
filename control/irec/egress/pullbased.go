@@ -2,7 +2,6 @@ package egress
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/scionproto/scion/private/procperf"
@@ -19,13 +18,12 @@ import (
 // Once a pull based beacon comes in, this function handles the processing of this beacon. It reverses the path in the
 // beacon and contacts the origin AS
 func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.EgressBeacon) error {
-
 	segCopy, err := seg.BeaconFromPB(bcn.PathSeg)
 	if err != nil {
 		return serrors.WrapStr("Parsing pull-based beacon failed; ", err)
 	}
 	bcnId := procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)
-	startTime := time.Now()
+	timeExtendS := time.Now()
 	if segCopy.ASEntries[0].Extensions.Irec == nil {
 		return serrors.New("Beacon is not an IREC beacon")
 	}
@@ -38,27 +36,29 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 		}, h.Peers); err != nil {
 		return err
 	}
+	timeExtendE := time.Now()
 
 	address, err := h.Pather.GetPath(addr.SvcCS, segCopy)
 	if err != nil {
 		log.Error("Unable to choose server", "err", err)
 	}
+	timePathE := time.Now()
 	conn, err := h.Dialer.Dial(ctx, address)
 	if err != nil {
 		return serrors.WrapStr("Error occurred while dialing origin AS", err)
 	}
+	timeDialE := time.Now()
 	log.Debug("Pullbased beacon, path to origin AS", "paths", address.Path)
 
 	defer conn.Close()
 	client := cppb.NewEgressInterServiceClient(conn)
-
 	_, err = client.PullBasedCallback(ctx, &cppb.IncomingBeacon{Segment: seg.PathSegmentToPB(segCopy)})
 	if err != nil {
 		return err
 	}
-	t := time.Now()
-	if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, startTime, t, fmt.Sprintf("%s %x", segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
-		return serrors.WrapStr("PROCPERF: error done propagate Pullbased", err)
+	timeGrpcE := time.Now()
+	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeExtendS, timeExtendE, timePathE, timeDialE, timeGrpcE}, procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
+		log.Error("PROCPERF: error propagating pull based beacon", err)
 	}
 	return nil
 }
@@ -73,16 +73,22 @@ func (h Propagator) PullBasedCallback(ctx context.Context, bcn *cppb.IncomingBea
 		for _, writer := range h.Writers {
 			if writer.WriterType() == seg.TypeCoreR { // 'Hack' to support reversed core segments
 				segment, err := seg.SegmentFromPB(bcn.Segment)
+				bcnId := procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)
 				log.Info("pull-based path: ", "seg", segment)
 				if err != nil {
 					log.Error("error occurred", "err", err)
 					continue
 				}
-				// writer has side-effects for beacon, therefore recreate beacon arr for each writer
+				timeWriterS := time.Now()
+				// writer has side effects for beacon, therefore recreate beacon arr for each writer
 				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
 					InIfID: 0}}, h.Peers, false)
 				if err != nil {
 					log.Error("error occurred", "err", err)
+				}
+				timeWriterE := time.Now()
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
+					log.Error("PROCPERF: error writing pull based beacon", err)
 				}
 			}
 

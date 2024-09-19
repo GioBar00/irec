@@ -89,6 +89,7 @@ const defaultNewSenderTimeout = 10 * time.Second
 
 func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.PropagationRequest) (*cppb.PropagationRequestResponse, error) {
 	var wg sync.WaitGroup
+	timeRequestS := time.Now()
 	for _, bcn := range request.Beacon {
 		// If the beacon is a pull-based beacon, handle the beacon separately.
 		segment, err := seg.BeaconFromPB(bcn.PathSeg)
@@ -107,7 +108,6 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			continue
 		}
 		bcnId := procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)
-		propStart := time.Now()
 		log.Debug("Writers", "writers", p.Writers)
 		// Write the beacons to path servers in a seperate goroutine
 		// TODO(jvb); ALternatively, we can write these to the egress database and use a periodic writer to write to the path servers.
@@ -119,7 +119,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			wg.Add(1)
 			bcn := bcn
 			writer := writer
+			bcnId := bcnId
 			go func() {
+				timeWriterS := time.Now()
 				defer log.HandlePanic()
 				defer wg.Done()
 				segment, err := seg.BeaconFromPB(bcn.PathSeg)
@@ -128,14 +130,15 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Could not parse beacon segment", "err", err)
 					return
 				}
-				// writer has side-effects for beacon, therefore recreate beacon arr for each writer
-
-				//log.Info("NOTIF; writing", "bcn", segment)
+				// writer has side effects for beacon, therefore recreate beacon arr for each writer
 				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
 					InIfID: uint16(bcn.InIfId)}}, p.Peers, true)
-				//log.Debug("NOTIF; finished writing", "bcn", segment)
 				if err != nil {
 					log.Error("Could not write beacon to path servers", "err", err)
+				}
+				timeWriterE := time.Now()
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
+					log.Error("PROCPERF: error writing beacon", err)
 				}
 			}()
 		}
@@ -147,10 +150,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			bcn := bcn
 			bcnId := bcnId
 			go func() {
+				timePropagateS := time.Now()
 				defer log.HandlePanic()
 				defer wg.Done()
 				intf := p.Interfaces[intfId]
-				//log.Debug("NOTIF; here1")
 				if intf == nil {
 					log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
 					return
@@ -165,13 +168,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB propagation segment failed", "err", err)
 					return
 				}
-				//log.Debug("NOTIF; here2")
-
+				timeCheckS := time.Now()
 				if p.shouldIgnore(segment, intf) {
 					return
 				}
+				timeCheckE := time.Now()
 				beaconHash := HashBeacon(segment)
-
 				log.Info("Irec Propagation requested for", hex.EncodeToString(beaconHash), segment)
 				// Check if beacon is already propagated before using egress db
 				propagated, _, err := p.Store.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
@@ -179,13 +181,13 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation check failed", "err", err)
 					return
 				}
+				timeFilterE := time.Now()
 				// If so, don't propagate
 				if propagated {
 					log.Info("Beacon is known in egress database, skipping propagation.")
 					return
 				}
 
-				//log.Debug("NOTIF; here3")
 				// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 				peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -208,7 +210,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 
-				//log.Debug("NOTIF; here4")
+				timeExtendE := time.Now()
 				//TODO(jvb): hangs between 4 and 5
 				//	Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
@@ -225,19 +227,21 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				defer sender.Close()
+				timeSenderE := time.Now()
 				if err := sender.Send(ctx, segment); err != nil {
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
 						"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
 						err)
 					return
 				}
+				timeSendE := time.Now()
 				// TODO(gb): Could be problem with multiple racs concurrently propagating the same beacon or takes more than 1 second to propagate.
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
 				if err != nil {
 					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
-				//log.Debug("NOTIF; here5")
+				timeMarkE := time.Now()
 				// Here we keep track of the last time a beacon has been sent on an interface per algorithm hash.
 				// Such that the egress gateway can plan origination scripts for those algorithms that need origination.
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -245,18 +249,14 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				} else {
 					intf.Propagate(time.Now(), "")
 				}
-				//log.Debug("NOTIF; here6")
-				t := time.Now()
-				if err := procperf.AddTimeDoneBeacon(bcnId, procperf.Propagated, propStart, t, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
-					log.Error("PROCPERF: error done beacon propagated", "err", err)
+				timePropagateE := time.Now()
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeRequestS, timePropagateS, timeCheckS, timeCheckE, timeFilterE, timeExtendE, timeSenderE, timeSendE, timeMarkE, timePropagateE}, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
+					log.Error("PROCPERF: error propagating beacon", "err", err)
 				}
 			}()
 		}
 	}
-
-	//log.Debug("NOTIF; waiting")
 	wg.Wait() // Necessary for tests, but possible optimization is not waiting for this.
-	//log.Debug("NOTIF; DONE1!!!@!")
 	return &cppb.PropagationRequestResponse{}, nil
 }
 

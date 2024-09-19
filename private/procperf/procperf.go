@@ -17,6 +17,8 @@ const (
 	Received   Type = "Received"
 	Propagated Type = "Propagated"
 	Originated Type = "Originated"
+	Retrieved  Type = "Retrieved"
+	Written    Type = "Written"
 	Processed  Type = "Processed"
 	Executed   Type = "Executed"
 	Completed  Type = "Completed"

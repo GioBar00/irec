@@ -4,9 +4,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
 	_ "net/http/pprof"
 	"sync/atomic"
 	"time"
@@ -129,14 +127,6 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
-			// Generate random uint32 JobID
-			jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
-			if err != nil {
-				log.Error("Error when generating random job ID", "err", err)
-				time.Sleep(1 * time.Second)
-				return
-			}
-			exec.JobID = uint32(jobID.Uint64())
 			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
@@ -148,7 +138,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			for _, bcnId := range bcnIds {
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{fmt.Sprintf("%d", exec.JobID)}...); err != nil {
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, fmt.Sprintf("%d", exec.JobID)); err != nil {
 					log.Error("PROCPERF: Error when receiving beacon", "err", err)
 				}
 			}
@@ -214,14 +204,6 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				return
 			}
 			timeGrpcIngress1E := time.Now()
-			// Generate random uint32 JobID
-			jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
-			if err != nil {
-				log.Error("Error when generating random job ID", "err", err)
-				time.Sleep(1 * time.Second)
-				return
-			}
-			exec.JobID = uint32(jobID.Uint64())
 			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
@@ -233,7 +215,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
 			}
 			for _, bcnId := range bcnIds {
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, []string{fmt.Sprintf("%d", exec.JobID)}...); err != nil {
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{}, fmt.Sprintf("%d", exec.JobID)); err != nil {
 					log.Error("PROCPERF: Error when receiving beacon", "err", err)
 				}
 			}
