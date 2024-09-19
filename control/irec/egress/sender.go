@@ -3,6 +3,8 @@ package egress
 import (
 	"context"
 	"net"
+	"strconv"
+	"sync"
 
 	"google.golang.org/grpc"
 
@@ -83,4 +85,74 @@ func (s BeaconSender) Send(ctx context.Context, pseg *seg.PathSegment) error {
 // Close closes the BeaconSender and releases all underlying resources.
 func (s BeaconSender) Close() error {
 	return s.Conn.Close()
+}
+
+// PoolBeaconSenderFactory is used to store and reuse beacon senders.
+type PoolBeaconSenderFactory struct {
+	sync.Mutex
+	// BeaconSenderFactory is used to create new beacon senders.
+	BeaconSenderFactory *BeaconSenderFactory
+
+	// beaconSenders is a map of beacon senders.
+	poolBeaconSenders map[string]PoolBeaconSender
+	// beaconSenderUsage is a map of the number of routines using a beacon sender.
+	beaconSendersUsage map[string]uint
+}
+
+// NewSender returns a beacon sender that can be used to send beacons to a remote CS.
+func (f *PoolBeaconSenderFactory) NewSender(
+	ctx context.Context,
+	dstIA addr.IA,
+	egIfId uint16,
+	nextHop *net.UDPAddr,
+) (Sender, error) {
+	f.Lock()
+	defer f.Unlock()
+	// Check if a beacon sender already exists for the given destination.
+	key := beaconSenderID(dstIA, egIfId, nextHop)
+	if pbs, ok := f.poolBeaconSenders[key]; ok {
+		f.beaconSendersUsage[key]++
+		return pbs, nil
+	}
+	// Create a new beacon sender.
+	bs, err := f.BeaconSenderFactory.NewSender(ctx, dstIA, egIfId, nextHop)
+	if err != nil {
+		return nil, err
+	}
+	pbs := PoolBeaconSender{
+		PoolBeaconSenderFactory: f,
+		ID:                      key,
+		BeaconSender:            bs.(*BeaconSender),
+	}
+	f.poolBeaconSenders[key] = pbs
+	f.beaconSendersUsage[key] = 1
+	return pbs, nil
+}
+
+type PoolBeaconSender struct {
+	PoolBeaconSenderFactory *PoolBeaconSenderFactory
+	ID                      string
+	BeaconSender            *BeaconSender
+}
+
+// Send sends a beacon to the remote.
+func (s PoolBeaconSender) Send(ctx context.Context, pseg *seg.PathSegment) error {
+	return s.BeaconSender.Send(ctx, pseg)
+}
+
+// Close closes the BeaconSender and releases all underlying resources.
+func (s PoolBeaconSender) Close() error {
+	s.PoolBeaconSenderFactory.Lock()
+	defer s.PoolBeaconSenderFactory.Unlock()
+	s.PoolBeaconSenderFactory.beaconSendersUsage[s.ID]--
+	if s.PoolBeaconSenderFactory.beaconSendersUsage[s.ID] == 0 {
+		delete(s.PoolBeaconSenderFactory.poolBeaconSenders, s.ID)
+		delete(s.PoolBeaconSenderFactory.beaconSendersUsage, s.ID)
+		return s.BeaconSender.Close()
+	}
+	return nil
+}
+
+func beaconSenderID(dstIA addr.IA, egIfId uint16, nextHop *net.UDPAddr) string {
+	return dstIA.String() + "_" + strconv.Itoa(int(egIfId)) + "_" + nextHop.String()
 }

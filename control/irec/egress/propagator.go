@@ -213,10 +213,11 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 
 				timeExtendE := time.Now()
 				//TODO(jvb): hangs between 4 and 5
-				//	Propagate to ingress gateway
+
+				// Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
 				defer cancel()
-				//TODO(jvb): Check if it would be better to reuse the senders from a pool.
+				// SenderFactory is of type PoolBeaconSenderFactory so we can use the same sender for multiple beacons.
 				sender, err := p.SenderFactory.NewSender(
 					senderCtx,
 					intf.TopoInfo().IA,
