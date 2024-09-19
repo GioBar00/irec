@@ -22,9 +22,9 @@ const (
 	Processed  Type = "Processed"
 	Executed   Type = "Executed"
 	Completed  Type = "Completed"
+	Algorithm  Type = "Algorithm"
 )
 
-// var beaconTime = sync.Map{}
 var file *os.File
 var once sync.Once
 

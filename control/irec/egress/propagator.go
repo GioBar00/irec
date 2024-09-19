@@ -121,9 +121,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			writer := writer
 			bcnId := bcnId
 			go func() {
-				timeWriterS := time.Now()
 				defer log.HandlePanic()
 				defer wg.Done()
+				timeWriterS := time.Now()
 				segment, err := seg.BeaconFromPB(bcn.PathSeg)
 
 				if err != nil {
@@ -138,7 +138,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				timeWriterE := time.Now()
 				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
-					log.Error("PROCPERF: error writing beacon", err)
+					log.Error("PROCPERF: error writing beacon", "err", err)
 				}
 			}()
 		}
@@ -150,9 +150,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			bcn := bcn
 			bcnId := bcnId
 			go func() {
-				timePropagateS := time.Now()
 				defer log.HandlePanic()
 				defer wg.Done()
+				timePropagateS := time.Now()
 				intf := p.Interfaces[intfId]
 				if intf == nil {
 					log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)

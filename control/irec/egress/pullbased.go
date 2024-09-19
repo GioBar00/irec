@@ -58,7 +58,7 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 	}
 	timeGrpcE := time.Now()
 	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeExtendS, timeExtendE, timePathE, timeDialE, timeGrpcE}, procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
-		log.Error("PROCPERF: error propagating pull based beacon", err)
+		log.Error("PROCPERF: error propagating pull based beacon", "err", err)
 	}
 	return nil
 }
@@ -88,7 +88,7 @@ func (h Propagator) PullBasedCallback(ctx context.Context, bcn *cppb.IncomingBea
 				}
 				timeWriterE := time.Now()
 				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
-					log.Error("PROCPERF: error writing pull based beacon", err)
+					log.Error("PROCPERF: error writing pull based beacon", "err", err)
 				}
 			}
 
