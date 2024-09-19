@@ -263,7 +263,7 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			timeSendS := time.Now()
 			if err := sender.Send(ctx, beacon); err != nil {
 				return serrors.WrapStr("sending beacon", err,
-					"waited_for", time.Since(timeCreateS).String(),
+					"waited_for", time.Since(timeSendS).String(),
 				)
 			}
 			timeSendE := time.Now()

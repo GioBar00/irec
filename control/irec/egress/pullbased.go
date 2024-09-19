@@ -81,14 +81,16 @@ func (h Propagator) PullBasedCallback(ctx context.Context, bcn *cppb.IncomingBea
 				}
 				timeWriterS := time.Now()
 				// writer has side effects for beacon, therefore recreate beacon arr for each writer
-				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
+				stats, err := writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
 					InIfID: 0}}, h.Peers, false)
 				if err != nil {
 					log.Error("error occurred", "err", err)
 				}
 				timeWriterE := time.Now()
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
-					log.Error("PROCPERF: error writing pull based beacon", "err", err)
+				if stats.Count > 0 {
+					if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
+						log.Error("PROCPERF: error writing pull based beacon", "err", err)
+					}
 				}
 			}
 

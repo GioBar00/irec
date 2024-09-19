@@ -119,7 +119,6 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			wg.Add(1)
 			bcn := bcn
 			writer := writer
-			bcnId := bcnId
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
@@ -131,14 +130,16 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				// writer has side effects for beacon, therefore recreate beacon arr for each writer
-				err = writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
+				stats, err := writer.Write(context.Background(), []beacon.Beacon{{Segment: segment,
 					InIfID: uint16(bcn.InIfId)}}, p.Peers, true)
 				if err != nil {
 					log.Error("Could not write beacon to path servers", "err", err)
 				}
 				timeWriterE := time.Now()
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Written, []time.Time{timeWriterS, timeWriterE}, writer.WriterType().String()); err != nil {
-					log.Error("PROCPERF: error writing beacon", "err", err)
+				if stats.Count > 0 {
+					if err := procperf.AddTimestampsDoneBeacon(writer.WriterType().String(), procperf.Written, []time.Time{timeWriterS, timeWriterE}); err != nil {
+						log.Error("PROCPERF: error writing beacon", "err", err)
+					}
 				}
 			}()
 		}

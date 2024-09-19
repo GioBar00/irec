@@ -3,6 +3,7 @@ package egress
 import (
 	"context"
 	"net"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/metrics"
 	"github.com/scionproto/scion/pkg/private/prom"
+	"github.com/scionproto/scion/pkg/private/serrors"
 	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/segment/seghandler"
@@ -47,7 +49,50 @@ type Writer interface {
 	// insights about how many segments have been successfully written. The
 	// method should return an error if the writing did fail.
 	WriterType() seg.Type
-	Write(ctx context.Context, segs []beacon.Beacon, peers []uint16, extendBeacon bool) error
+	Write(ctx context.Context, segs []beacon.Beacon, peers []uint16, extendBeacon bool) (WriteStats, error)
+}
+
+type summary struct {
+	mu    sync.Mutex
+	srcs  map[addr.IA]struct{}
+	ifIDs map[uint16]struct{}
+	count int
+}
+
+func newSummary() *summary {
+	return &summary{
+		srcs:  make(map[addr.IA]struct{}),
+		ifIDs: make(map[uint16]struct{}),
+	}
+}
+
+func (s *summary) AddSrc(ia addr.IA) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.srcs[ia] = struct{}{}
+}
+
+func (s *summary) AddIfID(ifID uint16) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ifIDs[ifID] = struct{}{}
+}
+
+func (s *summary) Inc() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.count++
+}
+
+func (s *summary) IfIDs() []uint16 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := make([]uint16, 0, len(s.ifIDs))
+	for ifID := range s.ifIDs {
+		list = append(list, ifID)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i] < list[j] })
+	return list
 }
 
 // RemoteWriter writes segments via an RPC to the source AS of a segment.
@@ -81,9 +126,10 @@ func (r *RemoteWriter) Write(
 	segments []beacon.Beacon,
 	peers []uint16,
 	extendBeacon bool,
-) error {
+) (WriteStats, error) {
 
 	logger := log.FromCtx(ctx)
+	s := newSummary()
 	var expected int
 	var wg sync.WaitGroup
 	for _, b := range segments {
@@ -100,10 +146,11 @@ func (r *RemoteWriter) Write(
 		}
 		expected++
 		s := remoteWriter{
-			writer: r,
-			rpc:    r.RPC,
-			pather: r.Pather,
-			wg:     &wg,
+			writer:  r,
+			rpc:     r.RPC,
+			pather:  r.Pather,
+			summary: s,
+			wg:      &wg,
 		}
 
 		//Avoid head-of-line blocking when sending message to slow servers.
@@ -111,7 +158,10 @@ func (r *RemoteWriter) Write(
 	}
 	log.Info("Registering Beacons Remote.")
 	wg.Wait()
-	return nil
+	if expected > 0 && s.count <= 0 {
+		return WriteStats{}, serrors.New("no beacons registered", "candidates", expected)
+	}
+	return WriteStats{Count: s.count, StartIAs: s.srcs}, nil
 }
 
 // LocalWriter can be used to write segments in the SegmentStore.
@@ -139,7 +189,7 @@ func (r *LocalWriter) Write(
 	segments []beacon.Beacon,
 	peers []uint16,
 	extendBeacon bool,
-) error {
+) (WriteStats, error) {
 
 	logger := log.FromCtx(ctx)
 	beacons := make(map[string]beacon.Beacon)
@@ -163,18 +213,28 @@ func (r *LocalWriter) Write(
 	}
 	log.Info("Registering Beacons locally.")
 	if len(toRegister) == 0 {
-		return nil
+		return WriteStats{}, nil
 	}
-	_, err := r.Store.StoreSegs(ctx, toRegister)
+	stats, err := r.Store.StoreSegs(ctx, toRegister)
 	if err != nil {
 		metrics.CounterInc(r.InternalErrors)
-		return err
+		return WriteStats{}, err
 	}
-	return nil
+	sum := summarizeStats(stats, beacons)
+	return WriteStats{Count: sum.count, StartIAs: sum.srcs}, nil
 }
 
 func (r *LocalWriter) WriterType() seg.Type {
 	return r.Type
+}
+
+func summarizeStats(s seghandler.SegStats, b map[string]beacon.Beacon) *summary {
+	sum := newSummary()
+	for _, id := range append(s.InsertedSegs, s.UpdatedSegs...) {
+		sum.AddSrc(b[id].Segment.FirstIA())
+		sum.Inc()
+	}
+	return sum
 }
 
 // updateMetricsFromStat is used to update the metrics for local DB inserts.
@@ -199,10 +259,11 @@ func (r *LocalWriter) updateMetricsFromStat(s seghandler.SegStats, b map[string]
 
 // remoteWriter registers one segment with the path server.
 type remoteWriter struct {
-	writer *RemoteWriter
-	rpc    RPC
-	pather Pather
-	wg     *sync.WaitGroup
+	writer  *RemoteWriter
+	rpc     RPC
+	pather  Pather
+	summary *summary
+	wg      *sync.WaitGroup
 }
 
 // start extends the beacon and starts a go routine that registers the beacon
@@ -242,6 +303,8 @@ func (r *remoteWriter) startSendSegReg(ctx context.Context, bseg beacon.Beacon,
 				labels.WithResult(prom.ErrNetwork).Expand()...))
 			return
 		}
+		r.summary.AddSrc(bseg.Segment.FirstIA())
+		r.summary.Inc()
 		metrics.CounterInc(metrics.CounterWith(r.writer.Registered,
 			labels.WithResult(prom.Success).Expand()...))
 		logger.Debug("Successfully registered segment", "seg_type", r.writer.Type,
