@@ -48,19 +48,6 @@ func Close() {
 	_ = file.Close()
 }
 
-//func AddBeaconTime(id string, t time.Time) {
-//	beaconTime.Store(id, t)
-//}
-//
-//func DoneBeacon(id string, procPerfType Type, t time.Time, newId ...string) error {
-//	if bt, ok := beaconTime.Load(id); ok {
-//		bt := bt.(time.Time)
-//		return AddTimeDoneBeacon(id, procPerfType, bt, t, newId...)
-//	} else {
-//		return serrors.New("beacon not found in beaconTime")
-//	}
-//}
-
 func AddTimestampsDoneBeacon(id string, procPerfType Type, times []time.Time, newId ...string) error {
 	if procPerfType == Propagated && len(newId) == 0 {
 		return serrors.New("newId not found for propagated beacon")
@@ -88,10 +75,7 @@ func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.T
 		newIdStr = newId[0]
 	}
 	ppt := string(procPerfType)
-	// log.Info(fmt.Sprintf("Beacon %s - ID:%s --- %s %s", ppt, id, t.String(), newIdStr))
 	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n")
-	//beaconTime.Delete(id)
-	//return nil
 	return err
 }
 
