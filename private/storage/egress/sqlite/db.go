@@ -119,17 +119,21 @@ func insertNewBeaconHash(
 func (e *executor) MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
 	e.Lock()
 	defer e.Unlock()
-	propStatus, _, err := e.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
+	propStatus, rowID, err := e.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
 	if err != nil {
 		return err
 	}
 	if propStatus {
-		return nil
+		// Update expiry
+		err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+			return e.updateExpiry(ctx, rowID, expiry)
+		})
+	} else {
+		// Insert new beacon.
+		err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+			return insertNewBeaconHash(ctx, tx, beaconHash, intf, expiry)
+		})
 	}
-	// Insert new beacon.
-	err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
-		return insertNewBeaconHash(ctx, tx, beaconHash, intf, expiry)
-	})
 	if err != nil {
 		return err
 	}

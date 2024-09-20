@@ -212,7 +212,13 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 
 				timeExtendE := time.Now()
-				//TODO(jvb): hangs between 4 and 5
+				// Mark beacon as propagated in egress db with a short expiry time to avoid re-propagation and quick cleanup in case of send failure
+				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(2*defaultNewSenderTimeout))
+				if err != nil {
+					log.Error("Beacon DB Propagation add failed", "err", err)
+					return
+				}
+				timePreMarkE := time.Now()
 
 				// Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
@@ -237,7 +243,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeSendE := time.Now()
-				// TODO(gb): Could be problem with multiple racs concurrently propagating the same beacon or takes more than 1 second to propagate.
+				// Mark beacon as propagated in egress db with the real expiry time
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
 				if err != nil {
 					log.Error("Beacon DB Propagation add failed", "err", err)
@@ -252,7 +258,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					intf.Propagate(time.Now(), "")
 				}
 				timePropagateE := time.Now()
-				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeRequestS, timePropagateS, timeCheckS, timeCheckE, timeFilterE, timeExtendE, timeSenderE, timeSendE, timeMarkE, timePropagateE}, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
+				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeRequestS, timePropagateS, timeCheckS, timeCheckE, timeFilterE, timeExtendE, timePreMarkE, timeSenderE, timeSendE, timeMarkE, timePropagateE}, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error propagating beacon", "err", err)
 				}
 			}()
