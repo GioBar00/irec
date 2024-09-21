@@ -30,6 +30,8 @@ import (
 	"github.com/scionproto/scion/rac/env/wasm"
 )
 
+const defaultSleepTime = 10 * time.Second
+
 func realMain(ctx context.Context) error {
 
 	procperf.Init()
@@ -107,7 +109,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 	conn, err := dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
 	if err != nil {
 		log.Error("Error when retrieving job for sources", "err", err)
-		time.Sleep(1 * time.Second)
+		time.Sleep(defaultSleepTime)
 		return
 	}
 	defer conn.Close()
@@ -119,13 +121,13 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: uint32(globalCfg.RAC.CandidateSetSize)}, libgrpc.RetryProfile...)
 			if err1 != nil {
 				log.Error("Error when retrieving beacon job", "err", err1)
-				time.Sleep(1 * time.Second)
+				time.Sleep(defaultSleepTime)
 				return
 			}
 			timeGrpcIngress1E := time.Now() // 1
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			if exec.BeaconCount == 0 {
-				time.Sleep(1 * time.Second)
+				time.Sleep(defaultSleepTime)
 				return
 			}
 			bcnIds := make([]string, 0)
@@ -133,7 +135,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
-					time.Sleep(1 * time.Second)
+					time.Sleep(defaultSleepTime)
 					return
 				}
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
@@ -151,7 +153,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				algResponse, err := client.GetAlgorithm(context.Background(), &cppb.AlgorithmRequest{AlgorithmHash: exec.AlgorithmHash})
 				if err != nil {
 					log.Error("Error when retrieving algorithm", "err", err)
-					time.Sleep(1 * time.Second)
+					time.Sleep(defaultSleepTime)
 					return
 				}
 				algorithm = algResponse.Code
@@ -162,7 +164,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			res, err := env.ExecuteDynamic(ctx, exec, algorithm, int32(ctr.Load()))
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
-				time.Sleep(1 * time.Second)
+				time.Sleep(defaultSleepTime)
 				return
 			}
 			timeGrpcIngress2S := time.Now() // 4
@@ -196,7 +198,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 	defer conn.Close()
 	for true {
 		func() {
-			timeGrpcIngress1S := time.Now()
+			timeGrpcIngress1S := time.Now() // 0
 			client := cppb.NewIngressIntraServiceClient(conn)
 			exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{Maximum: uint32(globalCfg.RAC.CandidateSetSize)})
 			if err2 != nil {
@@ -204,13 +206,13 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			timeGrpcIngress1E := time.Now()
+			timeGrpcIngress1E := time.Now() // 1
 			bcnIds := make([]string, 0)
 			for _, beacon := range exec.BeaconsUnopt {
 				ps, err := seg.BeaconFromPB(beacon.PathSeg)
 				if err != nil {
 					log.Error("Error when converting path segment", "err", err)
-					time.Sleep(1 * time.Second)
+					time.Sleep(defaultSleepTime)
 					return
 				}
 				bcnIds = append(bcnIds, procperf.GetFullId(ps.GetLoggingID(), ps.Info.SegmentID))
@@ -221,6 +223,7 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				}
 			}
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
+			timeExecS := time.Now() // 2
 			res, err := env.ExecuteStatic(ctx, exec, int32(ctr.Load()))
 
 			if err != nil {
@@ -228,17 +231,17 @@ func staticLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Alg
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			timeGrpcIngress2S := time.Now()
+			timeGrpcIngress2S := time.Now() // 3
 			_, err = client.JobComplete(ctx, res)
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			timeGrpcIngress2E := time.Now()
+			timeGrpcIngress2E := time.Now() // 4
 			ctr.Add(1)
 			time.Sleep(2000 * time.Millisecond)
-			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeExecS, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
 				log.Error("PROCPERF: Error when processing job", "err", err)
 			}
 		}()

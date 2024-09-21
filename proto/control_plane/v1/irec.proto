@@ -51,7 +51,7 @@ message AlgorithmResponse {
 message RACJob {
     repeated proto.control_plane.v1.IRECBeacon beacons = 1; //
     bytes algorithmHash = 2;
-//    repeated InterfaceInfo intfs = 3;
+    //    repeated InterfaceInfo intfs = 3;
     repeated uint32 propIntfs = 4;
     uint32 beaconCount = 5;
     bytes flatbuffer = 6;
@@ -113,7 +113,7 @@ message BeaconQuery {
     repeated BeaconQueryAlgorithmOption algorithms = 2;
     repeated BeaconQueryOriginOption origins = 3;
     bool onlyUnmarked = 4;
-    repeated uint32 labels =5;
+    repeated uint32 labels = 5;
 }
 
 message RACBeaconResponse {
@@ -155,7 +155,10 @@ message StoredBeaconAndIntf {
 message PropagationRequest {
     repeated EgressBeacon beacon = 1;
 }
-message PropagationRequestResponse{}
+message PropagationRequestResponse {
+    uint32 actual = 1;
+    uint32 expected = 2;
+}
 
 
 message IRECBeacon_unopt {

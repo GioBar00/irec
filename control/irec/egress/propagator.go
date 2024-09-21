@@ -144,8 +144,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}()
 		}
 		// Every beacon is to be propagated on a set of interfaces
+		wg.Add(len(bcn.EgressIntfs))
 		for _, intfId := range bcn.EgressIntfs {
-			wg.Add(1)
 			// Copy to have the vars in the goroutine
 			intfId := intfId
 			bcn := bcn
