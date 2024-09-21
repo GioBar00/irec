@@ -123,6 +123,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				return
 			}
 			timeGrpcIngress1E := time.Now()
+			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			if exec.BeaconCount == 0 {
 				time.Sleep(1 * time.Second)
 				return

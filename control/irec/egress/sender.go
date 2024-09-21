@@ -108,6 +108,10 @@ func (f *PoolBeaconSenderFactory) NewSender(
 ) (Sender, error) {
 	f.Lock()
 	defer f.Unlock()
+	if f.poolBeaconSenders == nil {
+		f.poolBeaconSenders = make(map[string]PoolBeaconSender)
+		f.beaconSendersUsage = make(map[string]uint)
+	}
 	// Check if a beacon sender already exists for the given destination.
 	key := beaconSenderID(dstIA, egIfId, nextHop)
 	if pbs, ok := f.poolBeaconSenders[key]; ok {

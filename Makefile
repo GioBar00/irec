@@ -89,7 +89,7 @@ go_deps.bzl: go.mod
 
 docker-images:
 	@echo "Build images"
-	bazel build //docker:prod //docker:test
+	bazel build //docker:prod //docker:test --define gotags=timing
 	@echo "Load images"
 	@bazel cquery '//docker:prod union //docker:test' --output=files 2>/dev/null | xargs -I{} docker load --input {}
 

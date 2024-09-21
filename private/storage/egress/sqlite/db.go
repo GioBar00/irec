@@ -125,15 +125,12 @@ func (e *executor) MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte
 	}
 	if propStatus {
 		// Update expiry
-		err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
-			return e.updateExpiry(ctx, rowID, expiry)
-		})
-	} else {
-		// Insert new beacon.
-		err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
-			return insertNewBeaconHash(ctx, tx, beaconHash, intf, expiry)
-		})
+		return e.updateExpiry(ctx, rowID, expiry)
 	}
+	// Insert new beacon.
+	err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+		return insertNewBeaconHash(ctx, tx, beaconHash, intf, expiry)
+	})
 	if err != nil {
 		return err
 	}

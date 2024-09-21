@@ -154,6 +154,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				defer log.HandlePanic()
 				defer wg.Done()
 				timePropagateS := time.Now()
+				//log.Info("Notify; 1")
 				intf := p.Interfaces[intfId]
 				if intf == nil {
 					log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
@@ -170,6 +171,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeCheckS := time.Now()
+				//log.Info("Notify; 2")
 				if p.shouldIgnore(segment, intf) {
 					return
 				}
@@ -177,6 +179,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				beaconHash := HashBeacon(segment)
 				log.Info("Irec Propagation requested for", hex.EncodeToString(beaconHash), segment)
 				// Check if beacon is already propagated before using egress db
+				//log.Info("Notify; 3")
 				propagated, _, err := p.Store.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
 				if err != nil {
 					log.Error("Beacon DB Propagation check failed", "err", err)
@@ -212,6 +215,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 
 				timeExtendE := time.Now()
+				//log.Info("Notify; 4")
 				// Mark beacon as propagated in egress db with a short expiry time to avoid re-propagation and quick cleanup in case of send failure
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(2*defaultNewSenderTimeout))
 				if err != nil {
@@ -219,7 +223,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timePreMarkE := time.Now()
-
+				//log.Info("Notify; 5")
 				// Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
 				defer cancel()
@@ -236,6 +240,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				defer sender.Close()
 				timeSenderE := time.Now()
+				//log.Info("Notify; 6")
 				if err := sender.Send(ctx, segment); err != nil {
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
 						"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
@@ -243,6 +248,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeSendE := time.Now()
+				//log.Info("Notify; 7")
 				// Mark beacon as propagated in egress db with the real expiry time
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
 				if err != nil {
@@ -250,6 +256,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeMarkE := time.Now()
+				//log.Info("Notify; 8")
 				// Here we keep track of the last time a beacon has been sent on an interface per algorithm hash.
 				// Such that the egress gateway can plan origination scripts for those algorithms that need origination.
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -265,6 +272,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		}
 	}
 	wg.Wait() // Necessary for tests, but possible optimization is not waiting for this.
+	//log.Info("Notify; END")
 	return &cppb.PropagationRequestResponse{}, nil
 }
 
