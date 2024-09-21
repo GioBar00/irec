@@ -82,7 +82,7 @@ func (e *executor) isBeaconAlreadyPropagated(ctx context.Context, beaconHash []b
 	rowID := 0
 	query := "SELECT RowID FROM Beacons WHERE BeaconHash=? AND EgressIntf=?"
 
-	rows, err := e.db.QueryContext(ctx, query)
+	rows, err := e.db.QueryContext(ctx, query, beaconHash, intf.TopoInfo().ID)
 	// Beacon hash is not in the table.
 	//log.Debug("isBeaconAlreadyPropagated", "err", rowID)
 	if err != nil {
