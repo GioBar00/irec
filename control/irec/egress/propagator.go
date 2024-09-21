@@ -89,7 +89,7 @@ const defaultNewSenderTimeout = 10 * time.Second
 
 func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.PropagationRequest) (*cppb.PropagationRequestResponse, error) {
 	var wg sync.WaitGroup
-	timeRequestS := time.Now()
+	timeRequestS := time.Now() // 0
 	for _, bcn := range request.Beacon {
 		// If the beacon is a pull-based beacon, handle the beacon separately.
 		segment, err := seg.BeaconFromPB(bcn.PathSeg)
@@ -153,7 +153,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
-				timePropagateS := time.Now()
+				timePropagateS := time.Now() // 1
 				//log.Info("Notify; 1")
 				intf := p.Interfaces[intfId]
 				if intf == nil {
@@ -170,12 +170,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB propagation segment failed", "err", err)
 					return
 				}
-				timeCheckS := time.Now()
+				timeCheckS := time.Now() // 2
 				//log.Info("Notify; 2")
 				if p.shouldIgnore(segment, intf) {
 					return
 				}
-				timeCheckE := time.Now()
+				timeCheckE := time.Now() // 3
 				beaconHash := HashBeacon(segment)
 				log.Info("Irec Propagation requested for", hex.EncodeToString(beaconHash), segment)
 				// Check if beacon is already propagated before using egress db
@@ -185,7 +185,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation check failed", "err", err)
 					return
 				}
-				timeFilterE := time.Now()
+				timeFilterE := time.Now() // 4
 				// If so, don't propagate
 				if propagated {
 					log.Info("Beacon is known in egress database, skipping propagation.")
@@ -214,7 +214,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 
-				timeExtendE := time.Now()
+				timeExtendE := time.Now() // 5
 				//log.Info("Notify; 4")
 				// Mark beacon as propagated in egress db with a short expiry time to avoid re-propagation and quick cleanup in case of send failure
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(2*defaultNewSenderTimeout))
@@ -222,7 +222,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
-				timePreMarkE := time.Now()
+				timePreMarkE := time.Now() // 6
 				//log.Info("Notify; 5")
 				// Propagate to ingress gateway
 				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
@@ -239,7 +239,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				defer sender.Close()
-				timeSenderE := time.Now()
+				timeSenderE := time.Now() // 7
 				//log.Info("Notify; 6")
 				if err := sender.Send(ctx, segment); err != nil {
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
@@ -247,7 +247,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 						err)
 					return
 				}
-				timeSendE := time.Now()
+				timeSendE := time.Now() // 8
 				//log.Info("Notify; 7")
 				// Mark beacon as propagated in egress db with the real expiry time
 				err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(time.Hour))
@@ -255,7 +255,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Beacon DB Propagation add failed", "err", err)
 					return
 				}
-				timeMarkE := time.Now()
+				timeMarkE := time.Now() // 9
 				//log.Info("Notify; 8")
 				// Here we keep track of the last time a beacon has been sent on an interface per algorithm hash.
 				// Such that the egress gateway can plan origination scripts for those algorithms that need origination.
@@ -264,7 +264,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				} else {
 					intf.Propagate(time.Now(), "")
 				}
-				timePropagateE := time.Now()
+				timePropagateE := time.Now() // 10
 				if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeRequestS, timePropagateS, timeCheckS, timeCheckE, timeFilterE, timeExtendE, timePreMarkE, timeSenderE, timeSendE, timeMarkE, timePropagateE}, procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)); err != nil {
 					log.Error("PROCPERF: error propagating beacon", "err", err)
 				}

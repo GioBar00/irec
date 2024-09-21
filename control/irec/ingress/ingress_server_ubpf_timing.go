@@ -18,13 +18,13 @@ import (
 )
 
 func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
-	timeStart := time.Now()
+	timeStart := time.Now() // 0
 	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request)
 	if err != nil {
 		log.Error("An error occurred when retrieving beacons from db", "err", err)
 		return &cppb.RACJob{}, err
 	}
-	timeDbDone := time.Now()
+	timeDbDone := time.Now() // 1
 	// Generate random uint32 JobID
 	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
 	if err != nil {
@@ -39,7 +39,7 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 		RowIds:        rowIds,
 		JobID:         uint32(jobID.Uint64()),
 	}
-	timeEnd := time.Now()
+	timeEnd := time.Now() // 2
 	//fmt.Printf("igdb=%d, ds=%d\n", timeDbDone.Sub(timeStart).Nanoseconds(), timeEnd.Sub(timeDbDone))
 	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
 		log.Error("PROCPERF: Error when getting job", "err", err)

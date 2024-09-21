@@ -73,17 +73,27 @@ type executor struct {
 }
 
 func (e *executor) IsBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error) {
+	e.RLock()
+	defer e.RUnlock()
+	return e.isBeaconAlreadyPropagated(ctx, beaconHash, intf)
+}
+
+func (e *executor) isBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error) {
 	rowID := 0
 	query := "SELECT RowID FROM Beacons WHERE BeaconHash=? AND EgressIntf=?"
 
-	err := e.db.QueryRowContext(ctx, query, beaconHash, intf.TopoInfo().ID).Scan(&rowID)
+	rows, err := e.db.QueryContext(ctx, query)
 	// Beacon hash is not in the table.
 	//log.Debug("isBeaconAlreadyPropagated", "err", rowID)
-	if err == sql.ErrNoRows {
-		return false, -1, nil
-	}
 	if err != nil {
 		return false, -1, db.NewReadError("Failed to lookup beacon hash", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return false, -1, nil
+	}
+	if err = rows.Scan(&rowID); err != nil {
+		return false, -1, err
 	}
 	return true, rowID, nil
 }
@@ -119,7 +129,7 @@ func insertNewBeaconHash(
 func (e *executor) MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
 	e.Lock()
 	defer e.Unlock()
-	propStatus, rowID, err := e.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
+	propStatus, rowID, err := e.isBeaconAlreadyPropagated(ctx, beaconHash, intf)
 	if err != nil {
 		return err
 	}

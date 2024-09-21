@@ -113,7 +113,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 	defer conn.Close()
 	for ctr.Load() < 1000 {
 		func() {
-			timeGrpcIngress1S := time.Now()
+			timeGrpcIngress1S := time.Now() // 0
 			client := cppb.NewIngressIntraServiceClient(conn)
 			// First get possible sources from the ingress gateway (source=originas, algorithmid, alghash combo)
 			exec, err1 := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: uint32(globalCfg.RAC.CandidateSetSize)}, libgrpc.RetryProfile...)
@@ -122,7 +122,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				time.Sleep(1 * time.Second)
 				return
 			}
-			timeGrpcIngress1E := time.Now()
+			timeGrpcIngress1E := time.Now() // 1
 			log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 			if exec.BeaconCount == 0 {
 				time.Sleep(1 * time.Second)
@@ -146,7 +146,7 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 			// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 			// RACS do not reprocess them.
 			algorithm, _ := algCache.Algorithms[string(exec.AlgorithmHash)]
-			timeAlgorithmRetS := time.Now()
+			timeAlgorithmRetS := time.Now() // 2
 			if MODE != "native" {
 				algResponse, err := client.GetAlgorithm(context.Background(), &cppb.AlgorithmRequest{AlgorithmHash: exec.AlgorithmHash})
 				if err != nil {
@@ -158,23 +158,23 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 				algCache.Algorithms[string(exec.AlgorithmHash)] = algResponse.Code
 
 			}
-			timeAlgorithmRetE := time.Now()
+			timeAlgorithmRetE := time.Now() // 3
 			res, err := env.ExecuteDynamic(ctx, exec, algorithm, int32(ctr.Load()))
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
 				time.Sleep(1 * time.Second)
 				return
 			}
-			timeGrpcIngress2S := time.Now()
+			timeGrpcIngress2S := time.Now() // 4
 			_, err = client.JobComplete(ctx, res)
 			if err != nil {
 				log.Error("Error when executing rac for sources", "err", err)
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
-			timeGrpcIngress2E := time.Now()
+			timeGrpcIngress2E := time.Now() // 5
 
-			fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
+			//fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
 			ctr.Add(1)
 
 			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
