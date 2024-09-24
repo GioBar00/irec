@@ -27,6 +27,8 @@ const (
 
 var file *os.File
 var once sync.Once
+var linesToWriteChan chan string
+var running bool = false
 
 func Init() error {
 	var err error = nil
@@ -40,11 +42,25 @@ func Init() error {
 		if err != nil {
 			log.Error("Error writing header", "err", err)
 		}
+		linesToWriteChan = make(chan string, 1000)
+		running = true
+		go run()
 	})
 	return err
 }
 
+func run() {
+	for running {
+		line := <-linesToWriteChan
+		_, err := file.WriteString(line)
+		if err != nil {
+			log.Error("Error writing line", "err", err)
+		}
+	}
+}
+
 func Close() {
+	running = false
 	_ = file.Close()
 }
 
@@ -75,8 +91,10 @@ func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.T
 		newIdStr = newId[0]
 	}
 	ppt := string(procPerfType)
-	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n")
-	return err
+	//_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n")
+	linesToWriteChan <- ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n"
+	return nil
+	//return err
 }
 
 func GetFullId(id string, segID uint16) string {
