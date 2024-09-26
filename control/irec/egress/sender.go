@@ -94,9 +94,9 @@ type PoolBeaconSenderFactory struct {
 	BeaconSenderFactory *BeaconSenderFactory
 
 	// beaconSenders is a map of beacon senders.
-	poolBeaconSenders map[string]PoolBeaconSender
+	PoolBeaconSenders map[string]PoolBeaconSender
 	// beaconSenderUsage is a map of the number of routines using a beacon sender.
-	beaconSendersUsage map[string]uint
+	BeaconSendersUsage map[string]uint
 }
 
 // NewSender returns a beacon sender that can be used to send beacons to a remote CS.
@@ -108,14 +108,10 @@ func (f *PoolBeaconSenderFactory) NewSender(
 ) (Sender, error) {
 	f.Lock()
 	defer f.Unlock()
-	if f.poolBeaconSenders == nil {
-		f.poolBeaconSenders = make(map[string]PoolBeaconSender)
-		f.beaconSendersUsage = make(map[string]uint)
-	}
 	// Check if a beacon sender already exists for the given destination.
 	key := beaconSenderID(dstIA, egIfId, nextHop)
-	if pbs, ok := f.poolBeaconSenders[key]; ok {
-		f.beaconSendersUsage[key]++
+	if pbs, ok := f.PoolBeaconSenders[key]; ok {
+		f.BeaconSendersUsage[key]++
 		return pbs, nil
 	}
 	// Create a new beacon sender.
@@ -128,8 +124,8 @@ func (f *PoolBeaconSenderFactory) NewSender(
 		ID:                      key,
 		BeaconSender:            bs.(*BeaconSender),
 	}
-	f.poolBeaconSenders[key] = pbs
-	f.beaconSendersUsage[key] = 1
+	f.PoolBeaconSenders[key] = pbs
+	f.BeaconSendersUsage[key] = 1
 	return pbs, nil
 }
 
@@ -148,10 +144,10 @@ func (s PoolBeaconSender) Send(ctx context.Context, pseg *seg.PathSegment) error
 func (s PoolBeaconSender) Close() error {
 	s.PoolBeaconSenderFactory.Lock()
 	defer s.PoolBeaconSenderFactory.Unlock()
-	s.PoolBeaconSenderFactory.beaconSendersUsage[s.ID]--
-	if s.PoolBeaconSenderFactory.beaconSendersUsage[s.ID] == 0 {
-		delete(s.PoolBeaconSenderFactory.poolBeaconSenders, s.ID)
-		delete(s.PoolBeaconSenderFactory.beaconSendersUsage, s.ID)
+	s.PoolBeaconSenderFactory.BeaconSendersUsage[s.ID]--
+	if s.PoolBeaconSenderFactory.BeaconSendersUsage[s.ID] == 0 {
+		delete(s.PoolBeaconSenderFactory.PoolBeaconSenders, s.ID)
+		delete(s.PoolBeaconSenderFactory.BeaconSendersUsage, s.ID)
 		return s.BeaconSender.Close()
 	}
 	return nil

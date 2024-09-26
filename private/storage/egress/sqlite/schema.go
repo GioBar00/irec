@@ -33,7 +33,7 @@ const (
 -- 		StartIntfGroup INTEGER NOT NULL,
 		ExpirationTime INTEGER NOT NULL
 	);
-	CREATE INDEX BeaconHashIndex ON Beacons(BeaconHash);
+	CREATE INDEX BeaconIndex ON Beacons(BeaconHash, EgressIntf);
 	`
 	BeaconsTable = "Beacons"
 )

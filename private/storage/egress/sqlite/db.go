@@ -17,6 +17,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"github.com/scionproto/scion/control/irec/egress/storage"
 	"sync"
 	"time"
 
@@ -72,6 +73,76 @@ type executor struct {
 	ia addr.IA
 }
 
+func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []storage.EgressBeacon) ([]storage.EgressBeacon, error) {
+	e.Lock()
+	defer e.Unlock()
+	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
+	if err != nil {
+		return []storage.EgressBeacon{}, db.NewWriteError("starting transaction", err)
+	}
+	// create temporary table to store the beacons
+	_, err = tx.ExecContext(ctx, `CREATE TEMPORARY TABLE BeaconsToPropagate (BeaconHash DATA, EgressIntf INTEGER, Idx INTEGER)`)
+	if err != nil {
+		return nil, db.NewWriteError("creating temporary table", err)
+	}
+	for _, b := range beacons {
+		for _, intf := range b.EgressIntfs {
+			_, err = tx.ExecContext(ctx, `INSERT INTO BeaconsToPropagate (BeaconHash, EgressIntf, Idx) VALUES (?, ?, ?)`,
+				b.BeaconHash, intf, b.Index)
+			if err != nil {
+				return []storage.EgressBeacon{}, db.NewWriteError("inserting beacon hash", err)
+			}
+		}
+	}
+	// select the beacons that should be propagated by outer join with the beacons table
+	rows, err := tx.QueryContext(ctx, `
+	SELECT B.BeaconHash, B.EgressIntf, B.Idx
+	FROM BeaconsToPropagate AS BTP
+	LEFT OUTER JOIN Beacons AS B
+	ON BTP.BeaconHash = B.BeaconHash AND BTP.EgressIntf = B.EgressIntf
+	ORDER BY BTP.Idx
+	`)
+	if err != nil {
+		return []storage.EgressBeacon{}, db.NewReadError("selecting beacons to propagate", err)
+	}
+	defer rows.Close()
+	var res []storage.EgressBeacon
+	var currIdx = -1
+	var b storage.EgressBeacon
+	for rows.Next() {
+		var beaconHash []byte
+		var intf int
+		var index int
+		if err := rows.Scan(&beaconHash, &intf, &index); err != nil {
+			return []storage.EgressBeacon{}, err
+		}
+		if currIdx >= 0 && res[currIdx].Index == index {
+			res[currIdx].EgressIntfs = append(res[currIdx].EgressIntfs, uint32(intf))
+		} else {
+			b = storage.EgressBeacon{
+				BeaconHash:  beaconHash,
+				EgressIntfs: []uint32{uint32(intf)},
+				Index:       index,
+			}
+			res = append(res, b)
+			currIdx++
+		}
+	}
+
+	// delete the temporary table
+	_, err = tx.ExecContext(ctx, `DROP TABLE BeaconsToPropagate`)
+	if err != nil {
+		return []storage.EgressBeacon{}, db.NewWriteError("dropping temporary table", err)
+	}
+
+	//commit the transaction
+	if err := tx.Commit(); err != nil {
+		return []storage.EgressBeacon{}, db.NewWriteError("committing transaction", err)
+	}
+
+	return res, nil
+}
+
 func (e *executor) IsBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error) {
 	e.RLock()
 	defer e.RUnlock()
@@ -96,6 +167,18 @@ func (e *executor) isBeaconAlreadyPropagated(ctx context.Context, beaconHash []b
 		return false, -1, err
 	}
 	return true, rowID, nil
+}
+
+func (e *executor) UpdateExpiry(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
+	e.Lock()
+	defer e.Unlock()
+
+	query := "UPDATE Beacons SET ExpirationTime=? WHERE BeaconHash=? AND EgressIntf=?"
+	_, err := e.db.ExecContext(ctx, query, expiry.Unix(), beaconHash, intf.TopoInfo().ID)
+	if err != nil {
+		return db.NewWriteError("updating beacon hash expiry", err)
+	}
+	return nil
 }
 
 // updateExistingBeacon updates the changeable data for an existing beacon.
@@ -129,22 +212,11 @@ func insertNewBeaconHash(
 func (e *executor) MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
 	e.Lock()
 	defer e.Unlock()
-	propStatus, rowID, err := e.isBeaconAlreadyPropagated(ctx, beaconHash, intf)
-	if err != nil {
-		return err
-	}
-	if propStatus {
-		// Update expiry
-		return e.updateExpiry(ctx, rowID, expiry)
-	}
 	// Insert new beacon.
-	err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+	err := db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
 		return insertNewBeaconHash(ctx, tx, beaconHash, intf, expiry)
 	})
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 
 }
 

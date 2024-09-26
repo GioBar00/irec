@@ -674,7 +674,8 @@ func realMain(ctx context.Context) error {
 		PropagationFilter: propagationFilter,
 		Peers:             egress.SortedIntfs(intfs, topology.Peer),
 		//SenderFactory:     &egress.BeaconSenderFactory{Dialer: dialer},
-		SenderFactory: &egress.PoolBeaconSenderFactory{BeaconSenderFactory: &egress.BeaconSenderFactory{Dialer: dialer}},
+		SenderFactory: &egress.PoolBeaconSenderFactory{BeaconSenderFactory: &egress.BeaconSenderFactory{Dialer: dialer},
+			PoolBeaconSenders: make(map[string]egress.PoolBeaconSender), BeaconSendersUsage: make(map[string]uint)},
 	}
 	cppb.RegisterEgressInterServiceServer(quicServer, es)
 	cppb.RegisterEgressIntraServiceServer(tcpServer, es)

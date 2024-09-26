@@ -17,28 +17,24 @@ import (
 
 // Once a pull based beacon comes in, this function handles the processing of this beacon. It reverses the path in the
 // beacon and contacts the origin AS
-func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.EgressBeacon) error {
-	segCopy, err := seg.BeaconFromPB(bcn.PathSeg)
-	if err != nil {
-		return serrors.WrapStr("Parsing pull-based beacon failed; ", err)
-	}
-	bcnId := procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)
+func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *beacon.Beacon) error {
+	bcnId := procperf.GetFullId(bcn.Segment.GetLoggingID(), bcn.Segment.Info.SegmentID)
 	timeExtendS := time.Now()
-	if segCopy.ASEntries[0].Extensions.Irec == nil {
+	if bcn.Segment.ASEntries[0].Extensions.Irec == nil {
 		return serrors.New("Beacon is not an IREC beacon")
 	}
 	// Extend the received beacon, as the origin AS needs our AS entry in the beacon.
-	if err = h.Extender.Extend(ctx, segCopy, uint16(bcn.InIfId),
+	if err := h.Extender.Extend(ctx, bcn.Segment, bcn.InIfID,
 		0, true, &irec.Irec{
-			AlgorithmHash:  segCopy.ASEntries[0].Extensions.Irec.AlgorithmHash,
-			AlgorithmId:    segCopy.ASEntries[0].Extensions.Irec.AlgorithmId,
+			AlgorithmHash:  bcn.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash,
+			AlgorithmId:    bcn.Segment.ASEntries[0].Extensions.Irec.AlgorithmId,
 			InterfaceGroup: 0,
 		}, h.Peers); err != nil {
 		return err
 	}
 	timeExtendE := time.Now()
 
-	address, err := h.Pather.GetPath(addr.SvcCS, segCopy)
+	address, err := h.Pather.GetPath(addr.SvcCS, bcn.Segment)
 	if err != nil {
 		log.Error("Unable to choose server", "err", err)
 	}
@@ -52,12 +48,12 @@ func (h Propagator) HandlePullBasedRequest(ctx context.Context, bcn *cppb.Egress
 
 	defer conn.Close()
 	client := cppb.NewEgressInterServiceClient(conn)
-	_, err = client.PullBasedCallback(ctx, &cppb.IncomingBeacon{Segment: seg.PathSegmentToPB(segCopy)})
+	_, err = client.PullBasedCallback(ctx, &cppb.IncomingBeacon{Segment: seg.PathSegmentToPB(bcn.Segment)})
 	if err != nil {
 		return err
 	}
 	timeGrpcE := time.Now()
-	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeExtendS, timeExtendE, timePathE, timeDialE, timeGrpcE}, procperf.GetFullId(segCopy.GetLoggingID(), segCopy.Info.SegmentID)); err != nil {
+	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Propagated, []time.Time{timeExtendS, timeExtendE, timePathE, timeDialE, timeGrpcE}, procperf.GetFullId(bcn.Segment.GetLoggingID(), bcn.Segment.Info.SegmentID)); err != nil {
 		log.Error("PROCPERF: error propagating pull based beacon", "err", err)
 	}
 	return nil
