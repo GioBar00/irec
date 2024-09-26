@@ -44,7 +44,10 @@ func Init() error {
 		}
 		linesToWriteChan = make(chan string, 1000)
 		running = true
-		go run()
+		go func() {
+			defer log.HandlePanic()
+			run()
+		}()
 	})
 	return err
 }

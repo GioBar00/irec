@@ -209,6 +209,26 @@ func insertNewBeaconHash(
 	return nil
 }
 
+func (e *executor) GetDBSize(ctx context.Context) (int, error) {
+	e.RLock()
+	defer e.RUnlock()
+	// Get the size of the database with select count(*)
+	query := "SELECT count(*) FROM Beacons"
+	rows, err := e.db.QueryContext(ctx, query)
+	if err != nil {
+		return 0, db.NewReadError("Failed to get database size", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return 0, db.NewReadError("Failed to get database size", nil)
+	}
+	var size int
+	if err = rows.Scan(&size); err != nil {
+		return 0, err
+	}
+	return size, nil
+}
+
 func (e *executor) MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
 	e.Lock()
 	defer e.Unlock()

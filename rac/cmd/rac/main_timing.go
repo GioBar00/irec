@@ -30,7 +30,7 @@ import (
 	"github.com/scionproto/scion/rac/env/wasm"
 )
 
-const defaultSleepTime = 10 * time.Second
+const defaultSleepTime = 1 * time.Second
 
 func realMain(ctx context.Context) error {
 
