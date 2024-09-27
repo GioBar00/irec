@@ -161,8 +161,8 @@ class GoGenerator(object):
                 'connection': os.path.join(self.db_dir, '%s.ingress.db' % name),
             },
             'egress_db': {
-                #'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
-                'connection': 'file::memory:?cache=shared',
+                'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
+                #'connection': 'file::memory:?cache=shared',
             },
             'tracing': self._tracing_entry(),
             'metrics': self._metrics_entry(infra_elem, CS_PROM_PORT),

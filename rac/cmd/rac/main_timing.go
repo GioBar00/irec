@@ -178,7 +178,9 @@ func dynamicLoop(ctx context.Context, dialer *libgrpc.TCPDialer, algCache rac.Al
 
 			//fmt.Printf("grpcIg1=%d, algorithmRet=%d, grpcIg2=%d\n", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Nanoseconds(), timeAlgorithmRetE.Sub(timeAlgorithmRetS).Nanoseconds(), timeGrpcIngress2E.Sub(timeGrpcIngress2S).Nanoseconds())
 			ctr.Add(1)
-
+			log.Info("GetJob time", "duration", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Seconds())
+			log.Info("Execute time", "duration", timeGrpcIngress2S.Sub(timeAlgorithmRetE).Seconds())
+			log.Info("JobComplete time", "duration", timeGrpcIngress2E.Sub(timeGrpcIngress2S).Seconds())
 			if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
 				log.Error("PROCPERF: Error when processing job", "err", err)
 			}

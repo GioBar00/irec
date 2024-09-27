@@ -62,6 +62,8 @@ CREATE TABLE Labels(
     Label INTEGER NOT NULL,
     PRIMARY KEY (FullID, Label)
 );
+
+CREATE INDEX IsdAsIndex ON Beacons(StartIsd, StartAs);
 	`
 	// marker 0 = new
 	// marker 1 = already processed

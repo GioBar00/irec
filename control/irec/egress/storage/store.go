@@ -11,7 +11,8 @@ type EgressDB interface {
 	IsBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error)
 	MarkBeaconAsPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error
 	UpdateExpiry(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error
-	BeaconsThatShouldBePropagated(ctx context.Context, beacons []EgressBeacon) ([]EgressBeacon, error)
+	BeaconsThatShouldBePropagated(ctx context.Context, beacons []EgressBeacon, expiry time.Time) ([]EgressBeacon, error)
+	UpdateBeaconsExpiry(ctx context.Context, beacons []EgressBeacon, expiry time.Time) error
 	GetDBSize(ctx context.Context) (int, error)
 }
 
