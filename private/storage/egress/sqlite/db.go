@@ -97,7 +97,7 @@ func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []
 	}
 	// select the beacons that should be propagated by outer join with the beacons table
 	rows, err := tx.QueryContext(ctx, `
-	SELECT BTP.BeaconHash, BTP.EgressIntf, BTP.Idx
+	SELECT DISTINCT BTP.BeaconHash, BTP.EgressIntf, BTP.Idx
 	FROM BeaconsToPropagate AS BTP
 	LEFT OUTER JOIN Beacons AS B
 	ON BTP.BeaconHash = B.BeaconHash AND BTP.EgressIntf = B.EgressIntf

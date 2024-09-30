@@ -131,12 +131,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		if writer.WriterType() == seg.TypeCoreR {
 			continue
 		}
-		//wg.Add(1)
+		wg.Add(1)
 		beaconIndexes := beaconIndexes
 		writer := writer
 		go func() {
 			defer log.HandlePanic()
-			//defer wg.Done()
+			defer wg.Done()
 			timeWriterS := time.Now()
 
 			// make a copy of the beacons array as the writer has side effects for beacon
@@ -163,62 +163,16 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}
 		}()
 	}
-	// BATCH VERSION
-	//var egressBeacons []storage.EgressBeacon
-	//for _, i := range beaconIndexes {
-	//	egressBeacons = append(egressBeacons, storage.EgressBeacon{Index: i, BeaconHash: HashBeacon(beacons[i].Segment), EgressIntfs: request.Beacon[i].EgressIntfs})
-	//}
-	//egressBeacons, err := p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons)
-	//if err != nil {
-	//	return &cppb.PropagationRequestResponse{}, serrors.WrapStr("Could not filter beacons to be propagated", err)
-	//}
-	// SINGLE VERSION
+
 	var egressBeacons []storage.EgressBeacon
 	currIdx := -1
 	timeFilterS := time.Now()
-	// for _, i := range beaconIndexes {
-	// 	for _, intfId := range request.Beacon[i].EgressIntfs {
-	// 		intf := p.Interfaces[intfId]
-	// 		if intf == nil {
-	// 			log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
-	// 			continue
-	// 		}
-	// 		if !p.PropagationFilter(intf) {
-	// 			log.Error("Attempt to send beacon on filtered egress interface", "egress_interface", intfId)
-	// 			continue
-	// 		}
-	// 		if p.shouldIgnore(beacons[i].Segment, intf) {
-	// 			continue
-	// 		}
-	// 		beaconHash := HashBeacon(beacons[i].Segment)
-	// 		propagated, _, err := p.Store.IsBeaconAlreadyPropagated(ctx, beaconHash, intf)
-	// 		if err != nil {
-	// 			log.Error("Beacon DB Propagation check failed", "err", err)
-	// 			continue
-	// 		}
-	// 		if !propagated {
-	// 			if currIdx >= 0 && egressBeacons[currIdx].Index == i {
-	// 				egressBeacons[currIdx].EgressIntfs = append(egressBeacons[currIdx].EgressIntfs, intfId)
-	// 			} else {
-	// 				egressBeacons = append(egressBeacons, storage.EgressBeacon{
-	// 					BeaconHash:  beaconHash,
-	// 					EgressIntfs: []uint32{intfId},
-	// 					Index:       i,
-	// 				})
-	// 				currIdx++
-	// 			}
-	// 			// pre-mark beacon as propagated in egress db with a short expiry time to avoid re-propagation and quick cleanup in case of send failure
-	// 			err = p.Store.MarkBeaconAsPropagated(ctx, beaconHash, intf, time.Now().Add(3*defaultNewSenderTimeout))
-	// 			if err != nil {
-	// 				log.Error("Beacon DB Propagation Pre-mark failed", "err", err)
-	// 				continue
-	// 			}
-	// 		}
-	// 	}
-	// }
+	totalNumber := 0
+	totalNumberFiltered := 0
 	for _, i := range beaconIndexes {
 		beaconHash := HashBeacon(beacons[i].Segment)
 		for _, intfId := range request.Beacon[i].EgressIntfs {
+			totalNumber++
 			intf := p.Interfaces[intfId]
 			if intf == nil {
 				log.Error("Attempt to send beacon on non-existent interface", "egress_interface", intfId)
@@ -241,9 +195,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				})
 				currIdx++
 			}
+			totalNumberFiltered++
 		}
 	}
-	log.Info("RP; Beacon Half filtering", "beacons", len(beacons), "filtered", len(egressBeacons), "time", time.Since(timeFilterS))
+	log.Info("RP; Beacon Half filtering", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", time.Since(timeFilterS))
 	timeFilterS = time.Now()
 	egressBeacons, err = p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons, time.Now().Add(3*defaultNewSenderTimeout))
 	if err != nil {
@@ -251,10 +206,14 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		return &cppb.PropagationRequestResponse{}, err
 	}
 	timeFilterE := time.Now()
-	log.Info("RP; Beacon filtering done", "beacons", len(beacons), "filtered", len(egressBeacons), "time", timeFilterE.Sub(timeFilterS))
+	totalNumberFiltered = 0
+	for _, ebcn := range egressBeacons {
+		totalNumberFiltered += len(ebcn.EgressIntfs)
+	}
+	log.Info("RP; DB; Beacon filtering done", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", timeFilterE.Sub(timeFilterS))
 
 	successCh := make(chan PropagationResult)
-	wg.Add(len(egressBeacons))
+	wg.Add(totalNumberFiltered)
 	for _, ebcn := range egressBeacons {
 		//bcn := beacons[ebcn.Index]
 		beaconHash := ebcn.BeaconHash
@@ -336,7 +295,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	timeMarkS := time.Now()
 	failed := 0
 	var propagatedBeaconsMap map[string]*storage.EgressBeacon = make(map[string]*storage.EgressBeacon)
-	for range egressBeacons {
+	for i := 0; i < totalNumberFiltered; i++ {
 		res := <-successCh
 		if !res.Success {
 			failed++
@@ -366,9 +325,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		log.Error("Could not update beacons expiry", "err", err)
 		return &cppb.PropagationRequestResponse{}, err
 	}
-	log.Info("RP; Updating beacons expiry done", "time", time.Since(timeMarkS))
+	log.Info("RP; DB; Updating beacons expiry done", "time", time.Since(timeMarkS))
 	wg.Wait()
-	log.Info("Beacon propagation done", "beacons", len(request.Beacon), "real", len(egressBeacons)-failed, "expected", len(egressBeacons))
+	log.Info("RP; Beacon propagation done", "beacons", totalNumber, "real", totalNumberFiltered-failed, "expected", totalNumberFiltered)
 	return &cppb.PropagationRequestResponse{}, nil
 }
 
