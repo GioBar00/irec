@@ -85,12 +85,6 @@ func HashBeacon(segment *seg.PathSegment) []byte {
 	return h.Sum(nil)
 }
 
-type PropagationResult struct {
-	Success    bool
-	BeaconHash *[]byte
-	IntfId     uint32
-}
-
 const defaultNewSenderTimeout = 10 * time.Second
 
 func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.PropagationRequest) (*cppb.PropagationRequestResponse, error) {
@@ -211,34 +205,44 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		totalNumberFiltered += len(ebcn.EgressIntfs)
 	}
 	log.Info("RP; DB; Beacon filtering done", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", timeFilterE.Sub(timeFilterS))
-
-	successCh := make(chan PropagationResult)
-	wg.Add(totalNumberFiltered)
+	senderByIntf := make(map[uint32]Sender)
+	senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
+	defer cancel()
 	for _, ebcn := range egressBeacons {
 		//bcn := beacons[ebcn.Index]
 		beaconHash := ebcn.BeaconHash
 		for _, intfId := range ebcn.EgressIntfs {
-			success := false
-			intfId := intfId
+			intf := p.Interfaces[intfId]
+			timeSenderS := time.Now()
+			sender, ok := senderByIntf[intfId]
+			if !ok {
+				sender, err = p.SenderFactory.NewSender(
+					senderCtx,
+					intf.TopoInfo().IA,
+					intf.TopoInfo().ID,
+					net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
+				)
+				if err != nil {
+					log.Error("Creating sender failed", "err", err)
+					continue
+				}
+				defer sender.Close()
+				senderByIntf[intfId] = sender
+			}
+			wg.Add(1)
+			timeSenderE := time.Now()
 			//bcn := bcn
 			beaconHash := beaconHash
 			ebcn := ebcn
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
-				defer func() {
-					if success {
-						successCh <- PropagationResult{Success: true, BeaconHash: beaconHash, IntfId: intfId}
-					} else {
-						successCh <- PropagationResult{Success: false}
-					}
-				}()
 				segment, err := seg.BeaconFromPB(request.Beacon[ebcn.Index].PathSeg)
 				if err != nil {
 					log.Error("Could not parse beacon segment", "err", err)
 					return
 				}
-				intf := p.Interfaces[intfId]
+				timeExtendS := time.Now()
 				// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 				peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 				if segment.ASEntries[0].Extensions.Irec != nil {
@@ -259,75 +263,58 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					log.Error("Extending failed", "err", err)
 					return
 				}
-
-				// Propagate to ingress gateway
-				senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
-				defer cancel()
-				// SenderFactory is of type PoolBeaconSenderFactory so we can use the same sender for multiple beacons.
-				sender, err := p.SenderFactory.NewSender(
-					senderCtx,
-					intf.TopoInfo().IA,
-					intf.TopoInfo().ID,
-					net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
-				)
-				if err != nil {
-					log.Error("Creating sender failed", "err", err)
-					return
-				}
-				defer sender.Close()
+				timeExtendE := time.Now()
+				// timeSenderS := time.Now()
+				// // Propagate to ingress gateway
+				// senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
+				// defer cancel()
+				// // SenderFactory is of type PoolBeaconSenderFactory so we can use the same sender for multiple beacons.
+				// sender, err := p.SenderFactory.NewSender(
+				// 	senderCtx,
+				// 	intf.TopoInfo().IA,
+				// 	intf.TopoInfo().ID,
+				// 	net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
+				// )
+				// if err != nil {
+				// 	log.Error("Creating sender failed", "err", err)
+				// 	return
+				// }
+				// defer sender.Close()
+				// timeSenderE := time.Now()
+				timeSendS := time.Now()
 				if err := sender.Send(ctx, segment); err != nil {
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
 						"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
 						err)
 					return
 				}
-
+				timeSendE := time.Now()
+				timeUpdateS := time.Now()
+				// Mark beacon as propagated in egress db with the real expiry time
+				err = p.Store.UpdateExpiry(ctx, *beaconHash, intf, time.Now().Add(time.Hour))
+				if err != nil {
+					log.Error("Beacon DB Propagation Mark failed", "err", err)
+					return
+				}
+				timeUpdateE := time.Now()
+				timeIntfPropagateS := time.Now()
 				if segment.ASEntries[0].Extensions.Irec != nil {
 					intf.Propagate(time.Now(), HashToString(segment.ASEntries[0].Extensions.Irec.AlgorithmHash))
 				} else {
 					intf.Propagate(time.Now(), "")
 				}
-				success = true
+				timeIntfPropagateE := time.Now()
+				log.Info("DB; Expiry updated", "time", timeUpdateE.Sub(timeUpdateS))
+				log.Info("BCN; Beacon sent", "extend", timeExtendE.Sub(timeExtendS), "sender", timeSenderE.Sub(timeSenderS), "send", timeSendE.Sub(timeSendS), "update expiry", timeUpdateE.Sub(timeUpdateS), "intf", timeIntfPropagateE.Sub(timeIntfPropagateS))
 			}()
 		}
 	}
 	//log.Info("RP; Waiting for propagation results")
-	timeMarkS := time.Now()
-	failed := 0
-	var propagatedBeaconsMap map[string]*storage.EgressBeacon = make(map[string]*storage.EgressBeacon)
-	for i := 0; i < totalNumberFiltered; i++ {
-		res := <-successCh
-		if !res.Success {
-			failed++
-		} else {
-			// Mark beacon as propagated in egress db with the real expiry time
-			// err = p.Store.UpdateExpiry(ctx, res.BeaconHash, res.Interface, time.Now().Add(time.Hour))
-			// if err != nil {
-			// 	log.Error("Beacon DB Propagation Mark failed", "err", err)
-			// 	continue
-			// }
-			val, ok := propagatedBeaconsMap[HashToString(*res.BeaconHash)]
-			if !ok {
-				propagatedBeaconsMap[HashToString(*res.BeaconHash)] = &storage.EgressBeacon{BeaconHash: res.BeaconHash, EgressIntfs: []uint32{res.IntfId}}
-			} else {
-				val.EgressIntfs = append(val.EgressIntfs, res.IntfId)
-			}
-		}
-	}
-	var propagatedBeacons []storage.EgressBeacon
-	for _, val := range propagatedBeaconsMap {
-		propagatedBeacons = append(propagatedBeacons, *val)
-	}
-	log.Info("RP; Waiting for propagation results done", "failed", failed, "time", time.Since(timeMarkS))
-	timeMarkS = time.Now()
-	err = p.Store.UpdateBeaconsExpiry(ctx, propagatedBeacons, time.Now().Add(time.Hour))
-	if err != nil {
-		log.Error("Could not update beacons expiry", "err", err)
-		return &cppb.PropagationRequestResponse{}, err
-	}
-	log.Info("RP; DB; Updating beacons expiry done", "time", time.Since(timeMarkS))
+	timeWaitS := time.Now()
 	wg.Wait()
-	log.Info("RP; Beacon propagation done", "beacons", totalNumber, "real", totalNumberFiltered-failed, "expected", totalNumberFiltered)
+	timeWaitE := time.Now()
+	log.Info("RP; Beacon propagation waiting done", "time", timeWaitE.Sub(timeWaitS))
+	log.Info("RP; Beacon propagation done", "beacons", totalNumber, "filtered", totalNumberFiltered)
 	return &cppb.PropagationRequestResponse{}, nil
 }
 

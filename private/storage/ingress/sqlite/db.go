@@ -17,7 +17,6 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -358,7 +357,7 @@ func (e *executor) ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (b
 	if err != nil {
 		return false, db.NewReadError("Failed to lookup algorithm", err)
 	}
-	log.Info("Algorithm "+hex.EncodeToString(algorithmHash)+" exists in database; ", "exists", exists)
+	//log.Info("Algorithm "+hex.EncodeToString(algorithmHash)+" exists in database; ", "exists", exists)
 	return exists == 1, nil
 }
 

@@ -60,7 +60,7 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	logger := log.FromCtx(ctx).New("beacon", b, "upstream", upstream)
 	ctx = log.CtxWith(ctx, logger)
 
-	logger.Debug("Received beacon", "bcn", b)
+	//logger.Debug("Received beacon", "bcn", b)
 	// TODO(jvb); investigate whether the prefilter is desired.
 	//if err := h.IngressDB.PreFilter(b); err != nil {
 	//	logger.Debug("Beacon pre-filtered", "err", err)
@@ -113,7 +113,7 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 		return serrors.WrapStr("inserting beacon", err)
 	}
 	timeInsertE := time.Now() // 7
-	logger.Debug("Inserted beacon")
+	//logger.Debug("Inserted beacon")
 
 	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{timeHandleS, timeValidateS, timeVerifyS, timePreFilterS, timeValidateAlgS, timeValidateAlgE, timeInsertS, timeInsertE}); err != nil {
 		return serrors.WrapStr("PROCPERF: error handling beacon", err)

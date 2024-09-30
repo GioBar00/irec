@@ -203,7 +203,7 @@ func (e *executor) UpdateExpiry(ctx context.Context, beaconHash []byte, intf *if
 	e.Lock()
 	defer e.Unlock()
 
-	query := "UPDATE Beacons SET ExpirationTime=? WHERE BeaconHash=? AND EgressIntf=?"
+	query := "UPDATE Beacons SET ExpirationTime=? WHERE RowID=(SELECT RowID FROM Beacons WHERE BeaconHash=? AND EgressIntf=? ORDER BY ExpirationTime DESC LIMIT 1)"
 	_, err := e.db.ExecContext(ctx, query, expiry.Unix(), beaconHash, intf.TopoInfo().ID)
 	if err != nil {
 		return db.NewWriteError("updating beacon hash expiry", err)
