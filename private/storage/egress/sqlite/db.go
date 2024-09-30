@@ -89,7 +89,7 @@ func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []
 	for _, b := range beacons {
 		for _, intf := range b.EgressIntfs {
 			_, err = tx.ExecContext(ctx, `INSERT INTO BeaconsToPropagate (BeaconHash, EgressIntf, Idx) VALUES (?, ?, ?)`,
-				b.BeaconHash, intf, b.Index)
+				*b.BeaconHash, intf, b.Index)
 			if err != nil {
 				return []storage.EgressBeacon{}, db.NewWriteError("inserting beacon hash", err)
 			}
@@ -121,7 +121,7 @@ func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []
 			res[currIdx].EgressIntfs = append(res[currIdx].EgressIntfs, uint32(intf))
 		} else {
 			b = storage.EgressBeacon{
-				BeaconHash:  beaconHash,
+				BeaconHash:  &beaconHash,
 				EgressIntfs: []uint32{uint32(intf)},
 				Index:       index,
 			}
@@ -161,7 +161,7 @@ func (e *executor) UpdateBeaconsExpiry(ctx context.Context, beacons []storage.Eg
 	query := `UPDATE Beacons SET ExpirationTime=? WHERE BeaconHash=? AND EgressIntf=?`
 	for _, b := range beacons {
 		for _, intf := range b.EgressIntfs {
-			_, err = tx.ExecContext(ctx, query, expiry.Unix(), b.BeaconHash, intf)
+			_, err = tx.ExecContext(ctx, query, expiry.Unix(), *b.BeaconHash, intf)
 			if err != nil {
 				return db.NewWriteError("updating beacon hash expiry", err)
 			}

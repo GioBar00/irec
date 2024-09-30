@@ -87,7 +87,7 @@ func HashBeacon(segment *seg.PathSegment) []byte {
 
 type PropagationResult struct {
 	Success    bool
-	BeaconHash []byte
+	BeaconHash *[]byte
 	IntfId     uint32
 }
 
@@ -140,7 +140,6 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			timeWriterS := time.Now()
 
 			// make a copy of the beacons array as the writer has side effects for beacon
-
 			beaconsCopy := make([]beacon.Beacon, len(beaconIndexes))
 			// convert to proto and back to beacon to avoid side effects
 			for _, i := range beaconIndexes {
@@ -218,6 +217,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	// 	}
 	// }
 	for _, i := range beaconIndexes {
+		beaconHash := HashBeacon(beacons[i].Segment)
 		for _, intfId := range request.Beacon[i].EgressIntfs {
 			intf := p.Interfaces[intfId]
 			if intf == nil {
@@ -231,12 +231,11 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			if p.shouldIgnore(beacons[i].Segment, intf) {
 				continue
 			}
-			beaconHash := HashBeacon(beacons[i].Segment)
 			if currIdx >= 0 && egressBeacons[currIdx].Index == i {
 				egressBeacons[currIdx].EgressIntfs = append(egressBeacons[currIdx].EgressIntfs, intfId)
 			} else {
 				egressBeacons = append(egressBeacons, storage.EgressBeacon{
-					BeaconHash:  beaconHash,
+					BeaconHash:  &beaconHash,
 					EgressIntfs: []uint32{intfId},
 					Index:       i,
 				})
@@ -348,9 +347,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			// 	log.Error("Beacon DB Propagation Mark failed", "err", err)
 			// 	continue
 			// }
-			val, ok := propagatedBeaconsMap[HashToString(res.BeaconHash)]
+			val, ok := propagatedBeaconsMap[HashToString(*res.BeaconHash)]
 			if !ok {
-				propagatedBeaconsMap[HashToString(res.BeaconHash)] = &storage.EgressBeacon{BeaconHash: res.BeaconHash, EgressIntfs: []uint32{res.IntfId}}
+				propagatedBeaconsMap[HashToString(*res.BeaconHash)] = &storage.EgressBeacon{BeaconHash: res.BeaconHash, EgressIntfs: []uint32{res.IntfId}}
 			} else {
 				val.EgressIntfs = append(val.EgressIntfs, res.IntfId)
 			}

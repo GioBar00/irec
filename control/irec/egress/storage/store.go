@@ -18,6 +18,6 @@ type EgressDB interface {
 
 type EgressBeacon struct {
 	Index       int
-	BeaconHash  []byte
+	BeaconHash  *[]byte
 	EgressIntfs []uint32
 }
