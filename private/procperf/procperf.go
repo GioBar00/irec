@@ -14,15 +14,16 @@ import (
 type Type string
 
 const (
-	Received   Type = "Received"
-	Propagated Type = "Propagated"
-	Originated Type = "Originated"
-	Retrieved  Type = "Retrieved"
-	Written    Type = "Written"
-	Processed  Type = "Processed"
-	Executed   Type = "Executed"
-	Completed  Type = "Completed"
-	Algorithm  Type = "Algorithm"
+	Received      Type = "Received"
+	Propagated    Type = "Propagated"
+	PropagatedBcn Type = "PropagatedBcn"
+	Originated    Type = "Originated"
+	Retrieved     Type = "Retrieved"
+	Written       Type = "Written"
+	Processed     Type = "Processed"
+	Executed      Type = "Executed"
+	Completed     Type = "Completed"
+	Algorithm     Type = "Algorithm"
 )
 
 var file *os.File
@@ -68,7 +69,7 @@ func Close() {
 }
 
 func AddTimestampsDoneBeacon(id string, procPerfType Type, times []time.Time, newId ...string) error {
-	if procPerfType == Propagated && len(newId) == 0 {
+	if procPerfType == PropagatedBcn && len(newId) == 0 {
 		return serrors.New("newId not found for propagated beacon")
 	}
 	newIdStr := ""

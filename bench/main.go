@@ -416,7 +416,7 @@ func packBeaconsFlatbuffer(fbs [][]byte, PropagationInterfaces []uint32) []byte 
 type DummyWriter struct {
 }
 
-func (w *DummyWriter) WriteBeacons(ctx context.Context, beacons []*cppb.EgressBeacon) error {
+func (w *DummyWriter) WriteBeacons(ctx context.Context, beacons []*cppb.EgressBeacon, jobID uint32) error {
 	return nil
 }
 

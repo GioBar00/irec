@@ -56,7 +56,7 @@ func (w *WasmEnv) ExecuteDynamic(ctx context.Context, job *cppb.RACJob, code []b
 	}
 	timeMarshalE := time.Now()
 	timeWriteS := time.Now()
-	err = w.Writer.WriteBeacons(ctx, selectedBeacons)
+	err = w.Writer.WriteBeacons(ctx, selectedBeacons, job.JobID)
 	if err != nil {
 		log.Info("err", "msg", err)
 	}
@@ -107,7 +107,7 @@ func (w *WasmEnv) ExecuteStatic(ctx context.Context, job *cppb.RACJob, counter i
 	timeDSE := time.Now()
 
 	timeEgressGrpcS := time.Now()
-	err = w.Writer.WriteBeacons(ctx, selectedBeacons)
+	err = w.Writer.WriteBeacons(ctx, selectedBeacons, job.JobID)
 	if err != nil {
 		log.Info("err", "msg", err)
 	}

@@ -7,11 +7,12 @@ import "C"
 import (
 	"context"
 	"fmt"
-	"github.com/scionproto/scion/rac/config"
 	"os"
 	"path"
 	"time"
 	"unsafe"
+
+	"github.com/scionproto/scion/rac/config"
 
 	"github.com/scionproto/scion/pkg/log"
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
@@ -91,7 +92,7 @@ func (e *EbpfEnv) executeVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 	}
 
 	timeEgressGrpcS := time.Now() // 5
-	err := e.Writer.WriteBeacons(ctx, selectedBeacons)
+	err := e.Writer.WriteBeacons(ctx, selectedBeacons, job.JobID)
 	if err != nil {
 		log.Info("err", "msg", err)
 		//	return &racpb.ExecutionResponse{}, selection, err

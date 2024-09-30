@@ -154,6 +154,7 @@ message StoredBeaconAndIntf {
 
 message PropagationRequest {
     repeated EgressBeacon beacon = 1;
+    uint32 jobID = 2;
 }
 message PropagationRequestResponse {
     uint32 actual = 1;

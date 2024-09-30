@@ -112,7 +112,7 @@ func (e *NativeEnv) selection(ctx context.Context, job *cppb.RACJob) (*cppb.JobC
 		}
 	}
 	finishedTime := time.Now()
-	err := e.Writer.WriteBeacons(ctx, selectedBeacons)
+	err := e.Writer.WriteBeacons(ctx, selectedBeacons, job.JobID)
 	if err != nil {
 		log.Info("err", "msg", err)
 		//	return &racpb.ExecutionResponse{}, selection, err

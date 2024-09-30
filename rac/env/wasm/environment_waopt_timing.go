@@ -41,7 +41,7 @@ func (w *WasmEnv) ExecuteDynamic(ctx context.Context, job *cppb.RACJob, code []b
 	}
 	timeMarshalE := time.Now()
 	timeWriteS := time.Now()
-	err = w.Writer.WriteBeacons(ctx, selectedBeacons)
+	err = w.Writer.WriteBeacons(ctx, selectedBeacons, job.JobId)
 	if err != nil {
 		log.Info("err", "msg", err)
 	}
