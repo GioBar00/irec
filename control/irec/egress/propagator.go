@@ -194,7 +194,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		}
 	}
 	timeFilterE := time.Now()
-	//log.Info("RP; Beacon Half filtering", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", time.Since(timeFilterS))
+	log.Info("RP; Beacon Half filtering", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", time.Since(timeFilterS))
 	timeDBFilterS := time.Now()
 	egressBeacons, err = p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons, time.Now().Add(3*defaultNewSenderTimeout))
 	if err != nil {
@@ -206,7 +206,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	for _, ebcn := range egressBeacons {
 		totalNumberFiltered += len(ebcn.EgressIntfs)
 	}
-	//log.Info("RP; DB; Beacon filtering done", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", timeFilterE.Sub(timeFilterS))
+	log.Info("RP; DB; Beacon filtering done", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", timeFilterE.Sub(timeFilterS))
 	senderByIntf := make(map[uint32]Sender)
 	senderCtx, cancel := context.WithTimeout(ctx, defaultNewSenderTimeout)
 	defer cancel()
@@ -214,6 +214,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		beaconHash := ebcn.BeaconHash
 		for _, intfId := range ebcn.EgressIntfs {
 			intf := p.Interfaces[intfId]
+			if intf.TopoInfo().ID != uint16(intfId) {
+				log.Error("Interface ID mismatch", "intfId", intfId, "topoId", intf.TopoInfo().ID)
+				continue
+			}
 			timeSenderS := time.Now()
 			sender, ok := senderByIntf[intfId]
 			if !ok {
@@ -295,6 +299,13 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			}()
 		}
 	}
+	// print db size
+	// dbSize, err := p.Store.GetDBSize(ctx)
+	// if err != nil {
+	// 	log.Error("Could not get db size", "err", err)
+	// } else {
+	// 	log.Info("DB; Size", "size", dbSize)
+	// }
 	timeWaitS := time.Now()
 	wg.Wait()
 	timeWaitE := time.Now()

@@ -26,6 +26,7 @@ import (
 
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/private/storage/db"
 )
 
@@ -69,7 +70,7 @@ func (b *Backend) Close() error {
 }
 
 type executor struct {
-	sync.RWMutex
+	sync.Mutex
 	db db.Sqler
 	ia addr.IA
 }
@@ -77,34 +78,50 @@ type executor struct {
 func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []storage.EgressBeacon, expiry time.Time) ([]storage.EgressBeacon, error) {
 	e.Lock()
 	defer e.Unlock()
+	var query string
 	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
 	if err != nil {
-		return []storage.EgressBeacon{}, db.NewWriteError("starting transaction", err)
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("starting transaction", err), tx.Rollback())
 	}
 	// create temporary table to store the beacons
-	_, err = tx.ExecContext(ctx, `CREATE TEMPORARY TABLE BeaconsToPropagate (BeaconHash DATA, EgressIntf INTEGER, Idx INTEGER)`)
+	_, err = tx.ExecContext(ctx, `CREATE TEMPORARY TABLE BeaconsToFilter (BeaconHash DATA, EgressIntf INTEGER, Idx INTEGER)`)
 	if err != nil {
-		return nil, db.NewWriteError("creating temporary table", err)
+		return nil, serrors.Join(db.NewWriteError("creating temporary table BTF", err), tx.Rollback())
 	}
 	for _, b := range beacons {
 		for _, intf := range b.EgressIntfs {
-			_, err = tx.ExecContext(ctx, `INSERT INTO BeaconsToPropagate (BeaconHash, EgressIntf, Idx) VALUES (?, ?, ?)`,
+			_, err = tx.ExecContext(ctx, `INSERT INTO BeaconsToFilter (BeaconHash, EgressIntf, Idx) VALUES (?, ?, ?)`,
 				*b.BeaconHash, intf, b.Index)
 			if err != nil {
-				return []storage.EgressBeacon{}, db.NewWriteError("inserting beacon hash", err)
+				return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("inserting beacon hash", err), tx.Rollback())
 			}
 		}
 	}
-	// select the beacons that should be propagated by outer join with the beacons table
-	rows, err := tx.QueryContext(ctx, `
-	SELECT DISTINCT BTP.BeaconHash, BTP.EgressIntf, BTP.Idx
-	FROM BeaconsToPropagate AS BTP
-	LEFT OUTER JOIN Beacons AS B
-	ON BTP.BeaconHash = B.BeaconHash AND BTP.EgressIntf = B.EgressIntf
-	ORDER BY BTP.Idx
-	`)
+	// create the table to store the beacons that should be propagated
+	_, err = tx.ExecContext(ctx, `CREATE TEMPORARY TABLE BeaconsToPropagate (BeaconHash DATA, EgressIntf INTEGER, Idx INTEGER)`)
 	if err != nil {
-		return []storage.EgressBeacon{}, db.NewReadError("selecting beacons to propagate", err)
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("creating temporary table BTP", err), tx.Rollback())
+	}
+	// select the beacons that should be propagated by outer join with the beacons table
+	query = `INSERT INTO BeaconsToPropagate (BeaconHash, EgressIntf, Idx)
+	SELECT DISTINCT BTF.BeaconHash, BTF.EgressIntf, BTF.Idx
+	FROM BeaconsToFilter AS BTF
+	WHERE NOT EXISTS (
+		SELECT 1
+		FROM Beacons AS B
+		WHERE B.BeaconHash = BTF.BeaconHash AND B.EgressIntf = BTF.EgressIntf
+	)
+	ORDER BY BTF.Idx
+	`
+	_, err = tx.ExecContext(ctx, query)
+	if err != nil {
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("filtering beacons to propagate", err), tx.Rollback())
+	}
+
+	query = `SELECT BeaconHash, EgressIntf, Idx FROM BeaconsToPropagate`
+	rows, err := tx.QueryContext(ctx, query)
+	if err != nil {
+		return []storage.EgressBeacon{}, serrors.Join(db.NewReadError("reading beacons to propagate", err), tx.Rollback())
 	}
 	defer rows.Close()
 	var res []storage.EgressBeacon
@@ -130,22 +147,28 @@ func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []
 		}
 	}
 
-	// insert the beacons that should be propagated into the beacons table
-	query := `INSERT INTO Beacons (BeaconHash, EgressIntf, ExpirationTime)
-				SELECT BeaconHash, EgressIntf, ? FROM BeaconsToPropagate`
-	_, err = tx.ExecContext(ctx, query, expiry.Unix())
-	if err != nil {
-		return []storage.EgressBeacon{}, db.NewWriteError("inserting beacons to propagate", err)
+	if currIdx >= 0 {
+		// insert the beacons that should be propagated into the beacons table
+		query = `INSERT INTO Beacons (BeaconHash, EgressIntf, ExpirationTime)
+					SELECT BeaconHash, EgressIntf, ?1 FROM BeaconsToPropagate`
+		_, err = tx.ExecContext(ctx, query, expiry.Unix())
+		if err != nil {
+			return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("inserting beacons to propagate", err), tx.Rollback())
+		}
 	}
 
 	// delete the temporary table
 	_, err = tx.ExecContext(ctx, `DROP TABLE BeaconsToPropagate`)
 	if err != nil {
-		return []storage.EgressBeacon{}, db.NewWriteError("dropping temporary table", err)
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("dropping temporary table BTP", err), tx.Rollback())
+	}
+	_, err = tx.ExecContext(ctx, `DROP TABLE BeaconsToFilter`)
+	if err != nil {
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("dropping temporary table BTF", err), tx.Rollback())
 	}
 
 	if err := tx.Commit(); err != nil {
-		return []storage.EgressBeacon{}, db.NewWriteError("committing transaction", err)
+		return []storage.EgressBeacon{}, serrors.Join(db.NewWriteError("committing transaction", err), tx.Rollback())
 	}
 
 	return res, nil
@@ -174,8 +197,8 @@ func (e *executor) UpdateBeaconsExpiry(ctx context.Context, beacons []storage.Eg
 }
 
 func (e *executor) IsBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error) {
-	e.RLock()
-	defer e.RUnlock()
+	e.Lock()
+	defer e.Unlock()
 	return e.isBeaconAlreadyPropagated(ctx, beaconHash, intf)
 }
 
@@ -203,11 +226,16 @@ func (e *executor) UpdateExpiry(ctx context.Context, beaconHash []byte, intf *if
 	e.Lock()
 	defer e.Unlock()
 
-	query := "UPDATE Beacons SET ExpirationTime=? WHERE RowID=(SELECT RowID FROM Beacons WHERE BeaconHash=? AND EgressIntf=? ORDER BY ExpirationTime DESC LIMIT 1)"
+	query := "UPDATE Beacons SET ExpirationTime=?1 WHERE RowID IN (SELECT RowID FROM Beacons WHERE BeaconHash=?2 AND EgressIntf=?3 ORDER BY ExpirationTime DESC LIMIT 1)"
 	_, err := e.db.ExecContext(ctx, query, expiry.Unix(), beaconHash, intf.TopoInfo().ID)
 	if err != nil {
 		return db.NewWriteError("updating beacon hash expiry", err)
 	}
+	// nRows, err := queryRes.RowsAffected()
+	// if err != nil {
+	// 	return db.NewWriteError("getting rows affected", err)
+	// }
+	// log.Debug("DB; UpdateExpiry; Update Beacons", "rows affected", nRows)
 	return nil
 }
 
@@ -240,8 +268,8 @@ func insertNewBeaconHash(
 }
 
 func (e *executor) GetDBSize(ctx context.Context) (int, error) {
-	e.RLock()
-	defer e.RUnlock()
+	e.Lock()
+	defer e.Unlock()
 	// Get the size of the database with select count(*)
 	query := "SELECT count(*) FROM Beacons"
 	rows, err := e.db.QueryContext(ctx, query)
