@@ -70,7 +70,7 @@ func (b *Backend) Close() error {
 }
 
 type executor struct {
-	sync.Mutex
+	sync.RWMutex
 	db db.Sqler
 	ia addr.IA
 }
@@ -174,28 +174,6 @@ func (e *executor) BeaconsThatShouldBePropagated(ctx context.Context, beacons []
 	return res, nil
 }
 
-func (e *executor) UpdateBeaconsExpiry(ctx context.Context, beacons []storage.EgressBeacon, expiry time.Time) error {
-	e.Lock()
-	defer e.Unlock()
-	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
-	if err != nil {
-		return db.NewWriteError("starting transaction", err)
-	}
-	query := `UPDATE Beacons SET ExpirationTime=? WHERE BeaconHash=? AND EgressIntf=?`
-	for _, b := range beacons {
-		for _, intf := range b.EgressIntfs {
-			_, err = tx.ExecContext(ctx, query, expiry.Unix(), *b.BeaconHash, intf)
-			if err != nil {
-				return db.NewWriteError("updating beacon hash expiry", err)
-			}
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return db.NewWriteError("committing transaction", err)
-	}
-	return nil
-}
-
 func (e *executor) IsBeaconAlreadyPropagated(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) (bool, int, error) {
 	e.Lock()
 	defer e.Unlock()
@@ -268,8 +246,8 @@ func insertNewBeaconHash(
 }
 
 func (e *executor) GetDBSize(ctx context.Context) (int, error) {
-	e.Lock()
-	defer e.Unlock()
+	e.RLock()
+	defer e.RUnlock()
 	// Get the size of the database with select count(*)
 	query := "SELECT count(*) FROM Beacons"
 	rows, err := e.db.QueryContext(ctx, query)

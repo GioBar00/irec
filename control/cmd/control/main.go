@@ -1116,7 +1116,7 @@ func realMain(ctx context.Context) error {
 			&egress.AlgorithmOriginator{
 				BasicOriginator:       originator,
 				OriginationAlgorithms: originationAlgorithms,
-				Tick:                  beaconing.NewTick(globalCfg.BS.OriginationInterval.Duration),
+				Tick:                  periodic.NewTick(globalCfg.BS.OriginationInterval.Duration),
 			},
 			500*time.Millisecond,
 			globalCfg.BS.OriginationInterval.Duration,
