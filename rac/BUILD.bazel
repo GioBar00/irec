@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "algorithmcache.go",
         "writer.go",
+        "jobexecutor.go",
     ],
     importpath = "github.com/scionproto/scion/rac",
     visibility = ["//visibility:public"],

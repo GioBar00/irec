@@ -39,6 +39,7 @@ go_library(
         "//pkg/snet/addrutil:go_default_library",
         "//private/procperf:go_default_library",
         "//private/segment/seghandler:go_default_library",
+        "//private/periodic:go_default_library",
         "//private/topology:go_default_library",
         "@org_golang_google_grpc//:go_default_library",
     ],

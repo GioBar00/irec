@@ -3,6 +3,7 @@ package egress
 import (
 	"context"
 	"crypto/rand"
+	"github.com/scionproto/scion/private/periodic"
 	"math/big"
 	"net"
 	"sort"
@@ -10,15 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/scionproto/scion/private/procperf"
-
-	beaconing "github.com/scionproto/scion/control/beaconing"
+	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/pkg/segment/extensions/irec"
+	"github.com/scionproto/scion/private/procperf"
 )
 
 // The Core Originator originates for each algorithm and intfgroup.
@@ -42,7 +42,7 @@ type AlgorithmOriginator struct {
 	OriginationAlgorithms []OriginationAlgorithm
 
 	// Tick is mutable.
-	Tick beaconing.Tick
+	Tick periodic.Tick
 }
 
 // The on-demand originator for pull-based beacons, executed on a request given through the SCION Daemon.

@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "legacy_metrics.go",
         "periodic.go",
+        "tick.go",
     ],
     importpath = "github.com/scionproto/scion/private/periodic",
     visibility = ["//visibility:public"],
