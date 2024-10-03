@@ -6,12 +6,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"time"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"math/rand"
+	"os"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/config"
@@ -26,9 +25,11 @@ import (
 	"github.com/scionproto/scion/pkg/snet"
 )
 
-const defaultNewSenderTimeout = 30 * time.Second
-
-const maximumSelectableBeacons = 30
+const (
+	defaultAgeingFactor    = 1.0
+	defaultPullBasedFactor = 1.0
+	defaultGroupSizeFactor = 1.0
+)
 
 type IncomingBeaconHandler interface {
 	HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error
@@ -127,6 +128,22 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 		return nil, serrors.WrapStr("handling beacon", err)
 	}
 	return &cppb.IncomingBeaconResponse{}, nil
+}
+
+func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
+	racJobs, err := i.IngressDB.GetRacJobs(ctx, request.IgnoreIntfGroup)
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	if len(racJobs) == 0 {
+		return &cppb.RACJob{}, nil
+	}
+	//TODO: Implement the rac job selection logic using the factors
+
+	// select a random job
+	racJob := racJobs[rand.Intn(len(racJobs))]
+
+	return i.getRacJob(ctx, request, racJob)
 }
 
 // Deprecated

@@ -39,7 +39,7 @@ func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfG
 	defer e.Unlock()
 	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
 	if err != nil {
-		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("looking up beacons", err)
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(serrors.WrapStr("looking up beacons", err), tx.Rollback())
 	}
 	_, err = tx.ExecContext(ctx, `CREATE TEMP TABLE ValidSources (
 											StartIsd INTEGER,
@@ -52,7 +52,7 @@ func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfG
 											PullBasedTargetAs INTEGER
 										);`)
 	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 	//(SELECT DISTINCT b.StartIsd, b.StartAs, b.StartIntfGroup, b.AlgorithmHash, b.AlgorithmId FROM Beacons b, Algorithm a WHERE FetchStatus = 0 AND b.AlgorithmHash = a.AlgorithmHash ORDER BY RANDOM() LIMIT 1)
 	query := `INSERT INTO
@@ -96,7 +96,7 @@ func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfG
 
 	_, err = tx.ExecContext(ctx, query, time.Now().UnixNano())
 	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 	query = `SELECT DISTINCT
 				b.RowID,
@@ -156,7 +156,7 @@ func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfG
 	}
 	rows, err := tx.QueryContext(ctx, query, maximum)
 	if err != nil {
-		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("looking up beacons", err, "query", query)
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(serrors.WrapStr("looking up beacons", err, "query", query), tx.Rollback())
 	}
 
 	defer rows.Close()
@@ -194,22 +194,107 @@ func (e *executor) GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfG
 
 	if err := rows.Err(); err != nil {
 		log.Error("err when selecting beacons", "err", err)
-		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 	// Mark beacons as being fetched. (rowIds)
 	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
 	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 
 	_, err = tx.ExecContext(ctx, "DROP TABLE ValidSources;")
 	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, err
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	}
+
+	return fbs, res, algHash, rowIds, nil
+}
+
+func (e *executor) GetBeaconRacJob(ctx context.Context, racJobRowID int64, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	e.Lock()
+	defer e.Unlock()
+	tx, err := e.db.(*sql.DB).BeginTx(ctx, nil)
+	if err != nil {
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("looking up beacons", err)
+	}
+
+	query := `SELECT DISTINCT
+				b.RowID,
+				b.LastUpdated,
+				b.InIntfID,
+				b.Usage,
+				b.Flatbuffer,
+				b.AlgorithmHash,
+				b.Beacon
+			FROM
+				Beacons b,
+				RacJob r
+			WHERE
+			    r.RowID = ?
+				AND b.StartIsd = r.StartIsd
+				AND b.StartAs = r.StartAs
+				AND b.AlgorithmHash = r.AlgorithmHash
+				AND b.AlgorithmId = r.AlgorithmId
+				AND b.PullBased = r.PullBased
+				AND b.PullBasedTargetIsd = r.PullBasedTargetIsd
+				AND b.PullBasedTargetAs = r.PullBasedTargetAs`
+	if !ignoreIntfGroup {
+		query = query + ` AND b.StartIntfGroup = r.StartIntfGroup`
+	}
+	query = query + ` ORDER BY b.HopsLength ASC, b.LastUpdated DESC`
+	if maximum > 0 {
+		query = query + ` LIMIT ?`
+	}
+
+	rows, err := tx.QueryContext(ctx, query, racJobRowID, maximum)
+	if err != nil {
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(serrors.WrapStr("looking up beacons", err, "query", query), tx.Rollback())
+	}
+	defer rows.Close()
+	var algHash sql.RawBytes
+	var fbs [][]byte
+	var rowIds []int64
+	var res []*cppb.IRECBeaconUnopt
+	count := int64(0)
+	for rows.Next() {
+		var lastUpdated int64
+		var InIntfID uint16
+		var rowId int64
+		var usage beacon.Usage
+		var rawBeacon sql.RawBytes
+		var flatbuffer sql.RawBytes
+
+		err = rows.Scan(&rowId, &lastUpdated, &InIntfID, &usage, &flatbuffer, &algHash, &rawBeacon)
+		if err != nil {
+			return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("reading row", err)
+		}
+		rowIds = append(rowIds, rowId)
+		fbs = append(fbs, flatbuffer)
+		seg, err := beacon.UnpackBeaconPB(rawBeacon)
+
+		if err != nil {
+			return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.WrapStr("parsing beacon", err)
+		}
+		res = append(res, &cppb.IRECBeaconUnopt{
+			PathSeg: seg,
+			InIfId:  uint32(InIntfID),
+			Id:      count,
+		})
+		count += 1
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Error("err when selecting beacons", "err", err)
+		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	}
+	err = tx.Commit()
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 
 	return fbs, res, algHash, rowIds, nil
@@ -437,6 +522,7 @@ func (e *executor) buildQuery(ctx context.Context, opts *beacon2.QueryOptions) (
 // updateExistingBeacon updates the changeable data for an existing beacon.
 func (e *executor) updateExistingBeacon(
 	ctx context.Context,
+	tx *sql.Tx,
 	b beacon.Beacon,
 	usage beacon.Usage,
 	rowID int64,
@@ -468,15 +554,35 @@ func (e *executor) updateExistingBeacon(
 	inst := `UPDATE Beacons SET FullID=?, InIntfID=?, HopsLength=?, InfoTime=?,
 			ExpirationTime=?, LastUpdated=?, Usage=?, Beacon=?, Flatbuffer=?,FetchStatus = 0, PullBasedMinBeacons=?, PullBasedPeriod=?, PullBasedHyperPeriod=?
 			WHERE RowID=?`
-	_, err = e.db.ExecContext(ctx, inst, fullID, b.InIfID, len(b.Segment.ASEntries), infoTime,
+	_, err = tx.ExecContext(ctx, inst, fullID, b.InIfID, len(b.Segment.ASEntries), infoTime,
 		expTime, lastUpdated, usage, packed, flatbufferBeacon, pullBasedMinBeacons, pullBasedPeriod, pullBasedHyperPeriod, rowID)
 	if err != nil {
 		return db.NewWriteError("update segment", err)
 	}
-	return nil
+	start := b.Segment.FirstIA()
+	intfGroup := uint16(0)
+	algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
+	algorithmId := uint32(0)
+	pullBased := false
+	pullBasedTargetAs := 0
+	pullBasedTargetIsd := 0
+	if b.Segment.ASEntries[0].Extensions.Irec != nil {
+		intfGroup = b.Segment.ASEntries[0].Extensions.Irec.InterfaceGroup
+		algorithmHash = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash
+		algorithmId = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmId
+		pullBased = b.Segment.ASEntries[0].Extensions.Irec.PullBased
+		if !b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.IsZero() {
+			pullBasedTargetAs = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.AS())
+			pullBasedTargetIsd = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.ISD())
+		}
+	}
+
+	err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
+
+	return err
 }
 
-func insertNewBeacon(
+func (e *executor) insertNewBeacon(
 	ctx context.Context,
 	tx *sql.Tx,
 	b beacon.Beacon,
@@ -541,5 +647,8 @@ func insertNewBeacon(
 	if err != nil {
 		return db.NewWriteError("insert beacon", err)
 	}
-	return nil
+
+	err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
+
+	return err
 }

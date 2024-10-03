@@ -11,7 +11,7 @@ import (
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
 )
 
-func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
+func (i *IngressServer) getJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
 	timeStart := time.Now()
 	bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"strings"
 	"sync"
 	"time"
@@ -152,7 +153,9 @@ func (e *executor) InsertBeacon(
 	if meta != nil {
 		// Update the beacon data if it is newer.
 		if b.Segment.Info.Timestamp.After(meta.InfoTime) {
-			if err := e.updateExistingBeacon(ctx, b, usage, meta.RowID, time.Now()); err != nil {
+			if err := db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
+				return e.updateExistingBeacon(ctx, tx, b, usage, meta.RowID, time.Now())
+			}); err != nil {
 				return ret, err
 			}
 			ret.Updated = 1
@@ -162,7 +165,7 @@ func (e *executor) InsertBeacon(
 	}
 	// Insert new beacon.
 	err = db.DoInTx(ctx, e.db, func(ctx context.Context, tx *sql.Tx) error {
-		return insertNewBeacon(ctx, tx, b, usage, time.Now())
+		return e.insertNewBeacon(ctx, tx, b, usage, time.Now())
 	})
 	if err != nil {
 		return ret, err
@@ -401,4 +404,123 @@ func (e *executor) deleteInTx(
 	e.Lock()
 	defer e.Unlock()
 	return db.DeleteInTx(ctx, e.db, delFunc)
+}
+
+func (e *executor) makeRacJobValid(
+	ctx context.Context,
+	tx *sql.Tx,
+	startIsd addr.ISD,
+	startAs addr.AS,
+	startIntfGroup uint16,
+	algorithmHash []byte,
+	algorithmId uint32,
+	pullBased bool,
+	pullBasedTargetIsd int,
+	pullBasedTargetAs int,
+) error {
+	// Check if the job exists, get RowID
+	var rowID int64
+	var valid bool
+	query := `SELECT RowID, Valid FROM RacJobs WHERE StartIsd = ? AND StartAs = ? AND StartIntfGroup = ? AND AlgorithmHash = ? AND AlgorithmId = ? AND PullBased = ? AND PullBasedTargetIsd = ? AND PullBasedTargetAs = ?`
+	rows, err := tx.QueryContext(ctx, query, startIsd, startAs, startIntfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
+	if err != nil {
+		return db.NewReadError("Failed to lookup rac job", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		// create the job
+		_, err = tx.ExecContext(ctx, `INSERT INTO RacJobs (StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, Valid, LastExecuted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+			startIsd, startAs, startIntfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs, time.Now().Unix())
+		if err != nil {
+			return db.NewWriteError("insert rac job", err)
+		}
+		return nil
+	}
+	err = rows.Scan(&rowID, &valid)
+	if err != nil {
+		return err
+	}
+	if !valid {
+		if pullBased {
+			query = `SELECT 1
+						FROM Beacons
+						WHERE StartIsd = ?
+						  AND StartAs = ?
+						  AND StartIntfGroup = ?
+						  AND AlgorithmHash = ?
+						  AND AlgorithmId = ?
+						  AND PullBased = ?
+						  AND PullBasedTargetIsd = ?
+						  AND PullBasedTargetAs = ?
+						  AND FetchStatus = 0
+						  GROUP BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs
+						  HAVING
+							Count(RowID) > PullBasedMinBeacons
+							AND Min(PullBasedHyperPeriod) <= ?`
+			rows, err = tx.QueryContext(ctx, query, startIsd, startAs, startIntfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs, time.Now().UnixNano())
+			if err != nil {
+				return db.NewReadError("Failed to lookup beacon", err)
+			}
+			defer rows.Close()
+			if !rows.Next() {
+				return nil
+			}
+		}
+		// Make the job valid and update the last updated time
+		_, err = tx.ExecContext(ctx, `UPDATE RacJobs SET Valid = 1, LastExecuted = ? WHERE RowID = ?`, time.Now().Unix(), rowID)
+		if err != nil {
+			return db.NewWriteError("update rac job", err)
+		}
+	}
+
+	return nil
+}
+
+func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*storage.RacJobMetadata, error) {
+	e.Lock()
+	defer e.Unlock()
+	// Get all valid RacJobs
+	query := `SELECT
+				rj.RowID, rj.PullBased, rj.LastExecuted, COUNT(*) as Count
+				FROM RacJobs rj, Beacons b, Algorithm a
+				WHERE
+					rj.Valid = 1
+				    AND rj.AlgorithmHash = a.AlgorithmHash
+					AND rj.StartIsd = b.StartIsd
+					AND rj.StartAs = b.StartAs
+					AND rj.AlgorithmHash = b.AlgorithmHash
+					AND rj.AlgorithmId = b.AlgorithmId
+					AND rj.PullBased = b.PullBased
+					AND rj.PullBasedTargetIsd = b.PullBasedTargetIsd
+					AND rj.PullBasedTargetAs = b.PullBasedTargetAs
+					AND b.FetchStatus = 0
+					`
+	if !ignoreIntfGroup {
+		query += "AND rj.StartIntfGroup = b.StartIntfGroup "
+	}
+
+	query += `GROUP BY rj.RowID, rj.PullBased, rj.LastExecuted`
+
+	rows, err := e.db.QueryContext(ctx, query)
+	if err != nil {
+		return []*storage.RacJobMetadata{}, db.NewReadError("Failed to lookup rac jobs", err)
+	}
+	defer rows.Close()
+	var res []*storage.RacJobMetadata
+	for rows.Next() {
+		var rowID int64
+		var pullBased bool
+		var lastExecuted int64
+		var count int64
+		err = rows.Scan(&rowID, &pullBased, &lastExecuted, &count)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, &storage.RacJobMetadata{
+			RowID:        rowID,
+			PullBased:    pullBased,
+			LastExecuted: time.Unix(lastExecuted, 0),
+		})
+	}
+	return res, nil
 }

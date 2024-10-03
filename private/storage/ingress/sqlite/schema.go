@@ -63,7 +63,23 @@ CREATE TABLE Labels(
     PRIMARY KEY (FullID, Label)
 );
 
-CREATE INDEX IsdAsIndex ON Beacons(StartIsd, StartAs);
+CREATE TABLE RacJobs(
+	StartIsd INTEGER NOT NULL,
+	StartAs INTEGER NOT NULL,
+	StartIntfGroup INTEGER NOT NULL,
+	AlgorithmHash DATA NOT NULL,
+	AlgorithmId DATA NOT NULL,
+	PullBased BOOL NOT NULL,
+	PullBasedTargetIsd INTEGER NOT NULL,
+	PullBasedTargetAs INTEGER NOT NULL,
+	Valid BOOL NOT NULL,
+	LastExecuted INTEGER NOT NULL,
+	PRIMARY KEY (StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs)
+)
+
+CREATE INDEX BeaconJobIndex ON Beacons(StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs);
+CREATE INDEX RacJobsIndex ON RacJobs(StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs);
+CREATE INDEX AlgorithmIndex ON Algorithm(AlgorithmHash);
 	`
 	// marker 0 = new
 	// marker 1 = already processed

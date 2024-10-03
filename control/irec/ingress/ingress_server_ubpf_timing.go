@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"github.com/scionproto/scion/private/procperf"
 	"math/big"
 	"time"
@@ -17,7 +18,7 @@ import (
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
 )
 
-func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
+func (i *IngressServer) getJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
 	timeStart := time.Now() // 0
 	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request)
 	if err != nil {
@@ -41,6 +42,35 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 	}
 	timeEnd := time.Now() // 2
 	//fmt.Printf("igdb=%d, ds=%d\n", timeDbDone.Sub(timeStart).Nanoseconds(), timeEnd.Sub(timeDbDone))
+	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
+		log.Error("PROCPERF: Error when getting job", "err", err)
+	}
+	return ret, nil
+}
+
+func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *storage.RacJobMetadata) (*cppb.RACJob, error) {
+	timeStart := time.Now()
+	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconRacJob(ctx, request, racJob)
+	if err != nil {
+		log.Error("An error occurred when retrieving beacons from db", "err", err)
+		return &cppb.RACJob{}, err
+	}
+	timeDbDone := time.Now()
+	// Generate random uint32 JobID
+	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	//log.Debug("Queueing to RAC", "beacons", len(fbs))
+	ret := &cppb.RACJob{
+		AlgorithmHash: hash,
+		Flatbuffer:    i.packBeaconsFlatbuffer(fbs),
+		BeaconCount:   uint32(len(fbs)),
+		BeaconsUnopt:  bcns,
+		RowIds:        rowIds,
+		JobID:         uint32(jobID.Uint64()),
+	}
+	timeEnd := time.Now()
 	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
 		log.Error("PROCPERF: Error when getting job", "err", err)
 	}
