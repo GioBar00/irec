@@ -97,8 +97,7 @@ func realMain(ctx context.Context) error {
 		CandidateSetSize: uint32(globalCfg.RAC.CandidateSetSize),
 		Mode:             MODE,
 	}
-	jobExecutor.SetType(globalCfg.RAC.Static)
-	periodic.Start(&jobExecutor, defaultJobInterval, 30*time.Second)
+	periodic.Start(jobExecutor.Task(globalCfg.RAC.Static), defaultJobInterval, 30*time.Second)
 
 	g.Go(func() error {
 		defer log.HandlePanic()

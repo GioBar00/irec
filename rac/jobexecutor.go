@@ -25,7 +25,7 @@ type JobExecutor struct {
 	Environment      env.Environment
 	CandidateSetSize uint32
 	Mode             string
-	exec             executor
+	JobRunner
 
 	// Tick is mutable.
 	Tick periodic.Tick
@@ -37,31 +37,31 @@ func (j *JobExecutor) Name() string {
 
 func (j *JobExecutor) Run(ctx context.Context) {
 	j.Tick.SetNow(time.Now())
-	if err := j.exec.run(ctx); err != nil {
+	if err := j.run(ctx, j); err != nil {
 		log.FromCtx(ctx).Error("Error running job executor", "err", err)
 	}
 	j.Tick.UpdateLast()
 }
 
-func (j *JobExecutor) SetType(static bool) {
+func (j *JobExecutor) Task(static bool) periodic.Task {
 	if static {
-		j.exec = &StaticJobExecutor{j}
+		j.JobRunner = &StaticJobRunner{}
 	} else {
-		j.exec = &DynamicJobExecutor{j}
 		j.AlgCache = AlgorithmCache{Algorithms: make(map[string][]byte)}
+		j.JobRunner = &DynamicJobRunner{}
 	}
+	return j
 }
 
-type executor interface {
-	run(ctx context.Context) error
+type JobRunner interface {
+	run(ctx context.Context, j *JobExecutor) error
 }
 
-type DynamicJobExecutor struct {
-	jobExec *JobExecutor
+type DynamicJobRunner struct {
 }
 
-func (d *DynamicJobExecutor) run(ctx context.Context) error {
-	conn, err := d.jobExec.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
+func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
+	conn, err := j.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (d *DynamicJobExecutor) run(ctx context.Context) error {
 	timeGrpcIngress1S := time.Now() // 0
 	client := cppb.NewIngressIntraServiceClient(conn)
 	// First get possible sources from the ingress gateway (source=originas, algorithmid, alghash combo)
-	exec, err := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: d.jobExec.CandidateSetSize}, libgrpc.RetryProfile...)
+	exec, err := client.GetJob(ctx, &cppb.RACBeaconRequest{IgnoreIntfGroup: false, Maximum: j.CandidateSetSize}, libgrpc.RetryProfile...)
 	if err != nil {
 		return serrors.WrapStr("Error when retrieving beacon job", err)
 	}
@@ -93,19 +93,19 @@ func (d *DynamicJobExecutor) run(ctx context.Context) error {
 	}
 	// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 	// RACS do not reprocess them.
-	algorithm, _ := d.jobExec.AlgCache.Algorithms[string(exec.AlgorithmHash)]
+	algorithm, _ := j.AlgCache.Algorithms[string(exec.AlgorithmHash)]
 	timeAlgorithmRetS := time.Now() // 2
-	if d.jobExec.Mode != "native" {
+	if j.Mode != "native" {
 		algResponse, err := client.GetAlgorithm(context.Background(), &cppb.AlgorithmRequest{AlgorithmHash: exec.AlgorithmHash})
 		if err != nil {
 			return serrors.WrapStr("Error when retrieving algorithm", err)
 		}
 		algorithm = algResponse.Code
-		d.jobExec.AlgCache.Algorithms[string(exec.AlgorithmHash)] = algResponse.Code
+		j.AlgCache.Algorithms[string(exec.AlgorithmHash)] = algResponse.Code
 
 	}
 	timeAlgorithmRetE := time.Now() // 3
-	res, err := d.jobExec.Environment.ExecuteDynamic(ctx, exec, algorithm, 0)
+	res, err := j.Environment.ExecuteDynamic(ctx, exec, algorithm, 0)
 	if err != nil {
 		return serrors.WrapStr("Error when executing rac for sources", err)
 	}
@@ -124,12 +124,10 @@ func (d *DynamicJobExecutor) run(ctx context.Context) error {
 	return nil
 }
 
-type StaticJobExecutor struct {
-	jobExec *JobExecutor
-}
+type StaticJobRunner struct{}
 
-func (s *StaticJobExecutor) run(ctx context.Context) error {
-	conn, err := s.jobExec.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 50)
+func (s *StaticJobRunner) run(ctx context.Context, j *JobExecutor) error {
+	conn, err := j.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 50)
 	if err != nil {
 		return err
 	}
@@ -137,7 +135,7 @@ func (s *StaticJobExecutor) run(ctx context.Context) error {
 
 	timeGrpcIngress1S := time.Now() // 0
 	client := cppb.NewIngressIntraServiceClient(conn)
-	exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{Maximum: s.jobExec.CandidateSetSize})
+	exec, err2 := client.GetBeacons(ctx, &cppb.BeaconQuery{Maximum: j.CandidateSetSize})
 	if err2 != nil {
 		return serrors.WrapStr("Error when retrieving job for sources", err2)
 	}
@@ -157,7 +155,7 @@ func (s *StaticJobExecutor) run(ctx context.Context) error {
 	}
 	log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 	timeExecS := time.Now() // 2
-	res, err := s.jobExec.Environment.ExecuteStatic(ctx, exec, 0)
+	res, err := j.Environment.ExecuteStatic(ctx, exec, 0)
 	if err != nil {
 		return serrors.WrapStr("Error when executing rac for sources", err)
 	}
