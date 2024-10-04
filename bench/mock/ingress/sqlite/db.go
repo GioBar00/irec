@@ -321,3 +321,7 @@ func (e *executor) ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (b
 func (e *executor) DeleteExpiredBeacons(ctx context.Context, now time.Time) (int, error) {
 	return 0, nil
 }
+
+func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
+	return nil, nil
+}

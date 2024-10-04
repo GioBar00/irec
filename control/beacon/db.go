@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"google.golang.org/protobuf/proto"
@@ -37,6 +38,13 @@ const (
 	// ErrParse is the error message in case the parsing a db entry fails.
 	ErrParse common.ErrMsg = "Failed to parse entry"
 )
+
+type RacJobMetadata struct {
+	RowID        int64
+	PullBased    bool
+	LastExecuted time.Time
+	Count        int64
+}
 
 // InsertStats provides statistics about an insertion.
 type InsertStats struct {

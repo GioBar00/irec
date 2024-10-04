@@ -162,15 +162,14 @@ class GoGenerator(object):
             },
             'egress_db': {
                 'connection': os.path.join(self.db_dir, '%s.egress.db' % name),
-                #'connection': 'file::memory:?cache=shared',
             },
             'tracing': self._tracing_entry(),
             'metrics': self._metrics_entry(infra_elem, CS_PROM_PORT),
             'api': self._api_entry(infra_elem, CS_PROM_PORT+700),
             'features': translate_features(self.args.features),
             'beaconing': {
-                 'origination_interval': '3h',
-                 'propagation_interval': '3h',
+                 'origination_interval': '1h',
+                 'propagation_interval': '10m',
              }
         }
         if ca:

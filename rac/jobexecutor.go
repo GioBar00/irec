@@ -3,6 +3,8 @@ package rac
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/scionproto/scion/pkg/addr"
 	libgrpc "github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
@@ -12,7 +14,6 @@ import (
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/procperf"
 	"github.com/scionproto/scion/rac/env"
-	"time"
 
 	"github.com/scionproto/scion/private/periodic"
 )
@@ -115,9 +116,9 @@ func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
 		return serrors.WrapStr("Error when completing job", err)
 	}
 	timeGrpcIngress2E := time.Now() // 5
-	//log.Info("GetJob time", "duration", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Seconds())
-	//log.Info("Execute time", "duration", timeGrpcIngress2S.Sub(timeAlgorithmRetE).Seconds())
-	//log.Info("JobComplete time", "duration", timeGrpcIngress2E.Sub(timeGrpcIngress2S).Seconds())
+	log.Info("GetJob time", "duration", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Seconds())
+	log.Info("Execute time", "duration", timeGrpcIngress2S.Sub(timeAlgorithmRetE).Seconds())
+	log.Info("JobComplete time", "duration", timeGrpcIngress2E.Sub(timeGrpcIngress2S).Seconds())
 	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
 		log.Error("PROCPERF: Error when processing job", "err", err)
 	}

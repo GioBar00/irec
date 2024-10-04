@@ -458,3 +458,7 @@ func insertNewBeacon(
 	}
 	return nil
 }
+
+func (e *executor) GetBeaconRacJob(ctx context.Context, racJobRowID int64, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	return nil, nil, nil, nil, nil
+}

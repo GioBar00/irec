@@ -18,7 +18,7 @@ type IngressStore interface {
 	GetBeaconJob(ctx context.Context, request *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 	GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error)
 	GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBeacon, error)
-	GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
+	GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 
 	MarkBeacons(ctx context.Context, ids []int64) error
 	InsertBeacon(ctx context.Context, b beacon.Beacon) (beacon.InsertStats, error)
@@ -27,7 +27,7 @@ type IngressStore interface {
 	GetAlgorithm(ctx context.Context, algorithmHash []byte) ([]byte, error)
 	ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (bool, error)
 
-	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*RacJobMetadata, error)
+	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error)
 	//DEPRECATED;
 	GetAndMarkBeacons(ctx context.Context, req *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, error)
 	BeaconSources(ctx context.Context, ignoreIntfGroup bool) ([]*cppb.RACBeaconSource, error)
@@ -76,13 +76,6 @@ type BeaconSource struct {
 	AlgorithmId   uint32
 }
 
-type RacJobMetadata struct {
-	RowID        int64
-	PullBased    bool
-	LastExecuted time.Time
-	Count        int64
-}
-
 // DB defines the interface that all beacon DB backends have to implement.
 type DB interface {
 	GetAndMarkBeacons(ctx context.Context, maximum uint32, algHash []byte, algID uint32, originAS addr.IA, originIntfGroup uint32, ignoreIntfGroup bool, marker uint32) ([][]byte, []*cppb.IRECBeaconUnopt, error)
@@ -100,7 +93,7 @@ type DB interface {
 	GetAlgorithm(ctx context.Context, algorithmHash []byte) ([]byte, error)
 	ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (bool, error)
 
-	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*RacJobMetadata, error)
+	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error)
 }
 
 type baseStore struct {
@@ -191,10 +184,10 @@ func (s *Store) MaxExpTime(policyType beacon.PolicyType) uint8 {
 	return beacon.DefaultMaxExpTime
 }
 
-func (s *Store) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*RacJobMetadata, error) {
+func (s *Store) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
 	return s.db.GetRacJobs(ctx, ignoreIntfGroup)
 }
 
-func (s *Store) GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+func (s *Store) GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
 	return s.db.GetBeaconRacJob(ctx, racJob.RowID, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30))
 }

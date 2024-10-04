@@ -233,7 +233,7 @@ func (e *executor) GetBeaconRacJob(ctx context.Context, racJobRowID int64, maxim
 				b.Beacon
 			FROM
 				Beacons b,
-				RacJob r
+				RacJobs r
 			WHERE
 			    r.RowID = ?
 				AND b.StartIsd = r.StartIsd
@@ -292,6 +292,18 @@ func (e *executor) GetBeaconRacJob(ctx context.Context, racJobRowID int64, maxim
 		log.Error("err when selecting beacons", "err", err)
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
+
+	// Mark beacons as being fetched. (rowIds)
+	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	}
+
+	_, err = tx.ExecContext(ctx, "UPDATE RacJobs SET Valid=0, LastExecuted=? WHERE RowID=?", time.Now().Unix(), racJobRowID)
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())

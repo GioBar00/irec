@@ -6,11 +6,13 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/rand"
+	"os"
+	"time"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"math/rand"
-	"os"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/config"
@@ -131,19 +133,27 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 }
 
 func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
-	racJobs, err := i.IngressDB.GetRacJobs(ctx, request.IgnoreIntfGroup)
+	timeGetRacJobsS := time.Now()
+	racJobsM, err := i.IngressDB.GetRacJobs(ctx, request.IgnoreIntfGroup)
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}
-	if len(racJobs) == 0 {
+	if len(racJobsM) == 0 {
 		return &cppb.RACJob{}, nil
 	}
+	timeGetRacJobsE := time.Now()
 	//TODO: Implement the rac job selection logic using the factors
 
 	// select a random job
-	racJob := racJobs[rand.Intn(len(racJobs))]
-
-	return i.getRacJob(ctx, request, racJob)
+	racJobM := racJobsM[rand.Intn(len(racJobsM))]
+	timeGetRacJobS := time.Now()
+	racJob, err := i.getRacJob(ctx, request, racJobM)
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	timeGetRacJobE := time.Now()
+	log.Info("GJ; ", "RacJobs [ms]", timeGetRacJobsE.Sub(timeGetRacJobsS).Milliseconds(), "RacJob [ms]", timeGetRacJobE.Sub(timeGetRacJobS).Milliseconds())
+	return racJob, nil
 }
 
 // Deprecated

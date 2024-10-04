@@ -6,10 +6,11 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/scionproto/scion/control/irec/ingress/storage"
-	"github.com/scionproto/scion/private/procperf"
 	"math/big"
 	"time"
+
+	"github.com/scionproto/scion/control/beacon"
+	"github.com/scionproto/scion/private/procperf"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 
@@ -48,7 +49,7 @@ func (i *IngressServer) getJob(ctx context.Context, request *cppb.RACBeaconReque
 	return ret, nil
 }
 
-func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *storage.RacJobMetadata) (*cppb.RACJob, error) {
+func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) (*cppb.RACJob, error) {
 	timeStart := time.Now()
 	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconRacJob(ctx, request, racJob)
 	if err != nil {

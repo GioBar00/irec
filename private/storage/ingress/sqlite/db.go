@@ -18,7 +18,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"strings"
 	"sync"
 	"time"
@@ -371,7 +370,7 @@ func (e *executor) DeleteExpiredBeacons(ctx context.Context, now time.Time) (int
 		return tx.ExecContext(ctx, delStmt, now.Unix())
 	})
 	if err != nil {
-		return exec1, err
+		return 0, err
 	}
 	exec2, err := e.deleteInTx(ctx, func(tx *sql.Tx) (sql.Result, error) {
 		delStmt := `WITH tempTable as
@@ -385,15 +384,19 @@ DELETE from Beacons WHERE exists (SELECT 1 from tempTable WHERE
 		return tx.ExecContext(ctx, delStmt, now.UnixNano())
 	})
 	if err != nil {
-		return exec2, err
+		return exec1, err
 	}
 	e.Lock()
 	defer e.Unlock()
 	_, err = e.db.ExecContext(ctx, `UPDATE Beacons SET FetchStatus = 0 WHERE FetchStatus = 1 AND FetchStatusExpirationTime < ?`, now.Unix())
 	if err != nil {
-		return exec1, err
+		return exec1 + exec2, err
 	}
-	return exec1, err
+	_, err = e.db.ExecContext(ctx, `DELETE FROM RacJobs WHERE LastExecuted < ?`, now.Add(-1*time.Hour).Unix())
+	if err != nil {
+		return exec1 + exec2, err
+	}
+	return exec1 + exec2, err
 }
 
 func (e *executor) deleteInTx(
@@ -476,7 +479,7 @@ func (e *executor) makeRacJobValid(
 	return nil
 }
 
-func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*storage.RacJobMetadata, error) {
+func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
 	e.Lock()
 	defer e.Unlock()
 	// Get all valid RacJobs
@@ -503,10 +506,10 @@ func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*sto
 
 	rows, err := e.db.QueryContext(ctx, query)
 	if err != nil {
-		return []*storage.RacJobMetadata{}, db.NewReadError("Failed to lookup rac jobs", err)
+		return []*beacon.RacJobMetadata{}, db.NewReadError("Failed to lookup rac jobs", err)
 	}
 	defer rows.Close()
-	var res []*storage.RacJobMetadata
+	var res []*beacon.RacJobMetadata
 	for rows.Next() {
 		var rowID int64
 		var pullBased bool
@@ -516,7 +519,7 @@ func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*sto
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, &storage.RacJobMetadata{
+		res = append(res, &beacon.RacJobMetadata{
 			RowID:        rowID,
 			PullBased:    pullBased,
 			LastExecuted: time.Unix(lastExecuted, 0),
