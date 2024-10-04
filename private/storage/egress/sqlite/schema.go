@@ -22,8 +22,7 @@ const (
 	// Schema is the SQLite database layout.
 
 	//EVERYTHING AFTER EGRESSINTF IS REDUNDANT INFORMATION, BUT MAY BE USEFUL LATER ON. THEREFORE ALREADY IN THERE.
-	Schema = `PRAGMA journal_mode=WAL;
-		CREATE TABLE Beacons(
+	Schema = `CREATE TABLE Beacons(
 		RowID INTEGER PRIMARY KEY,
 		BeaconHash DATA NOT NULL,
 		EgressIntf INTEGER NOT NULL,
