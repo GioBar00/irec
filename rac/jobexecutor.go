@@ -62,6 +62,7 @@ type DynamicJobRunner struct {
 }
 
 func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
+	log.Info("Running new dynamic job")
 	conn, err := j.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
 	if err != nil {
 		return err
@@ -75,7 +76,8 @@ func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
 		return serrors.WrapStr("Error when retrieving beacon job", err)
 	}
 	timeGrpcIngress1E := time.Now() // 1
-	//log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
+	log.Info("GetJob time", "duration", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Seconds())
+	log.Info(fmt.Sprintf("Processing %d beacons.", len(exec.RowIds)))
 	if exec.BeaconCount == 0 {
 		return nil
 	}
@@ -94,7 +96,7 @@ func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
 	}
 	// If there are PCB sources to process, get the job. This will mark the PCB's as taken such that other
 	// RACS do not reprocess them.
-	algorithm, _ := j.AlgCache.Algorithms[string(exec.AlgorithmHash)]
+	algorithm := j.AlgCache.Algorithms[string(exec.AlgorithmHash)]
 	timeAlgorithmRetS := time.Now() // 2
 	if j.Mode != "native" {
 		algResponse, err := client.GetAlgorithm(context.Background(), &cppb.AlgorithmRequest{AlgorithmHash: exec.AlgorithmHash})
@@ -106,20 +108,21 @@ func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
 
 	}
 	timeAlgorithmRetE := time.Now() // 3
+	timeExecutionS := time.Now()    // 4
 	res, err := j.Environment.ExecuteDynamic(ctx, exec, algorithm, 0)
 	if err != nil {
 		return serrors.WrapStr("Error when executing rac for sources", err)
 	}
-	timeGrpcIngress2S := time.Now() // 4
+	timeExecutionE := time.Now()    // 5
+	timeGrpcIngress2S := time.Now() // 6
 	_, err = client.JobComplete(ctx, res)
 	if err != nil {
 		return serrors.WrapStr("Error when completing job", err)
 	}
-	timeGrpcIngress2E := time.Now() // 5
-	log.Info("GetJob time", "duration", timeGrpcIngress1E.Sub(timeGrpcIngress1S).Seconds())
+	timeGrpcIngress2E := time.Now() // 7
 	log.Info("Execute time", "duration", timeGrpcIngress2S.Sub(timeAlgorithmRetE).Seconds())
 	log.Info("JobComplete time", "duration", timeGrpcIngress2E.Sub(timeGrpcIngress2S).Seconds())
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
+	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", exec.JobID), procperf.Processed, []time.Time{timeGrpcIngress1S, timeGrpcIngress1E, timeAlgorithmRetS, timeAlgorithmRetE, timeExecutionS, timeExecutionE, timeGrpcIngress2S, timeGrpcIngress2E}); err != nil {
 		log.Error("PROCPERF: Error when processing job", "err", err)
 	}
 	return nil

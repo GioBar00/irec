@@ -152,7 +152,7 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 		return &cppb.RACJob{}, err
 	}
 	timeGetRacJobE := time.Now()
-	log.Info("GJ; ", "RacJobs [ms]", timeGetRacJobsE.Sub(timeGetRacJobsS).Milliseconds(), "RacJob [ms]", timeGetRacJobE.Sub(timeGetRacJobS).Milliseconds())
+	log.Info("GJ; ", "RacJobs", timeGetRacJobsE.Sub(timeGetRacJobsS).Seconds(), "RacJob", timeGetRacJobE.Sub(timeGetRacJobS).Seconds())
 	return racJob, nil
 }
 

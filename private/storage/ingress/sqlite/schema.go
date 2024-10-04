@@ -77,8 +77,9 @@ CREATE TABLE RacJobs(
 	LastExecuted INTEGER NOT NULL
 );
 
-CREATE INDEX BeaconJobIndex ON Beacons(StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs);
-CREATE INDEX RacJobsIndex ON RacJobs(StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs);
+CREATE INDEX BeaconJobIndex ON Beacons(StartIsd, StartAs, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, StartIntfGroup, FetchStatus);
+CREATE INDEX RacJobsIndex ON RacJobs(StartIsd, StartAs, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, StartIntfGroup);
+CREATE INDEX ValidIndex ON RacJobs(Valid);
 CREATE INDEX AlgorithmIndex ON Algorithm(AlgorithmHash);`
 	// marker 0 = new
 	// marker 1 = already processed
