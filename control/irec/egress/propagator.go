@@ -91,6 +91,9 @@ const defaultNewSenderTimeout = 10 * time.Second
 func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.PropagationRequest) (*cppb.PropagationRequestResponse, error) {
 	var wg sync.WaitGroup
 	var err error
+	ppT := procperf.GetNew(procperf.Propagated, fmt.Sprintf("%d", request.JobID))
+	defer ppT.Write()
+	timeParsingS := time.Now()
 	// convert from proto to beacon
 	var pullBasedBeacons []beacon.Beacon
 	var beacons []beacon.Beacon
@@ -108,6 +111,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			beaconIndexes = append(beaconIndexes, i)
 		}
 	}
+	timeParsingE := time.Now()
+	ppT.AddDurationT(timeParsingS, timeParsingE) // 0
 	// handle pull based beacons separately
 	for _, bcn := range pullBasedBeacons {
 		bcn := bcn
@@ -132,8 +137,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		go func() {
 			defer log.HandlePanic()
 			defer wg.Done()
+			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
+			pp.SetNumBeacons(uint32(len(beaconIndexes)))
 			timeWriterS := time.Now()
-
 			// make a copy of the beacons array as the writer has side effects for beacon
 			beaconsCopy := make([]beacon.Beacon, len(beaconIndexes))
 			// convert to proto and back to beacon to avoid side effects
@@ -145,23 +151,22 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				beaconsCopy[i] = beacon.Beacon{Segment: segment, InIfID: uint16(request.Beacon[i].InIfId)}
 			}
-
 			stats, err := writer.Write(context.Background(), beaconsCopy, p.Peers, true)
 			if err != nil {
 				log.Error("Could not write beacon to path servers", "err", err)
+				return
 			}
 			timeWriterE := time.Now()
+
 			if stats.Count > 0 {
-				if err := procperf.AddTimestampsDoneBeacon(writer.WriterType().String(), procperf.Written, []time.Time{timeWriterS, timeWriterE}); err != nil {
-					log.Error("PROCPERF: error writing beacon", "err", err)
-				}
+				pp.AddDurationT(timeWriterS, timeWriterE)
+				pp.Write()
 			}
 		}()
 	}
-
+	timeFilterS := time.Now()
 	var egressBeacons []storage.EgressBeacon
 	currIdx := -1
-	timeFilterS := time.Now()
 	totalNumber := 0
 	totalNumberFiltered := 0
 	for _, i := range beaconIndexes {
@@ -194,7 +199,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		}
 	}
 	timeFilterE := time.Now()
-	log.Info("RP; Beacon Half filtering", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", time.Since(timeFilterS))
+	//log.Info("RP; Beacon Half filtering", "beacons", totalNumber, "filtered", totalNumberFiltered, "time", time.Since(timeFilterS))
+	ppT.AddDurationT(timeFilterS, timeFilterE) // 1
+	ppT.SetNumBeacons(uint32(totalNumber))
 	timeDBFilterS := time.Now()
 	egressBeacons, err = p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons, time.Now().Add(3*defaultNewSenderTimeout))
 	if err != nil {
@@ -202,6 +209,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		return &cppb.PropagationRequestResponse{}, err
 	}
 	timeDBFilterE := time.Now()
+	ppT.AddDurationT(timeDBFilterS, timeDBFilterE) // 2
 	totalNumberFiltered = 0
 	for _, ebcn := range egressBeacons {
 		totalNumberFiltered += len(ebcn.EgressIntfs)
@@ -213,6 +221,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	for _, ebcn := range egressBeacons {
 		beaconHash := ebcn.BeaconHash
 		for _, intfId := range ebcn.EgressIntfs {
+			bcnId := procperf.GetFullId(beacons[ebcn.Index].Segment.GetLoggingID(), beacons[ebcn.Index].Segment.Info.SegmentID)
+			pp := procperf.GetNew(procperf.PropagatedBcn, bcnId)
 			intf := p.Interfaces[intfId]
 			if intf.TopoInfo().ID != uint16(intfId) {
 				log.Error("Interface ID mismatch", "intfId", intfId, "topoId", intf.TopoInfo().ID)
@@ -235,12 +245,14 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				senderByIntf[intfId] = sender
 			}
 			timeSenderE := time.Now()
+			pp.AddDurationT(timeSenderS, timeSenderE) // 0
 			wg.Add(1)
 			beaconHash := beaconHash
 			ebcn := ebcn
 			go func() {
 				defer log.HandlePanic()
 				defer wg.Done()
+				defer pp.Write()
 				segment, err := seg.BeaconFromPB(request.Beacon[ebcn.Index].PathSeg)
 				if err != nil {
 					log.Error("Could not parse beacon segment", "err", err)
@@ -268,6 +280,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeExtendE := time.Now()
+				pp.AddDurationT(timeExtendS, timeExtendE) // 1
+				nextId := procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)
+				pp.SetNextID(nextId)
 				timeSendS := time.Now()
 				if err := sender.Send(ctx, segment); err != nil {
 					log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
@@ -276,6 +291,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeSendE := time.Now()
+				pp.AddDurationT(timeSendS, timeSendE) // 2
 				timeUpdateS := time.Now()
 				// Mark beacon as propagated in egress db with the real expiry time
 				err = p.Store.UpdateExpiry(ctx, *beaconHash, intf, time.Now().Add(time.Hour))
@@ -284,6 +300,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					return
 				}
 				timeUpdateE := time.Now()
+				pp.AddDurationT(timeUpdateS, timeUpdateE) // 3
 				timeIntfPropagateS := time.Now()
 				if segment.ASEntries[0].Extensions.Irec != nil {
 					intf.Propagate(time.Now(), HashToString(segment.ASEntries[0].Extensions.Irec.AlgorithmHash))
@@ -291,11 +308,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					intf.Propagate(time.Now(), "")
 				}
 				timeIntfPropagateE := time.Now()
+				pp.AddDurationT(timeIntfPropagateS, timeIntfPropagateE) // 4
 				//log.Info("DB; Expiry updated", "time", timeUpdateE.Sub(timeUpdateS))
 				//log.Info("BCN; Beacon sent", "extend", timeExtendE.Sub(timeExtendS), "sender", timeSenderE.Sub(timeSenderS), "send", timeSendE.Sub(timeSendS), "update expiry", timeUpdateE.Sub(timeUpdateS), "intf", timeIntfPropagateE.Sub(timeIntfPropagateS))
-				if err := procperf.AddTimestampsDoneBeacon(HashToString(*beaconHash), procperf.PropagatedBcn, []time.Time{timeExtendS, timeExtendE, timeSenderS, timeSenderE, timeSendS, timeSendE, timeUpdateS, timeUpdateE, timeIntfPropagateS, timeIntfPropagateE}, HashToString(HashBeacon(segment))); err != nil {
-					log.Error("PROCPERF: Error when propagating beacon", "err", err)
-				}
 			}()
 		}
 	}
@@ -309,11 +324,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	timeWaitS := time.Now()
 	wg.Wait()
 	timeWaitE := time.Now()
+	ppT.AddDurationT(timeWaitS, timeWaitE) // 3
 	// log.Info("RP; Beacon propagation waiting done", "time", timeWaitE.Sub(timeWaitS))
 	// log.Info("RP; Beacon propagation done", "beacons", totalNumber, "filtered", totalNumberFiltered)
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", request.JobID), procperf.Propagated, []time.Time{timeFilterS, timeFilterE, timeDBFilterS, timeDBFilterE, timeWaitS, timeWaitE}); err != nil {
-		log.Error("PROCPERF: Error when propagating beacon", "err", err)
-	}
 	return &cppb.PropagationRequestResponse{}, nil
 }
 

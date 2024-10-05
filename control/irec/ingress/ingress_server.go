@@ -2,11 +2,14 @@ package ingress
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
+	"github.com/scionproto/scion/private/procperf"
+	"math/big"
+	mrand "math/rand"
 	"os"
 	"time"
 
@@ -133,6 +136,16 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 }
 
 func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
+	pp := procperf.GetNew(procperf.Retrieved, "")
+	timeGenS := time.Now()
+	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	timeGenE := time.Now()
+	defer pp.Write()
+	pp.SetID(fmt.Sprintf("%d", uint32(jobID.Uint64())))
+	pp.AddDurationT(timeGenS, timeGenE) // 0
 	timeGetRacJobsS := time.Now()
 	racJobsM, err := i.IngressDB.GetRacJobs(ctx, request.IgnoreIntfGroup)
 	if err != nil {
@@ -142,17 +155,20 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 		return &cppb.RACJob{}, nil
 	}
 	timeGetRacJobsE := time.Now()
+	pp.AddDurationT(timeGetRacJobsS, timeGetRacJobsE) // 1
 	//TODO: Implement the rac job selection logic using the factors
 
 	// select a random job
-	racJobM := racJobsM[rand.Intn(len(racJobsM))]
+	racJobM := racJobsM[mrand.Intn(len(racJobsM))]
 	timeGetRacJobS := time.Now()
 	racJob, err := i.getRacJob(ctx, request, racJobM)
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}
 	timeGetRacJobE := time.Now()
-	log.Info("GJ; ", "RacJobs", timeGetRacJobsE.Sub(timeGetRacJobsS).Seconds(), "RacJob", timeGetRacJobE.Sub(timeGetRacJobS).Seconds())
+	pp.AddDurationT(timeGetRacJobS, timeGetRacJobE) // 2
+	pp.SetNumBeacons(racJob.BeaconCount)
+	// log.Info("GJ; ", "RacJobs", timeGetRacJobsE.Sub(timeGetRacJobsS).Seconds(), "RacJob", timeGetRacJobE.Sub(timeGetRacJobS).Seconds())
 	return racJob, nil
 }
 

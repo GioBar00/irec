@@ -43,7 +43,9 @@ type Handler struct {
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
 	bcnId := procperf.GetFullId(b.Segment.GetLoggingID(), b.Segment.Info.SegmentID)
-	timeHandleS := time.Now() // 0
+	pp := procperf.GetNew(procperf.ReceivedBcn, bcnId)
+	defer pp.Write()
+
 	span := opentracing.SpanFromContext(ctx)
 	intf := h.Interfaces.Get(b.InIfID)
 	if intf == nil {
@@ -66,12 +68,14 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	//	logger.Debug("Beacon pre-filtered", "err", err)
 	//	return err
 	//}
-	timeValidateS := time.Now() // 1
+	timeValidateS := time.Now()
 	if err := h.validateASEntry(b, intf); err != nil {
 		logger.Info("Beacon validation failed", "err", err)
 		return err
 	}
-	timeVerifyS := time.Now() // 2
+	timeValidateE := time.Now()
+	pp.AddDurationT(timeValidateS, timeValidateE) // 0
+	timeVerifyS := time.Now()
 	if err := h.verifySegment(ctx, b.Segment, peer); err != nil {
 		logger.Info("Beacon verification failed", "err", err)
 		return serrors.WrapStr("verifying beacon", err)
@@ -80,19 +84,24 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 		logger.Info("Not enough AS entries to process")
 		return serrors.New("Not enough AS entries to process")
 	}
-	timePreFilterS := time.Now() // 3
+	timeVerifyE := time.Now()
+	pp.AddDurationT(timeVerifyS, timeVerifyE) // 1
+	timePreFilterS := time.Now()              // 3
 	if err := h.IngressDB.PreFilter(b); err != nil {
 		logger.Debug("Beacon pre-filtered", "err", err)
 		return err
 	}
-	timeValidateAlgS := time.Now() // 4
+	timePreFilterE := time.Now()
+	pp.AddDurationT(timePreFilterS, timePreFilterE) // 2
+	timeValidateAlgS := time.Now()
 	// Check if all algorithm ids in the as entry extensions are equal
 	// It is possible for hops to not have Irec.
 	if err := h.validateAlgorithmHash(b.Segment); err != nil {
 		logger.Info("Beacon verification failed", "err", err)
 		return serrors.WrapStr("verifying beacon", err)
 	}
-	timeValidateAlgE := time.Now() // 5
+	timeValidateAlgE := time.Now()
+	pp.AddDurationT(timeValidateAlgS, timeValidateAlgE) // 3
 
 	// Verification checks passed, now check if the algorithm is known
 	go func() {
@@ -106,34 +115,30 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 		logger.Debug("Skipping as beacon is expired")
 		return nil
 	}
-	timeInsertS := time.Now() // 6
+	timeInsertS := time.Now()
 	// Insert with algorithm id and origin intfgroup
 	if _, err := h.IngressDB.InsertBeacon(ctx, b); err != nil {
 		logger.Debug("Failed to insert beacon", "err", err)
 		return serrors.WrapStr("inserting beacon", err)
 	}
-	timeInsertE := time.Now() // 7
+	timeInsertE := time.Now()
+	pp.AddDurationT(timeInsertS, timeInsertE) // 4
 	//logger.Debug("Inserted beacon")
-
-	if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Received, []time.Time{timeHandleS, timeValidateS, timeVerifyS, timePreFilterS, timeValidateAlgS, timeValidateAlgE, timeInsertS, timeInsertE}); err != nil {
-		return serrors.WrapStr("PROCPERF: error handling beacon", err)
-	}
-
 	return nil
 }
 
 func (h Handler) checkAndFetchAlgorithm(ctx context.Context, b *beacon.Beacon, peer *snet.UDPAddr) error {
 	algHash := egress.HashToString(b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash)
-	timeAlgCheckS := time.Now() // 0
+	pp := procperf.GetNew(procperf.Algorithm, algHash)
+	defer pp.Write()
+	timeAlgCheckS := time.Now()
 	exists, err := h.IngressDB.ExistsAlgorithm(ctx, b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash)
 	if err != nil {
 		return serrors.WrapStr("Couldn't check whether the algorithm is in the database", err)
 	}
-	timeAlgCheckE := time.Now() // 1
+	timeAlgCheckE := time.Now()
+	pp.AddDurationT(timeAlgCheckS, timeAlgCheckE) // 0
 	if exists {
-		if err := procperf.AddTimestampsDoneBeacon(algHash, procperf.Algorithm, []time.Time{timeAlgCheckS, timeAlgCheckE}); err != nil {
-			return serrors.WrapStr("PROCPERF: error retreving existing algorithm", err)
-		}
 		return nil
 	}
 
@@ -141,23 +146,29 @@ func (h Handler) checkAndFetchAlgorithm(ctx context.Context, b *beacon.Beacon, p
 	// to create a path back to the origin AS using the path described in the beacon.
 	//TODO(jvb); Optimize this slightly by removing the need for the extender.
 	segCopy, _ := seg.BeaconFromPB(seg.PathSegmentToPB(b.Segment))
-	timeExtendS := time.Now() // 2
+	timeExtendS := time.Now()
 	err = h.Extender.Extend(ctx, segCopy, b.InIfID, 0, false, nil, []uint16{})
 	if err != nil {
 		return err
 	}
-	timePathS := time.Now() // 3
+	timeExtendE := time.Now()
+	pp.AddDurationT(timeExtendS, timeExtendE) // 1
+	timePathS := time.Now()
 	address, err := h.Pather.GetPath(addr.SvcCS, segCopy)
 	if err != nil {
 		log.Error("Unable to choose server", "err", err)
 	}
-	timeDialS := time.Now() // 4
+	timePathE := time.Now()
+	pp.AddDurationT(timePathS, timePathE) // 2
+	timeDialS := time.Now()
 	conn, err := h.Dialer.Dial(ctx, address)
 	if err != nil {
 		return serrors.WrapStr("Error occurred while dialing origin AS", err)
 	}
 	defer conn.Close()
-	timeGrpcS := time.Now() // 5
+	timeDialE := time.Now()
+	pp.AddDurationT(timeDialS, timeDialE) // 3
+	timeGrpcS := time.Now()
 	client := cppb.NewIngressInterServiceClient(conn)
 	alg, err := client.GetAlgorithm(ctx, &cppb.AlgorithmRequest{AlgorithmHash: b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash})
 	if err != nil {
@@ -165,18 +176,20 @@ func (h Handler) checkAndFetchAlgorithm(ctx context.Context, b *beacon.Beacon, p
 	}
 	// TODO(jvb); to prevent DoS, should limit the amount of attempts we do for an algorithm retrieval per minute, aka
 	// enforce a delay.
-	timeGrpcE := time.Now() // 6
+	timeGrpcE := time.Now()
+	pp.AddDurationT(timeGrpcS, timeGrpcE) // 4
+	timeHashS := time.Now()
 	hash := sha256.New()
 	binary.Write(hash, binary.BigEndian, alg.Code)
-	timeInsertS := time.Now() // 7
+	timeHashE := time.Now()
+	pp.AddDurationT(timeHashS, timeHashE) // 5
+	timeInsertS := time.Now()
 	err = h.IngressDB.AddAlgorithm(ctx, hash.Sum(nil), alg.Code)
 	if err != nil {
 		return serrors.WrapStr("Error occurred while adding new algorithm", err)
 	}
-	timeInsertE := time.Now() // 8
-	if err := procperf.AddTimestampsDoneBeacon(algHash, procperf.Algorithm, []time.Time{timeAlgCheckS, timeAlgCheckE, timeExtendS, timePathS, timeDialS, timeGrpcS, timeGrpcE, timeInsertS, timeInsertE}); err != nil {
-		return serrors.WrapStr("PROCPERF: error retreving algorithm", err)
-	}
+	timeInsertE := time.Now()
+	pp.AddDurationT(timeInsertS, timeInsertE) // 6
 	return nil
 }
 

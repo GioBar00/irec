@@ -3,33 +3,93 @@ package procperf
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/scionproto/scion/pkg/log"
-	"github.com/scionproto/scion/pkg/private/serrors"
 )
 
 type Type string
 
 const (
 	Received      Type = "Received"
+	ReceivedBcn   Type = "ReceivedBcn"
 	Propagated    Type = "Propagated"
 	PropagatedBcn Type = "PropagatedBcn"
 	Originated    Type = "Originated"
+	OriginatedBcn Type = "OriginatedBcn"
 	Retrieved     Type = "Retrieved"
 	Written       Type = "Written"
 	Processed     Type = "Processed"
 	Executed      Type = "Executed"
 	Completed     Type = "Completed"
 	Algorithm     Type = "Algorithm"
+
+	maxTimeArraySize = 7
 )
 
 var file *os.File
 var once sync.Once
 var linesToWriteChan chan string
-var running bool = false
+var running = false
+
+type ProcPerf struct {
+	t         Type
+	id        string
+	data      string
+	time      time.Time
+	size      int
+	durations []time.Duration
+}
+
+func (pp *ProcPerf) AddDurationT(t1, t2 time.Time) {
+	if pp.size >= maxTimeArraySize {
+		log.Error("ProcPerf size exceeded", "max", maxTimeArraySize)
+		return
+	}
+	pp.durations = append(pp.durations, t2.Sub(t1))
+	pp.size++
+}
+
+func (pp *ProcPerf) AddDuration(seconds float64) {
+	if pp.size >= maxTimeArraySize {
+		log.Error("ProcPerf size exceeded", "max", maxTimeArraySize)
+		return
+	}
+	pp.durations = append(pp.durations, time.Duration(seconds*float64(time.Second)))
+	pp.size++
+}
+
+func (pp *ProcPerf) SetNumBeacons(num uint32) {
+	pp.data = fmt.Sprintf("%d", num)
+}
+
+func (pp *ProcPerf) SetNextID(id string) {
+	pp.data = id
+}
+
+func (pp *ProcPerf) SetID(id string) {
+	pp.id = id
+}
+
+func (pp *ProcPerf) string() string {
+	str := fmt.Sprintf("%s;%s;%s;%s;%d;", pp.t, pp.id, pp.data, pp.time.Format(time.RFC3339Nano), pp.size)
+	for i := 0; i < maxTimeArraySize; i++ {
+		if i < pp.size {
+			str += fmt.Sprintf("%f;", pp.durations[i].Seconds())
+		} else {
+			str += ";"
+		}
+	}
+	return str[:len(str)-1] + "\n"
+}
+
+func (pp *ProcPerf) Write() {
+	go func() {
+		defer log.HandlePanic()
+		linesToWriteChan <- pp.string()
+	}()
+}
 
 func Init() error {
 	var err error = nil
@@ -39,7 +99,12 @@ func Init() error {
 			log.Error("Error getting hostname", "err", err)
 		}
 		file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
-		_, err = file.WriteString("Type;ID;Next ID;Time Array\n")
+		header := "Type;ID;Data;Time;Size;"
+		for i := 0; i < maxTimeArraySize; i++ {
+			header += fmt.Sprintf("Duration %d;", i)
+		}
+		header = header[:len(header)-1] + "\n"
+		_, err = file.WriteString(header)
 		if err != nil {
 			log.Error("Error writing header", "err", err)
 		}
@@ -68,37 +133,8 @@ func Close() {
 	_ = file.Close()
 }
 
-func AddTimestampsDoneBeacon(id string, procPerfType Type, times []time.Time, newId ...string) error {
-	if procPerfType == PropagatedBcn && len(newId) == 0 {
-		return serrors.New("newId not found for propagated beacon")
-	}
-	newIdStr := ""
-	if len(newId) > 0 {
-		newIdStr = newId[0]
-	}
-	ppt := string(procPerfType)
-	var timeStrings []string
-	for _, t := range times {
-		timeStrings = append(timeStrings, t.Format(time.RFC3339Nano))
-	}
-	timeStr := "[" + strings.Join(timeStrings, ",") + "]"
-	_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + timeStr + "\n")
-	return err
-}
-
-func AddTimeDoneBeacon(id string, procPerfType Type, start time.Time, end time.Time, newId ...string) error {
-	if procPerfType == Propagated && len(newId) == 0 {
-		return serrors.New("newId not found for propagated beacon")
-	}
-	newIdStr := ""
-	if len(newId) > 0 {
-		newIdStr = newId[0]
-	}
-	ppt := string(procPerfType)
-	//_, err := file.WriteString(ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n")
-	linesToWriteChan <- ppt + ";" + id + ";" + newIdStr + ";" + start.Format(time.RFC3339Nano) + ";" + end.Format(time.RFC3339Nano) + "\n"
-	return nil
-	//return err
+func GetNew(t Type, id string) *ProcPerf {
+	return &ProcPerf{t: t, id: id, time: time.Now(), size: 0}
 }
 
 func GetFullId(id string, segID uint16) string {

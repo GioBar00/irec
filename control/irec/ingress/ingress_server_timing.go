@@ -5,7 +5,6 @@ package ingress
 import (
 	"context"
 	"fmt"
-	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/private/procperf"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 )
 
 func (i *IngressServer) JobComplete(ctx context.Context, req *cppb.JobCompleteNotify) (*cppb.JobCompleteResponse, error) {
+	pp := procperf.GetNew(procperf.Completed, fmt.Sprintf("%d", req.JobID))
+	pp.SetNumBeacons(uint32(len(req.RowIDs)))
 	timeMarkingS := time.Now()
 	err := i.IngressDB.MarkBeacons(ctx, req.RowIDs)
 	if err != nil {
@@ -20,8 +21,7 @@ func (i *IngressServer) JobComplete(ctx context.Context, req *cppb.JobCompleteNo
 	}
 	timeMarkingE := time.Now()
 	//fmt.Printf("marking=%d\n", timeMarkingE.Sub(timeMarkingS).Nanoseconds())
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", req.JobID), procperf.Completed, []time.Time{timeMarkingS, timeMarkingE}); err != nil {
-		log.Error("PROCPERF: Error when completing job", "err", err)
-	}
+	pp.AddDurationT(timeMarkingS, timeMarkingE)
+	pp.Write()
 	return &cppb.JobCompleteResponse{}, nil
 }

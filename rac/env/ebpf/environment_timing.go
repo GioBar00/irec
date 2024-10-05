@@ -52,19 +52,28 @@ func (e *EbpfEnv) ExecuteStatic(ctx context.Context, job *cppb.RACJob, counter i
 }
 
 func (e *EbpfEnv) executeVM(ctx context.Context, beaconFlatbuffer []byte, job *cppb.RACJob, code []byte) (*cppb.JobCompleteNotify, error) {
-	loadedTime := time.Now() // 0
+	pp := procperf.GetNew(procperf.Executed, fmt.Sprintf("%d", job.JobID))
+	defer pp.Write()
+	pp.SetNumBeacons(job.BeaconCount)
+	timeCreateS := time.Now()
 	vm := e.staticVM
 	vmCtx := e.staticCtx
 	if !e.Static {
 		vmCtx = C.new_ctx()
 		vm = C.create_vm(unsafe.Pointer(&code[0]), C.ulong(len(code)), vmCtx, C.bool(e.JIT))
 	}
-	prepareMemTime := time.Now() // 1
+	timeCreateE := time.Now()
+	pp.AddDurationT(timeCreateS, timeCreateE) // 0
+	timePrepMemS := time.Now()
 	C.prepare_mem(vmCtx, vm, unsafe.Pointer(&beaconFlatbuffer[0]), C.ulong(len(beaconFlatbuffer)))
-	execTime := time.Now() // 2
+	timePrepMemE := time.Now()
+	pp.AddDurationT(timePrepMemS, timePrepMemE) // 1
+	timeExecS := time.Now()
 	ret := C.exec_vm(vm, vmCtx, C.bool(e.JIT))
 	var p *C.struct_beacon_result = ret.beacon
-	totalExec := time.Now() // 3
+	timeExecE := time.Now()
+	pp.AddDurationT(timeExecS, timeExecE) // 2
+	timeCopyS := time.Now()
 	// Write the selected beacons to the egress gateway
 	selection := make([]*cppb.BeaconAndEgressIntf, 0)
 	selectedBeacons := make([]*cppb.EgressBeacon, int(ret.result_len))
@@ -84,26 +93,27 @@ func (e *EbpfEnv) executeVM(ctx context.Context, beaconFlatbuffer []byte, job *c
 		}
 
 	}
-	destroyMemTime := time.Now() // 4
+	timeCopyE := time.Now()
+	pp.AddDurationT(timeCopyS, timeCopyE) // 3
+	timeDestroyS := time.Now()
 	C.destroy_mem(vmCtx)
 	if !e.Static {
 		C.destroy_ctx(vmCtx)
 		C.destroy_vm(vm)
 	}
-
-	timeEgressGrpcS := time.Now() // 5
+	timeDestroyE := time.Now()
+	pp.AddDurationT(timeDestroyS, timeDestroyE) // 4
+	timeEgressGrpcS := time.Now()
 	err := e.Writer.WriteBeacons(ctx, selectedBeacons, job.JobID)
 	if err != nil {
 		log.Info("err", "msg", err)
 		//	return &racpb.ExecutionResponse{}, selection, err
 	}
-	timeEgressGrpcE := time.Now() // 6
+	timeEgressGrpcE := time.Now()
+	pp.AddDurationT(timeEgressGrpcS, timeEgressGrpcE) // 5
 	// timeTillSubmitNoLoad := time.Since(loadedTime)
 
 	// fmt.Printf("EBPF TIME; %d, %d, %d, %d, %d\n", time.Since(totalExec), timeEgressGrpcE.Sub(timeEgressGrpcS).Nanoseconds(), timeTillSubmitNoLoad.Nanoseconds(), execTime.Sub(prepareMemTime).Nanoseconds(), totalExec.Sub(execTime).Nanoseconds())
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", job.JobID), procperf.Executed, []time.Time{loadedTime, prepareMemTime, execTime, totalExec, destroyMemTime, timeEgressGrpcS, timeEgressGrpcE}); err != nil {
-		log.Error("PROCPERF: Error when executing job", "err", err)
-	}
 	if e.Static {
 		return &cppb.JobCompleteNotify{
 			RowIDs:    []int64{},

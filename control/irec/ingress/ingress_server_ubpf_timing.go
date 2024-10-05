@@ -19,49 +19,15 @@ import (
 	cppb "github.com/scionproto/scion/pkg/proto/control_plane"
 )
 
-func (i *IngressServer) getJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
-	timeStart := time.Now() // 0
-	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconJob(ctx, request)
-	if err != nil {
-		log.Error("An error occurred when retrieving beacons from db", "err", err)
-		return &cppb.RACJob{}, err
-	}
-	timeDbDone := time.Now() // 1
-	// Generate random uint32 JobID
-	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
-	if err != nil {
-		return &cppb.RACJob{}, err
-	}
-	//log.Debug("Queueing to RAC", "beacons", len(fbs))
-	ret := &cppb.RACJob{
-		AlgorithmHash: hash,
-		Flatbuffer:    i.packBeaconsFlatbuffer(fbs),
-		BeaconCount:   uint32(len(fbs)),
-		BeaconsUnopt:  bcns,
-		RowIds:        rowIds,
-		JobID:         uint32(jobID.Uint64()),
-	}
-	timeEnd := time.Now() // 2
-	//fmt.Printf("igdb=%d, ds=%d\n", timeDbDone.Sub(timeStart).Nanoseconds(), timeEnd.Sub(timeDbDone))
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
-		log.Error("PROCPERF: Error when getting job", "err", err)
-	}
-	return ret, nil
-}
-
 func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) (*cppb.RACJob, error) {
-	timeStart := time.Now()
+	//timeStart := time.Now()
 	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconRacJob(ctx, request, racJob)
 	if err != nil {
 		log.Error("An error occurred when retrieving beacons from db", "err", err)
 		return &cppb.RACJob{}, err
 	}
-	timeDbDone := time.Now()
+	//timeDbDone := time.Now()
 	// Generate random uint32 JobID
-	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
-	if err != nil {
-		return &cppb.RACJob{}, err
-	}
 	//log.Debug("Queueing to RAC", "beacons", len(fbs))
 	ret := &cppb.RACJob{
 		AlgorithmHash: hash,
@@ -69,12 +35,8 @@ func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRe
 		BeaconCount:   uint32(len(fbs)),
 		BeaconsUnopt:  bcns,
 		RowIds:        rowIds,
-		JobID:         uint32(jobID.Uint64()),
 	}
-	timeEnd := time.Now()
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", ret.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
-		log.Error("PROCPERF: Error when getting job", "err", err)
-	}
+	//timeEnd := time.Now()
 	return ret, nil
 }
 
@@ -114,17 +76,26 @@ func (i *IngressServer) packBeaconsFlatbuffer(fbs [][]byte) []byte {
 }
 
 func (i *IngressServer) GetBeacons(ctx context.Context, req *cppb.BeaconQuery) (*cppb.RACJob, error) {
-	timeStart := time.Now()
-	fbs, bcns, err := i.IngressDB.GetBeacons(ctx, req)
-	if err != nil {
-		return &cppb.RACJob{}, err
-	}
-	timeDbDone := time.Now()
+	pp := procperf.GetNew(procperf.Retrieved, "")
+	timeGenS := time.Now()
 	// Generate random uint32 JobID
 	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}
+	timeGenE := time.Now()
+	defer pp.Write()
+	pp.SetID(fmt.Sprintf("%d", uint32(jobID.Uint64())))
+	pp.AddDurationT(timeGenS, timeGenE) // 0
+	timeDbS := time.Now()
+	fbs, bcns, err := i.IngressDB.GetBeacons(ctx, req)
+	if err != nil {
+		return &cppb.RACJob{}, err
+	}
+	timeDbE := time.Now()
+	pp.AddDurationT(timeDbS, timeDbE) // 1
+	pp.SetNumBeacons(uint32(len(fbs)))
+	timeRacJobS := time.Now()
 	racJob := &cppb.RACJob{
 		PropIntfs:    i.PropagationInterfaces,
 		Flatbuffer:   i.packBeaconsFlatbuffer(fbs),
@@ -132,9 +103,7 @@ func (i *IngressServer) GetBeacons(ctx context.Context, req *cppb.BeaconQuery) (
 		BeaconsUnopt: bcns,
 		JobID:        uint32(jobID.Uint64()),
 	}
-	timeEnd := time.Now()
-	if err := procperf.AddTimestampsDoneBeacon(fmt.Sprintf("%d", racJob.JobID), procperf.Retrieved, []time.Time{timeStart, timeDbDone, timeEnd}); err != nil {
-		log.Error("PROCPERF: Error when getting job", "err", err)
-	}
+	timeRacJobE := time.Now()
+	pp.AddDurationT(timeRacJobS, timeRacJobE) // 2
 	return racJob, nil
 }

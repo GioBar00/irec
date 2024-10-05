@@ -62,7 +62,7 @@ func (o *AlgorithmOriginator) Run(ctx context.Context) {
 	o.Tick.UpdateLast()
 }
 
-// Responsible for orginating beacons for each of the IREC algorithm hashes that are configured for this AS.
+// Responsible for originating beacons for each of the IREC algorithm hashes that are configured for this AS.
 func (o *AlgorithmOriginator) originateBeacons(ctx context.Context) {
 	//intfs := o.Intfs
 	intfs, groupsPerIntf := o.needBeacon(o.Intfs)
@@ -96,6 +96,9 @@ func (o *AlgorithmOriginator) originateBeacons(ctx context.Context) {
 
 	var wg sync.WaitGroup
 	wg.Add(len(intfs) * len(o.OriginationAlgorithms))
+	pp := procperf.GetNew(procperf.Originated, "")
+	defer pp.Write()
+	timeOriginatorS := time.Now()
 	for _, alg := range o.OriginationAlgorithms {
 		for i, intf := range intfs {
 			b := intfOriginator{
@@ -128,6 +131,9 @@ func (o *AlgorithmOriginator) originateBeacons(ctx context.Context) {
 		}
 	}
 	wg.Wait()
+	timeOriginatorE := time.Now()
+	pp.SetNumBeacons(numBeacons.Load())
+	pp.AddDurationT(timeOriginatorS, timeOriginatorE) // 0
 	logger.Debug("Originated beacons", "Real", numBeacons.Load(), "Expected", numOrigBeacons)
 }
 
@@ -220,7 +226,8 @@ type intfOriginator struct {
 
 // originateBeacon originates a beacon on the given ifid.
 func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) error {
-	timeSenderS := time.Now() // 0
+	pp1 := procperf.GetNew(procperf.OriginatedBcn, "")
+	timeSenderS := time.Now()
 	topoInfo := o.intf.TopoInfo()
 	duration := time.Duration(5 * max(len(topoInfo.Groups), 1))
 	senderCtx, cancelF := context.WithTimeout(ctx, duration*time.Second)
@@ -238,7 +245,13 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			"waited_for", time.Since(timeSenderS).String())
 	}
 	defer sender.Close()
-	timeSenderE := time.Now() // 1
+	timeSenderE := time.Now()
+
+	numOriginatedBeacons := 0
+	defer func() {
+		pp1.AddDuration(timeSenderE.Sub(timeSenderS).Seconds() / float64(numOriginatedBeacons)) // 0
+		pp1.Write()
+	}()
 
 	if groups == nil {
 		if len(topoInfo.Groups) == 0 {
@@ -250,7 +263,8 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 
 	if o.OriginatePerIntfGroup {
 		for _, intfGroup := range groups {
-			timeCreateS := time.Now() // 2
+			pp := procperf.GetNew(procperf.OriginatedBcn, "") // Set id later
+			timeCreateS := time.Now()
 			beacon, err := o.createBeacon(ctx, intfGroup)
 			if o.pullbased {
 				log.Debug("Originating a pullbased beacon", "target", o.pullbasedTarget, "intfGroup", intfGroup)
@@ -258,21 +272,28 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			if err != nil {
 				return serrors.WrapStr("creating beacon", err)
 			}
-			timeCreateE := time.Now() // 3
+			timeCreateE := time.Now()
 			bcnId := procperf.GetFullId(beacon.GetLoggingID(), beacon.Info.SegmentID)
-			timeSendS := time.Now() // 4
+			pp.SetID(bcnId)
+			pp.AddDurationT(timeCreateS, timeCreateE) // 0
+			timeSendS := time.Now()
 			if err := sender.Send(ctx, beacon); err != nil {
+				pp.Write()
 				return serrors.WrapStr("sending beacon", err,
 					"waited_for", time.Since(timeSendS).String(),
 				)
 			}
-			timeSendE := time.Now() // 5
-			if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Originated, []time.Time{timeSenderS, timeSenderE, timeCreateS, timeCreateE, timeSendS, timeSendE}, bcnId); err != nil {
-				return serrors.WrapStr("PROCPERF: error originating beacon per interface group", err)
-			}
+			timeSendE := time.Now()
+			numOriginatedBeacons++
+			pp.AddDurationT(timeSendS, timeSendE) // 1
+			timeIntfOrigS := time.Now()
 			o.intf.Originate(time.Now(), intfGroup)
+			timeIntfOrigE := time.Now()
+			pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 2
+			pp.Write()
 		}
 	} else {
+		pp := procperf.GetNew(procperf.OriginatedBcn, "") // Set id later
 		timeCreateS := time.Now()
 		beacon, err := o.createBeacon(ctx, 0)
 		if o.pullbased {
@@ -283,17 +304,23 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 		}
 		timeCreateE := time.Now()
 		bcnId := procperf.GetFullId(beacon.GetLoggingID(), beacon.Info.SegmentID)
+		pp.SetID(bcnId)
+		pp.AddDurationT(timeCreateS, timeCreateE) // 0
 		timeSendS := time.Now()
 		if err := sender.Send(ctx, beacon); err != nil {
+			pp.Write()
 			return serrors.WrapStr("sending beacon", err,
 				"waited_for", time.Since(timeCreateS).String(),
 			)
 		}
 		timeSendE := time.Now()
-		if err := procperf.AddTimestampsDoneBeacon(bcnId, procperf.Originated, []time.Time{timeSenderS, timeSenderE, timeCreateS, timeCreateE, timeSendS, timeSendE}, bcnId); err != nil {
-			return serrors.WrapStr("PROCPERF: error originating beacon", err)
-		}
+		numOriginatedBeacons++
+		pp.AddDurationT(timeSendS, timeSendE) // 1
+		timeIntfOrigS := time.Now()
 		o.intf.Originate(time.Now(), 0)
+		timeIntfOrigE := time.Now()
+		pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 2
+		pp.Write()
 	}
 	return nil
 }
