@@ -61,7 +61,7 @@ type DynamicJobRunner struct {
 }
 
 func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
-	pp := procperf.GetNew(procperf.Received, "")
+	pp := procperf.GetNew(procperf.Processed, "")
 	timeConnS := time.Now()
 	conn, err := j.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 100)
 	if err != nil {
@@ -123,7 +123,7 @@ func (d *DynamicJobRunner) run(ctx context.Context, j *JobExecutor) error {
 type StaticJobRunner struct{}
 
 func (s *StaticJobRunner) run(ctx context.Context, j *JobExecutor) error {
-	pp := procperf.GetNew(procperf.Received, "")
+	pp := procperf.GetNew(procperf.Processed, "")
 	timeConnS := time.Now()
 	conn, err := j.Dialer.DialLimit(ctx, &snet.SVCAddr{SVC: addr.SvcCS}, 50)
 	if err != nil {
