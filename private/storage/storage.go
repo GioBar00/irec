@@ -221,7 +221,7 @@ func NewIngressStorage(c DBConfig, ia addr.IA) (IngressDB, error) {
 			},
 			"control_ingressdb_cleaner",
 		),
-		30*time.Second,
+		10*time.Second,
 		30*time.Second,
 	)
 	return ingressDBWithCleaner{

@@ -177,7 +177,7 @@ func (s *baseStore) ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (
 	return s.db.ExistsAlgorithm(ctx, algorithmHash)
 }
 func (s *baseStore) GetBeaconsJob(ctx context.Context, request *cppb.RACBeaconRequest, selRacJob *beacon.RacJobAttr) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
-	return s.db.GetBeaconsJob(ctx, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30), selRacJob)
+	return s.db.GetBeaconsJob(ctx, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*10), selRacJob)
 }
 
 func (s *baseStore) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {

@@ -313,15 +313,15 @@ func (e *executor) GetBeaconsJob(ctx context.Context, maximum uint32, ignoreIntf
 	}
 
 	// Mark beacons as being fetched. (rowIds)
-	_, err = tx.ExecContext(ctx, query, selRacJob.IsdAs.ISD(), selRacJob.IsdAs.AS(), selRacJob.AlgHash, selRacJob.AlgId, selRacJob.PullBased, selRacJob.PullTargetIsdAs.ISD(), selRacJob.PullTargetIsdAs.AS(), selRacJob.IntfGroup, fetchExpirationTime.Unix())
+	_, err = tx.ExecContext(ctx, query+"AND RowID NOT IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", selRacJob.IsdAs.ISD(), selRacJob.IsdAs.AS(), selRacJob.AlgHash, selRacJob.AlgId, selRacJob.PullBased, selRacJob.PullTargetIsdAs.ISD(), selRacJob.PullTargetIsdAs.AS(), selRacJob.IntfGroup, fetchExpirationTime.Add(1*time.Minute).Unix())
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 
-	// _, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
-	// if err != nil {
-	// 	return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
-	// }
+	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
+	if err != nil {
+		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	}
 
 	err = tx.Commit()
 	if err != nil {
