@@ -7,11 +7,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/private/procperf"
 	"math/big"
-	mrand "math/rand"
 	"os"
 	"time"
+
+	"github.com/scionproto/scion/private/procperf"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -20,6 +20,7 @@ import (
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/config"
 	"github.com/scionproto/scion/control/irec/ingress/storage"
+	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/grpc"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/common"
@@ -45,6 +46,8 @@ type IngressServer struct {
 	IngressDB             storage.IngressStore
 	PropagationInterfaces []uint32
 	Dialer                *grpc.TCPDialer
+
+	seenIsdAs map[addr.IA]struct{}
 }
 
 func (i *IngressServer) LoadAlgorithms(ctx context.Context, algs []config.AlgorithmInfo) {
@@ -136,6 +139,9 @@ func (i *IngressServer) Handle(ctx context.Context, req *cppb.IncomingBeacon) (*
 }
 
 func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconRequest) (*cppb.RACJob, error) {
+	if i.seenIsdAs == nil {
+		i.seenIsdAs = make(map[addr.IA]struct{})
+	}
 	pp := procperf.GetNew(procperf.Retrieved, "")
 	timeGenS := time.Now()
 	jobID, err := rand.Int(rand.Reader, big.NewInt(1<<32))
@@ -157,9 +163,23 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 	timeGetRacJobsE := time.Now()
 	pp.AddDurationT(timeGetRacJobsS, timeGetRacJobsE) // 1
 	//TODO: Implement the rac job selection logic using the factors
-
-	// select a random job
-	racJobM := racJobsM[mrand.Intn(len(racJobsM))]
+	newIsdAsRacJobs := []*beacon.RacJobMetadata{}
+	for _, racJobM := range racJobsM {
+		if _, ok := i.seenIsdAs[racJobM.IsdAs]; !ok {
+			newIsdAsRacJobs = append(newIsdAsRacJobs, racJobM)
+		}
+	}
+	if len(newIsdAsRacJobs) > 0 {
+		racJobsM = newIsdAsRacJobs
+	}
+	racJobM := racJobsM[0]
+	// Select the racjob with the oldest timestamp
+	for _, rjm := range racJobsM {
+		if rjm.LastExecuted.Before(racJobM.LastExecuted) {
+			racJobM = rjm
+		}
+	}
+	i.seenIsdAs[racJobM.IsdAs] = struct{}{}
 	timeGetRacJobS := time.Now()
 	racJob, err := i.getRacJob(ctx, request, racJobM)
 	if err != nil {

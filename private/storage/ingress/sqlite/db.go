@@ -484,7 +484,7 @@ func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*bea
 	defer e.Unlock()
 	// Get all valid RacJobs
 	query := `SELECT
-				rj.RowID, rj.PullBased, rj.LastExecuted, COUNT(*) as Count
+				rj.RowID, rj.StartIsd, rj.StartAs, rj.PullBased, rj.LastExecuted, COUNT(*) as Count
 				FROM RacJobs rj, Beacons b, Algorithm a
 				WHERE
 					rj.Valid = 1
@@ -512,17 +512,25 @@ func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*bea
 	var res []*beacon.RacJobMetadata
 	for rows.Next() {
 		var rowID int64
+		var isd addr.ISD
+		var as addr.AS
 		var pullBased bool
 		var lastExecuted int64
 		var count int64
-		err = rows.Scan(&rowID, &pullBased, &lastExecuted, &count)
+		err = rows.Scan(&rowID, &isd, &as, &pullBased, &lastExecuted, &count)
+		if err != nil {
+			return nil, err
+		}
+		isdAs, err := addr.IAFrom(isd, as)
 		if err != nil {
 			return nil, err
 		}
 		res = append(res, &beacon.RacJobMetadata{
 			RowID:        rowID,
+			IsdAs:        isdAs,
 			PullBased:    pullBased,
 			LastExecuted: time.Unix(lastExecuted, 0),
+			Count:        count,
 		})
 	}
 	return res, nil

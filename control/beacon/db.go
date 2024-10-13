@@ -41,6 +41,7 @@ const (
 
 type RacJobMetadata struct {
 	RowID        int64
+	IsdAs        addr.IA
 	PullBased    bool
 	LastExecuted time.Time
 	Count        int64

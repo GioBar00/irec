@@ -321,10 +321,10 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	// } else {
 	// 	log.Info("DB; Size", "size", dbSize)
 	// }
-	timeWaitS := time.Now()
-	wg.Wait()
-	timeWaitE := time.Now()
-	ppT.AddDurationT(timeWaitS, timeWaitE) // 3
+	// timeWaitS := time.Now()
+	// wg.Wait()
+	// timeWaitE := time.Now()
+	// ppT.AddDurationT(timeWaitS, timeWaitE) // 3
 	// log.Info("RP; Beacon propagation waiting done", "time", timeWaitE.Sub(timeWaitS))
 	// log.Info("RP; Beacon propagation done", "beacons", totalNumber, "filtered", totalNumberFiltered)
 	return &cppb.PropagationRequestResponse{}, nil
