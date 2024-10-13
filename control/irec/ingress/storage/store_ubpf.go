@@ -19,6 +19,7 @@ type IngressStore interface {
 	GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error)
 	GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBeacon, error)
 	GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
+	GetBeaconsJob(ctx context.Context, request *cppb.RACBeaconRequest, selRacJob *beacon.RacJobAttr) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 
 	MarkBeacons(ctx context.Context, ids []int64) error
 	InsertBeacon(ctx context.Context, b beacon.Beacon) (beacon.InsertStats, error)
@@ -28,6 +29,7 @@ type IngressStore interface {
 	ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (bool, error)
 
 	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error)
+	GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error)
 	//DEPRECATED;
 	GetAndMarkBeacons(ctx context.Context, req *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, error)
 	BeaconSources(ctx context.Context, ignoreIntfGroup bool) ([]*cppb.RACBeaconSource, error)
@@ -88,12 +90,14 @@ type DB interface {
 	GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error)
 	GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBeacon, error)
 	GetBeaconRacJob(ctx context.Context, racJobRowID int64, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
+	GetBeaconsJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time, selRacJob *beacon.RacJobAttr) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
 
 	AddAlgorithm(ctx context.Context, algorithmHash []byte, algorithmCode []byte) error
 	GetAlgorithm(ctx context.Context, algorithmHash []byte) ([]byte, error)
 	ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (bool, error)
 
 	GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error)
+	GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error)
 }
 
 type baseStore struct {
@@ -172,6 +176,14 @@ func (s *baseStore) GetAlgorithm(ctx context.Context, algorithmHash []byte) ([]b
 func (s *baseStore) ExistsAlgorithm(ctx context.Context, algorithmHash []byte) (bool, error) {
 	return s.db.ExistsAlgorithm(ctx, algorithmHash)
 }
+func (s *baseStore) GetBeaconsJob(ctx context.Context, request *cppb.RACBeaconRequest, selRacJob *beacon.RacJobAttr) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	return s.db.GetBeaconsJob(ctx, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30), selRacJob)
+}
+
+func (s *baseStore) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {
+	return s.db.GetValidRacJobs(ctx)
+}
+
 func (s *Store) MaxExpTime(policyType beacon.PolicyType) uint8 {
 	switch policyType {
 	case beacon.UpRegPolicy:

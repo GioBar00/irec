@@ -391,8 +391,15 @@ func realMain(ctx context.Context) error {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
 
+	jobHandler := ingress.JobHandler{
+		IngressDB: db,
+	}
+
+	periodic.Start(&jobHandler, 5*time.Second, 30*time.Second)
+
 	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
 	is := &ingress.IngressServer{
+		RacHandler: jobHandler,
 		IncomingHandler: ingress.Handler{
 			Pather: &addrutil.Pather{
 				NextHopper: topo,

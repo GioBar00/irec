@@ -46,6 +46,33 @@ type RacJobMetadata struct {
 	Count        int64
 }
 
+type RacJobAttr struct {
+	IsdAs           addr.IA
+	IntfGroup       uint16
+	AlgHash         []byte
+	AlgId           uint32
+	PullBased       bool
+	PullTargetIsdAs addr.IA
+	NotFetchCount   uint32
+}
+
+func (a RacJobAttr) Equal(attr *RacJobAttr) bool {
+	// check alg hash
+	if len(a.AlgHash) != len(attr.AlgHash) {
+		return false
+	}
+	for i := range a.AlgHash {
+		if a.AlgHash[i] != attr.AlgHash[i] {
+			return false
+		}
+	}
+	return a.IsdAs.Equal(attr.IsdAs) &&
+		a.IntfGroup == attr.IntfGroup &&
+		a.PullBased == attr.PullBased &&
+		a.PullTargetIsdAs.Equal(attr.PullTargetIsdAs) &&
+		a.AlgId == attr.AlgId
+}
+
 // InsertStats provides statistics about an insertion.
 type InsertStats struct {
 	Inserted, Updated, Filtered int

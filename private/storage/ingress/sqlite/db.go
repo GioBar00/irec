@@ -479,6 +479,60 @@ func (e *executor) makeRacJobValid(
 	return nil
 }
 
+func (e *executor) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {
+	e.Lock()
+	defer e.Unlock()
+	query := `SELECT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, Count(RowID)
+				FROM Beacons
+				WHERE
+					FetchStatus = 0,
+					PullBased = 0
+				GROUP BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs
+				UNION
+				SELECT DISTINCT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, Count(RowID)
+				FROM Beacons
+				WHERE
+					FetchStatus = 0,
+					PullBased = 1
+					GROUP BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs
+					HAVING
+						Count(RowID) > PullBasedMinBeacons
+						AND Min(PullBasedHyperPeriod) <= ?`
+	rows, err := e.db.QueryContext(ctx, query, time.Now().Unix())
+	if err != nil {
+		return nil, db.NewReadError("Failed to lookup rac jobs", err)
+	}
+	defer rows.Close()
+	var res []*beacon.RacJobAttr
+	for rows.Next() {
+		var startIsd addr.ISD
+		var startAs addr.AS
+		var startIntfGroup uint16
+		var algorithmHash sql.RawBytes
+		var algorithmId uint32
+		var pullBased bool
+		var pullBasedTargetIsd addr.ISD
+		var pullBasedTargetAs addr.AS
+		var count uint32
+		err = rows.Scan(&startIsd, &startAs, &startIntfGroup, &algorithmHash, &algorithmId, &pullBased, &pullBasedTargetIsd, &pullBasedTargetAs, &count)
+		if err != nil {
+			return nil, err
+		}
+		isdAs, _ := addr.IAFrom(startIsd, startAs)
+		pullIsdAs, _ := addr.IAFrom(pullBasedTargetIsd, pullBasedTargetAs)
+		res = append(res, &beacon.RacJobAttr{
+			IsdAs:           isdAs,
+			IntfGroup:       startIntfGroup,
+			AlgHash:         algorithmHash,
+			AlgId:           algorithmId,
+			PullBased:       pullBased,
+			PullTargetIsdAs: pullIsdAs,
+			NotFetchCount:   count,
+		})
+	}
+	return res, nil
+}
+
 func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
 	e.Lock()
 	defer e.Unlock()

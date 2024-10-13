@@ -8,14 +8,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/scionproto/scion/private/procperf"
-	"math/big"
-	mrand "math/rand"
-	"os"
-	"time"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"math/big"
+	"os"
+	"time"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/config"
@@ -30,18 +28,17 @@ import (
 	"github.com/scionproto/scion/pkg/snet"
 )
 
-const (
-	defaultAgeingFactor    = 1.0
-	defaultPullBasedFactor = 1.0
-	defaultGroupSizeFactor = 1.0
-)
-
 type IncomingBeaconHandler interface {
 	HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error
 }
 
+type RacJobHandler interface {
+	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
+}
+
 type IngressServer struct {
 	IncomingHandler       IncomingBeaconHandler
+	RacHandler            RacJobHandler
 	IngressDB             storage.IngressStore
 	PropagationInterfaces []uint32
 	Dialer                *grpc.TCPDialer
@@ -146,22 +143,16 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 	defer pp.Write()
 	pp.SetID(fmt.Sprintf("%d", uint32(jobID.Uint64())))
 	pp.AddDurationT(timeGenS, timeGenE) // 0
-	timeGetRacJobsS := time.Now()
-	racJobsM, err := i.IngressDB.GetRacJobs(ctx, request.IgnoreIntfGroup)
+	timeSelectRacJobS := time.Now()
+	selRacJob, err := i.RacHandler.GetRacJob(ctx)
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}
-	if len(racJobsM) == 0 {
-		return &cppb.RACJob{}, nil
-	}
-	timeGetRacJobsE := time.Now()
-	pp.AddDurationT(timeGetRacJobsS, timeGetRacJobsE) // 1
-	//TODO: Implement the rac job selection logic using the factors
+	timeSelectRacJobE := time.Now()
+	pp.AddDurationT(timeSelectRacJobS, timeSelectRacJobE) // 1
 
-	// select a random job
-	racJobM := racJobsM[mrand.Intn(len(racJobsM))]
 	timeGetRacJobS := time.Now()
-	racJob, err := i.getRacJob(ctx, request, racJobM)
+	racJob, err := i.getBeaconsJob(ctx, request, selRacJob)
 	if err != nil {
 		return &cppb.RACJob{}, err
 	}

@@ -40,6 +40,27 @@ func (i *IngressServer) getRacJob(ctx context.Context, request *cppb.RACBeaconRe
 	return ret, nil
 }
 
+func (i *IngressServer) getBeaconsJob(ctx context.Context, request *cppb.RACBeaconRequest, selRacJob *beacon.RacJobAttr) (*cppb.RACJob, error) {
+	//timeStart := time.Now()
+	fbs, bcns, hash, rowIds, err := i.IngressDB.GetBeaconsJob(ctx, request, selRacJob)
+	if err != nil {
+		log.Error("An error occurred when retrieving beacons from db", "err", err)
+		return &cppb.RACJob{}, err
+	}
+	//timeDbDone := time.Now()
+	// Generate random uint32 JobID
+	//log.Debug("Queueing to RAC", "beacons", len(fbs))
+	ret := &cppb.RACJob{
+		AlgorithmHash: hash,
+		Flatbuffer:    i.packBeaconsFlatbuffer(fbs),
+		BeaconCount:   uint32(len(fbs)),
+		BeaconsUnopt:  bcns,
+		RowIds:        rowIds,
+	}
+	//timeEnd := time.Now()
+	return ret, nil
+}
+
 func (i *IngressServer) packBeaconsFlatbuffer(fbs [][]byte) []byte {
 	builder := flatbuffers.NewBuilder(0)
 	fbOffsetArr := make([]flatbuffers.UOffsetT, len(fbs))
