@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "handler.go",
+        "racjob.go",
         "ingress_server.go",
         "ingress_server_notiming.go",
         "ingress_server_timing.go",
@@ -39,6 +40,7 @@ go_library(
         "//private/segment/segverifier:go_default_library",
         "//private/segment/verifier:go_default_library",
         "//private/topology:go_default_library",
+        "//private/periodic:go_default_library",
         "@com_github_google_flatbuffers//go:go_default_library",
         "@com_github_opentracing_opentracing_go//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",

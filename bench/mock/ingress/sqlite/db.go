@@ -325,3 +325,11 @@ func (e *executor) DeleteExpiredBeacons(ctx context.Context, now time.Time) (int
 func (e *executor) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
 	return nil, nil
 }
+
+func (e *executor) GetBeaconsJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time, selRacJob *beacon.RacJobAttr) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	return nil, nil, nil, nil, nil
+}
+
+func (e *executor) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {
+	return nil, nil
+}

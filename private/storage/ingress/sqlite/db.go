@@ -392,10 +392,10 @@ DELETE from Beacons WHERE exists (SELECT 1 from tempTable WHERE
 	if err != nil {
 		return exec1 + exec2, err
 	}
-	_, err = e.db.ExecContext(ctx, `DELETE FROM RacJobs WHERE LastExecuted < ?`, now.Add(-1*time.Hour).Unix())
-	if err != nil {
-		return exec1 + exec2, err
-	}
+	// _, err = e.db.ExecContext(ctx, `DELETE FROM RacJobs WHERE LastExecuted < ?`, now.Add(-1*time.Hour).Unix())
+	// if err != nil {
+	// 	return exec1 + exec2, err
+	// }
 	return exec1 + exec2, err
 }
 
@@ -482,25 +482,63 @@ func (e *executor) makeRacJobValid(
 func (e *executor) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {
 	e.Lock()
 	defer e.Unlock()
-	query := `SELECT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, Count(RowID)
-				FROM Beacons
-				WHERE
-					FetchStatus = 0,
-					PullBased = 0
-				GROUP BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs
-				UNION
-				SELECT DISTINCT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, Count(RowID)
-				FROM Beacons
-				WHERE
-					FetchStatus = 0,
-					PullBased = 1
-					GROUP BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs
-					HAVING
-						Count(RowID) > PullBasedMinBeacons
-						AND Min(PullBasedHyperPeriod) <= ?`
+	query := `
+SELECT
+	StartIsd,
+	StartAs,
+	StartIntfGroup,
+	AlgorithmHash,
+	AlgorithmId,
+	PullBased,
+	PullBasedTargetIsd,
+	PullBasedTargetAs,
+	COUNT(RowID)
+FROM
+	Beacons
+WHERE
+	FetchStatus = 0
+	AND PullBased = 0
+GROUP BY
+	StartIsd,
+	StartAs,
+	StartIntfGroup,
+	AlgorithmHash,
+	AlgorithmId,
+	PullBased,
+	PullBasedTargetIsd,
+	PullBasedTargetAs
+UNION
+SELECT
+	StartIsd,
+	StartAs,
+	StartIntfGroup,
+	AlgorithmHash,
+	AlgorithmId,
+	PullBased,
+	PullBasedTargetIsd,
+	PullBasedTargetAs,
+	COUNT(RowID)
+FROM
+	Beacons
+WHERE
+	FetchStatus = 0
+	AND PullBased = 1
+GROUP BY
+	StartIsd,
+	StartAs,
+	StartIntfGroup,
+	AlgorithmHash,
+	AlgorithmId,
+	PullBased,
+	PullBasedTargetIsd,
+	PullBasedTargetAs
+HAVING
+	COUNT(RowID) > PullBasedMinBeacons AND MIN(PullBasedHyperPeriod) <= ?
+`
 	rows, err := e.db.QueryContext(ctx, query, time.Now().Unix())
 	if err != nil {
-		return nil, db.NewReadError("Failed to lookup rac jobs", err)
+		//return nil, db.NewReadError("Failed to lookup rac jobs", err)
+		return nil, err
 	}
 	defer rows.Close()
 	var res []*beacon.RacJobAttr

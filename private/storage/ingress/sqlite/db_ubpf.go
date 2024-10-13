@@ -292,11 +292,36 @@ func (e *executor) GetBeaconsJob(ctx context.Context, maximum uint32, ignoreIntf
 		return [][]byte{}, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
 
+	query = `
+	UPDATE
+		Beacons
+	SET
+		FetchStatus = 1,
+		FetchStatusExpirationTime = ?9
+	WHERE
+		FetchStatus = 0
+		AND StartIsd = ?1
+		AND StartAs = ?2
+		AND AlgorithmHash = ?3
+		AND AlgorithmId = ?4
+		AND PullBased = ?5
+		AND PullBasedTargetIsd = ?6
+		AND PullBasedTargetAs = ?7
+	`
+	if !ignoreIntfGroup {
+		query = query + ` AND StartIntfGroup = ?8 `
+	}
+
 	// Mark beacons as being fetched. (rowIds)
-	_, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
+	_, err = tx.ExecContext(ctx, query, selRacJob.IsdAs.ISD(), selRacJob.IsdAs.AS(), selRacJob.AlgHash, selRacJob.AlgId, selRacJob.PullBased, selRacJob.PullTargetIsdAs.ISD(), selRacJob.PullTargetIsdAs.AS(), selRacJob.IntfGroup, fetchExpirationTime.Unix())
 	if err != nil {
 		return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
 	}
+
+	// _, err = tx.ExecContext(ctx, "UPDATE Beacons SET FetchStatus = 1, FetchStatusExpirationTime=? WHERE RowID IN ("+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(rowIds)), ","), "[]")+")", fetchExpirationTime.Unix())
+	// if err != nil {
+	// 	return nil, []*cppb.IRECBeaconUnopt{}, []byte{}, []int64{}, serrors.Join(err, tx.Rollback())
+	// }
 
 	err = tx.Commit()
 	if err != nil {
@@ -662,25 +687,25 @@ func (e *executor) updateExistingBeacon(
 	if err != nil {
 		return db.NewWriteError("update segment", err)
 	}
-	start := b.Segment.FirstIA()
-	intfGroup := uint16(0)
-	algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
-	algorithmId := uint32(0)
-	pullBased := false
-	pullBasedTargetAs := 0
-	pullBasedTargetIsd := 0
-	if b.Segment.ASEntries[0].Extensions.Irec != nil {
-		intfGroup = b.Segment.ASEntries[0].Extensions.Irec.InterfaceGroup
-		algorithmHash = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash
-		algorithmId = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmId
-		pullBased = b.Segment.ASEntries[0].Extensions.Irec.PullBased
-		if !b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.IsZero() {
-			pullBasedTargetAs = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.AS())
-			pullBasedTargetIsd = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.ISD())
-		}
-	}
+	// start := b.Segment.FirstIA()
+	// intfGroup := uint16(0)
+	// algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
+	// algorithmId := uint32(0)
+	// pullBased := false
+	// pullBasedTargetAs := 0
+	// pullBasedTargetIsd := 0
+	// if b.Segment.ASEntries[0].Extensions.Irec != nil {
+	// 	intfGroup = b.Segment.ASEntries[0].Extensions.Irec.InterfaceGroup
+	// 	algorithmHash = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash
+	// 	algorithmId = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmId
+	// 	pullBased = b.Segment.ASEntries[0].Extensions.Irec.PullBased
+	// 	if !b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.IsZero() {
+	// 		pullBasedTargetAs = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.AS())
+	// 		pullBasedTargetIsd = int(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.ISD())
+	// 	}
+	// }
 
-	err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
+	// err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
 
 	return err
 }
@@ -751,7 +776,7 @@ func (e *executor) insertNewBeacon(
 		return db.NewWriteError("insert beacon", err)
 	}
 
-	err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
+	// err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
 
 	return err
 }

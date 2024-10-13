@@ -9,8 +9,6 @@ import (
 
 	"github.com/scionproto/scion/private/procperf"
 
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/control/irec/egress"
@@ -46,7 +44,7 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	pp := procperf.GetNew(procperf.ReceivedBcn, bcnId)
 	defer pp.Write()
 
-	span := opentracing.SpanFromContext(ctx)
+	// span := opentracing.SpanFromContext(ctx)
 	intf := h.Interfaces.Get(b.InIfID)
 	if intf == nil {
 		err := serrors.New("received beacon on non-existent interface",
@@ -55,10 +53,10 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	}
 
 	upstream := intf.TopoInfo().IA
-	if span != nil {
-		span.SetTag("ingress_interface", b.InIfID)
-		span.SetTag("upstream", upstream)
-	}
+	// if span != nil {
+	// 	span.SetTag("ingress_interface", b.InIfID)
+	// 	span.SetTag("upstream", upstream)
+	// }
 	logger := log.FromCtx(ctx).New("beacon", b, "upstream", upstream)
 	ctx = log.CtxWith(ctx, logger)
 

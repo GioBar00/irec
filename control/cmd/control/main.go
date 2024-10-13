@@ -395,11 +395,11 @@ func realMain(ctx context.Context) error {
 		IngressDB: db,
 	}
 
-	periodic.Start(&jobHandler, 5*time.Second, 30*time.Second)
+	periodic.Start(&jobHandler, 30*time.Second, 30*time.Second)
 
 	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
 	is := &ingress.IngressServer{
-		RacHandler: jobHandler,
+		RacHandler: &jobHandler,
 		IncomingHandler: ingress.Handler{
 			Pather: &addrutil.Pather{
 				NextHopper: topo,

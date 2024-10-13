@@ -7,13 +7,14 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
+	"os"
+	"time"
+
 	"github.com/scionproto/scion/private/procperf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"math/big"
-	"os"
-	"time"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/config"
@@ -145,7 +146,7 @@ func (i *IngressServer) GetJob(ctx context.Context, request *cppb.RACBeaconReque
 	pp.AddDurationT(timeGenS, timeGenE) // 0
 	timeSelectRacJobS := time.Now()
 	selRacJob, err := i.RacHandler.GetRacJob(ctx)
-	if err != nil {
+	if err != nil || selRacJob == nil {
 		return &cppb.RACJob{}, err
 	}
 	timeSelectRacJobE := time.Now()

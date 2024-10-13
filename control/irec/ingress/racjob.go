@@ -3,14 +3,15 @@ package ingress
 import (
 	"container/heap"
 	"context"
+	"sync"
+	"time"
+
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/log"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/private/periodic"
-	"sync"
-	"time"
 )
 
 var _ periodic.Task = (*JobHandler)(nil)
@@ -117,6 +118,8 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	racJob.LastExecuted = time.Now()
 	racJob.Valid = false
 
+	log.FromCtx(ctx).Info("Selected RacJob", "RacJob", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
+
 	return racJob.RacJobAttr, nil
 }
 
@@ -129,7 +132,7 @@ func (j *JobHandler) Run(ctx context.Context) {
 	if err := j.run(ctx); err != nil {
 		log.FromCtx(ctx).Error("Error running job handler", "err", err)
 	}
-	j.Tick.UpdateLast()
+	//j.Tick.UpdateLast()
 }
 
 func (j *JobHandler) run(ctx context.Context) error {
@@ -140,6 +143,10 @@ func (j *JobHandler) run(ctx context.Context) error {
 }
 
 func (j *JobHandler) getNewRacJobs(ctx context.Context) error {
+	defer j.Tick.UpdateLast()
+	if j.racJobsByIsdAs == nil {
+		j.racJobsByIsdAs = make(map[addr.IA][]*RacJob)
+	}
 	// get new rac jobs
 	newRacJobsAttr, err := j.IngressDB.GetValidRacJobs(ctx)
 	if err != nil {
@@ -163,13 +170,18 @@ func (j *JobHandler) getNewRacJobs(ctx context.Context) error {
 			}
 		}
 		if racJob == nil {
+			log.FromCtx(ctx).Info("New RacJob", "RacJob", racJobAttr)
 			racJob = &RacJob{RacJobAttr: racJobAttr, Valid: true, LastExecuted: time.Now()}
 			if !ok {
 				racJob.LastExecuted = time.Now().Add(-5 * time.Minute)
 			}
 			j.racJobsByIsdAs[racJobAttr.IsdAs] = append(j.racJobsByIsdAs[racJobAttr.IsdAs], racJob)
-		} else {
+		} else if racJobAttr.NotFetchCount >= 10 || racJob.LastExecuted.Add(1*time.Minute).Before(time.Now()) {
 			racJob.Valid = true
+			racJob.RacJobAttr.NotFetchCount = racJobAttr.NotFetchCount
+		} else {
+			racJob.RacJobAttr.NotFetchCount = racJobAttr.NotFetchCount
+			continue
 		}
 		// add to queue
 		if racJobAttr.PullBased {
