@@ -3,13 +3,14 @@ package egress
 import (
 	"context"
 	"crypto/rand"
-	"github.com/scionproto/scion/private/periodic"
 	"math/big"
 	"net"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/scionproto/scion/private/periodic"
 
 	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/ifstate"
@@ -226,7 +227,6 @@ type intfOriginator struct {
 
 // originateBeacon originates a beacon on the given ifid.
 func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) error {
-	pp1 := procperf.GetNew(procperf.OriginatedBcn, "")
 	timeSenderS := time.Now()
 	topoInfo := o.intf.TopoInfo()
 	duration := time.Duration(5 * max(len(topoInfo.Groups), 1))
@@ -246,12 +246,6 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 	}
 	defer sender.Close()
 	timeSenderE := time.Now()
-
-	numOriginatedBeacons := 0
-	defer func() {
-		pp1.AddDuration(timeSenderE.Sub(timeSenderS).Seconds() / float64(numOriginatedBeacons)) // 0
-		pp1.Write()
-	}()
 
 	if groups == nil {
 		if len(topoInfo.Groups) == 0 {
@@ -275,7 +269,9 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			timeCreateE := time.Now()
 			bcnId := procperf.GetFullId(beacon.GetLoggingID(), beacon.Info.SegmentID)
 			pp.SetID(bcnId)
-			pp.AddDurationT(timeCreateS, timeCreateE) // 0
+			pp.SetNextID(bcnId)
+			pp.AddDuration(timeSenderE.Sub(timeSenderS).Seconds() / float64(len(groups))) // 0
+			pp.AddDurationT(timeCreateS, timeCreateE)                                     // 1
 			timeSendS := time.Now()
 			if err := sender.Send(ctx, beacon); err != nil {
 				pp.Write()
@@ -284,12 +280,11 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 				)
 			}
 			timeSendE := time.Now()
-			numOriginatedBeacons++
-			pp.AddDurationT(timeSendS, timeSendE) // 1
+			pp.AddDurationT(timeSendS, timeSendE) // 2
 			timeIntfOrigS := time.Now()
 			o.intf.Originate(time.Now(), intfGroup)
 			timeIntfOrigE := time.Now()
-			pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 2
+			pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 3
 			pp.Write()
 		}
 	} else {
@@ -305,7 +300,9 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 		timeCreateE := time.Now()
 		bcnId := procperf.GetFullId(beacon.GetLoggingID(), beacon.Info.SegmentID)
 		pp.SetID(bcnId)
-		pp.AddDurationT(timeCreateS, timeCreateE) // 0
+		pp.SetNextID(bcnId)
+		pp.AddDurationT(timeSenderS, timeSenderE) // 0
+		pp.AddDurationT(timeCreateS, timeCreateE) // 1
 		timeSendS := time.Now()
 		if err := sender.Send(ctx, beacon); err != nil {
 			pp.Write()
@@ -314,12 +311,11 @@ func (o *intfOriginator) originateMessage(ctx context.Context, groups []uint16) 
 			)
 		}
 		timeSendE := time.Now()
-		numOriginatedBeacons++
-		pp.AddDurationT(timeSendS, timeSendE) // 1
+		pp.AddDurationT(timeSendS, timeSendE) // 2
 		timeIntfOrigS := time.Now()
 		o.intf.Originate(time.Now(), 0)
 		timeIntfOrigE := time.Now()
-		pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 2
+		pp.AddDurationT(timeIntfOrigS, timeIntfOrigE) // 3
 		pp.Write()
 	}
 	return nil

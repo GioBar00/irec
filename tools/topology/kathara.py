@@ -256,25 +256,58 @@ class KatharaLabGenerator(object):
             others = [t for t in scionds.keys() if t != topo_id]
             server_port = 64646
             full_conn_sh = f"""#!/bin/bash
+output_file=fc-$(hostname).txt
 # Full connectivity test script
-date --rfc-3339=seconds >> fc-$(hostname).txt
-            
-# Start the server in the background
-bash -l -c "./bin/end2end -mode server -local [{topo_id},{scionds[topo_id]}]:{str(server_port)}" >> server_output.log 2>&1 &
-SERVER_PID=$!
+date --rfc-3339=seconds >> $output_file
+
+# Function to start the server and monitor output
+start_server() {{
+  while : ; do
+    # Start the server in the background
+    bash -l -c "./bin/end2end -mode server -local [{topo_id},{scionds[topo_id]}]:{str(server_port)}" > server_output.log 2>&1 &
+    SERVER_PID=$!
+
+    # Monitor the log to check if "Listening" is on the third line
+    while : ; do
+      if [[ $(sed -n '3p' server_output.log) == *"Listening"* ]]; then
+        return 0  # Exit function when the server starts successfully
+      fi
+
+      # If server process is not running, break the loop and try again
+      if ! kill -0 $SERVER_PID 2>/dev/null; then
+        break
+      fi
+    done
+  done
+}}
+
+# Call the start_server function and wait until it succeeds
+start_server
 
 TARGET_PONGS={len(others)}
 PONG_COUNT=0
 
+append_to_file() {{
+    local data=$1
+
+    # Use flock to prevent concurrent writes to the file
+    (flock -x 200
+        echo "$data" >> $output_file
+    ) 200>>$output_file
+}}
+
+
 # Function to run the client command with the provided remote address, retrying if ERROR is found
 function run_client {{
-    local remote_address=$1
-    local client_port=$2
+    local remote_ia=$1
+    local remote_address=$2
+    local client_port=$3
     while true; do
-        OUTPUT=$(bash -l -c "./bin/end2end -mode client -local [{topo_id},{scionds[topo_id]}]:$client_port -remote [$remote_address]:{str(server_port)} -timeout 1s" 2>&1)
+        OUTPUT=$(bash -l -c "./bin/end2end -mode client -local [{topo_id},{scionds[topo_id]}]:$client_port -remote [${{remote_ia}},${{remote_address}}]:{str(server_port)} -timeout 1s" 2>&1)
         # Append the output to the a log file
         echo "$OUTPUT" >> client${{client_port}}_output.log
         if echo "$OUTPUT" | grep -q "Received pong"; then
+            append_to_file "${{remote_ia}}_$(date --rfc-3339=seconds)"
             break
         fi
     done
@@ -298,7 +331,7 @@ MONITOR_PID=$!
 """
             for i, other in enumerate(others):
                 remote = scionds[other]
-                full_conn_sh += f"""run_client "{other},{remote}" "{server_port - i - 1}" &
+                full_conn_sh += f"""run_client "{other}" "{remote}" "{server_port - i - 1}" &
 PID{i}=$!
 """
             # Wait for all clients to finish
@@ -309,7 +342,7 @@ PID{i}=$!
 
             full_conn_sh += """
 # Output the completion time in RFC3339 format
-date --rfc-3339=seconds >> fc-$(hostname).txt
+date --rfc-3339=seconds >> $output_file
 
 # Wait for the monitor server function to finish
 wait $MONITOR_PID

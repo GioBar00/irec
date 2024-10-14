@@ -36,6 +36,7 @@ var running = false
 type ProcPerf struct {
 	t         Type
 	id        string
+	next_id   string
 	data      string
 	time      time.Time
 	size      int
@@ -64,8 +65,12 @@ func (pp *ProcPerf) SetNumBeacons(num uint32) {
 	pp.data = fmt.Sprintf("%d", num)
 }
 
+func (pp *ProcPerf) SetData(data string) {
+	pp.data = data
+}
+
 func (pp *ProcPerf) SetNextID(id string) {
-	pp.data = id
+	pp.next_id = id
 }
 
 func (pp *ProcPerf) SetID(id string) {
@@ -73,7 +78,7 @@ func (pp *ProcPerf) SetID(id string) {
 }
 
 func (pp *ProcPerf) string() string {
-	str := fmt.Sprintf("%s;%s;%s;%s;%d;", pp.t, pp.id, pp.data, pp.time.Format(time.RFC3339Nano), pp.size)
+	str := fmt.Sprintf("%s;%s;%s;%s;%s;%d;", pp.t, pp.id, pp.next_id, pp.data, pp.time.Format(time.RFC3339Nano), pp.size)
 	for i := 0; i < maxTimeArraySize; i++ {
 		if i < pp.size {
 			str += fmt.Sprintf("%f;", pp.durations[i].Seconds())
@@ -99,7 +104,7 @@ func Init() error {
 			log.Error("Error getting hostname", "err", err)
 		}
 		file, _ = os.OpenFile(fmt.Sprintf("procperf-%s.csv", hostname), os.O_CREATE|os.O_RDWR, 0666)
-		header := "Type;ID;Data;Time;Size;"
+		header := "Type;ID;Next ID;Data;Time;Size;"
 		for i := 0; i < maxTimeArraySize; i++ {
 			header += fmt.Sprintf("Duration %d;", i)
 		}
