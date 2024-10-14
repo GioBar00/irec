@@ -37,6 +37,8 @@ type Handler struct {
 	Pather     *addrutil.Pather
 	Dialer     *libgrpc.QUICDialer
 	Peers      []uint16
+
+	RacHandler RacJobHandler
 }
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
@@ -121,6 +123,52 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	}
 	timeInsertE := time.Now()
 	pp.AddDurationT(timeInsertS, timeInsertE) // 4
+
+	timeUpdateRacJobS := time.Now()
+	start := b.Segment.FirstIA()
+	var intfGroup uint16
+	algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
+	var algorithmId uint32
+	var pullBased bool
+	var pullBasedMinBeacons uint32 // todo(jvb): lower limit must be able to be set by AS owner.
+	pullBasedPeriod := time.Now()  // todo(jvb): Upper limit must be able to be set by AS owner
+	pullBasedHyperPeriod := time.Now()
+	var pullBasedTarget addr.IA
+	if b.Segment.ASEntries[0].Extensions.Irec != nil {
+		intfGroup = b.Segment.ASEntries[0].Extensions.Irec.InterfaceGroup
+		algorithmHash = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash
+		algorithmId = b.Segment.ASEntries[0].Extensions.Irec.AlgorithmId
+		pullBased = b.Segment.ASEntries[0].Extensions.Irec.PullBased
+		pullBasedMinBeacons = b.Segment.ASEntries[0].Extensions.Irec.PullBasedMinBeacons
+		pullBasedPeriod = time.Now().Add(b.Segment.ASEntries[0].Extensions.Irec.PullBasedPeriod)
+		pullBasedHyperPeriod = time.Now().Add(b.Segment.ASEntries[0].Extensions.Irec.PullBasedHyperPeriod)
+		if !b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.IsZero() {
+			var err error
+			pullBasedTarget, err = addr.IAFrom(b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.ISD(), b.Segment.ASEntries[0].Extensions.Irec.PullBasedTarget.AS())
+			if err != nil {
+				return serrors.WrapStr("Failed to parse pull based target", err)
+			}
+		}
+	}
+
+	beaconAttr := &beacon.BeaconAttr{
+		RacJobAttr: &beacon.RacJobAttr{
+			IsdAs:           start,
+			IntfGroup:       intfGroup,
+			AlgHash:         algorithmHash,
+			AlgId:           algorithmId,
+			PullBased:       pullBased,
+			PullTargetIsdAs: pullBasedTarget,
+		},
+		PullBasedMinBeacons:  pullBasedMinBeacons,
+		PullBasedPeriod:      pullBasedPeriod,
+		PullBasedHyperPeriod: pullBasedHyperPeriod,
+	}
+
+	h.RacHandler.UpdateRacJob(ctx, beaconAttr)
+	timeUpdateRacJobE := time.Now()
+	pp.AddDurationT(timeUpdateRacJobS, timeUpdateRacJobE) // 5
+
 	//logger.Debug("Inserted beacon")
 	return nil
 }

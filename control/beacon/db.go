@@ -53,7 +53,13 @@ type RacJobAttr struct {
 	AlgId           uint32
 	PullBased       bool
 	PullTargetIsdAs addr.IA
-	NotFetchCount   uint32
+}
+
+type BeaconAttr struct {
+	RacJobAttr           *RacJobAttr
+	PullBasedMinBeacons  uint32
+	PullBasedPeriod      time.Time
+	PullBasedHyperPeriod time.Time
 }
 
 func (a RacJobAttr) Equal(attr *RacJobAttr) bool {

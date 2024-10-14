@@ -35,6 +35,7 @@ type IncomingBeaconHandler interface {
 
 type RacJobHandler interface {
 	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
+	UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr)
 }
 
 type IngressServer struct {

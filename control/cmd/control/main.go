@@ -392,15 +392,16 @@ func realMain(ctx context.Context) error {
 	}
 
 	jobHandler := ingress.JobHandler{
-		IngressDB: db,
+		SeenIsdAs:         make(map[addr.IA]struct{}),
+		RacJobByMapKey:    make(map[ingress.MapKey]*ingress.RacJob),
+		QueueItemByMapKey: make(map[ingress.MapKey]*ingress.PriorityQueueItem),
 	}
-
-	periodic.Start(&jobHandler, 30*time.Second, 30*time.Second)
 
 	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
 	is := &ingress.IngressServer{
 		RacHandler: &jobHandler,
 		IncomingHandler: ingress.Handler{
+			RacHandler: &jobHandler,
 			Pather: &addrutil.Pather{
 				NextHopper: topo,
 			},

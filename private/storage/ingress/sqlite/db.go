@@ -565,7 +565,7 @@ HAVING
 			AlgId:           algorithmId,
 			PullBased:       pullBased,
 			PullTargetIsdAs: pullIsdAs,
-			NotFetchCount:   count,
+			//NotFetchCount:   count,
 		})
 	}
 	return res, nil
