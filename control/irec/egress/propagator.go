@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/irec/ingress"
 	"net"
 	"sync"
@@ -41,7 +40,7 @@ type Propagator struct {
 	AllInterfaces         *ifstate.Interfaces
 	PropagationInterfaces func() []*ifstate.Interface
 	Interfaces            map[uint32]*ifstate.Interface
-	Extender              beaconing.Extender
+	Extender              Extender
 	PropagationFilter     func(*ifstate.Interface) bool
 	Peers                 []uint16
 	SenderFactory         SenderFactory
@@ -321,7 +320,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					pp.AddDurationT(timeUpdateS, timeUpdateE) // 3
 					timeIntfPropagateS := time.Now()
 					if segment.ASEntries[0].Extensions.Irec != nil {
-						intf.Propagate(time.Now(), hex.EncodeToString(segment.ASEntries[0].Extensions.Irec.AlgorithmHash))
+						intf.Propagate(time.Now(), HashToString(segment.ASEntries[0].Extensions.Irec.AlgorithmHash))
 					} else {
 						intf.Propagate(time.Now(), "")
 					}
@@ -384,4 +383,8 @@ func (p *Propagator) shouldIgnore(bseg *seg.PathSegment, intf *ifstate.Interface
 		return true
 	}
 	return false
+}
+
+func HashToString(hash []byte) string {
+	return hex.EncodeToString(hash)
 }

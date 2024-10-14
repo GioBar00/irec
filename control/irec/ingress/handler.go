@@ -5,14 +5,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
-	"github.com/scionproto/scion/control/beaconing"
 	"time"
 
 	"github.com/scionproto/scion/private/procperf"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/control/ifstate"
+	"github.com/scionproto/scion/control/irec/egress"
 	"github.com/scionproto/scion/control/irec/ingress/storage"
 	"github.com/scionproto/scion/pkg/addr"
 	libgrpc "github.com/scionproto/scion/pkg/grpc"
@@ -34,7 +33,7 @@ type Handler struct {
 	Verifier   infra.Verifier
 	Interfaces *ifstate.Interfaces
 	Rewriter   *infraenv.AddressRewriter
-	Extender   *beaconing.DefaultExtender
+	Extender   *egress.DefaultExtender
 	Pather     *addrutil.Pather
 	Dialer     *libgrpc.QUICDialer
 	Peers      []uint16
@@ -175,7 +174,7 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 }
 
 func (h Handler) checkAndFetchAlgorithm(ctx context.Context, b *beacon.Beacon, peer *snet.UDPAddr) error {
-	algHash := hex.EncodeToString(b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash)
+	algHash := egress.HashToString(b.Segment.ASEntries[0].Extensions.Irec.AlgorithmHash)
 	pp := procperf.GetNew(procperf.Algorithm, algHash)
 	defer pp.Write()
 	timeAlgCheckS := time.Now()

@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"strconv"
 	"testing"
@@ -156,7 +155,7 @@ func TestPropagatorRunNonCore(t *testing.T) {
 				intfMap[uint32(intf.TopoInfo().ID)] = intf
 			}
 			p := egress.Propagator{
-				Extender: &beaconing.DefaultExtender{
+				Extender: &egress.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
 					Signer:     testSigner(t, priv, topo.IA()),
@@ -349,7 +348,7 @@ func TestPropagatorRunCore(t *testing.T) {
 				intfMap[uint32(intf.TopoInfo().ID)] = intf
 			}
 			p := egress.Propagator{
-				Extender: &beaconing.DefaultExtender{
+				Extender: &egress.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
 					Signer:     testSigner(t, priv, topo.IA()),
@@ -445,7 +444,7 @@ func TestPullBasedCore(t *testing.T) {
 	signer := testSigner(t, priv, topo.IA())
 	bo := egress.BasicOriginator{
 		OriginatePerIntfGroup: true,
-		Extender: &beaconing.DefaultExtender{
+		Extender: &egress.DefaultExtender{
 			IA:         topo.IA(),
 			Signer:     signer,
 			MAC:        macFactory,
@@ -471,7 +470,7 @@ func TestPullBasedCore(t *testing.T) {
 		intfMap[uint32(intf.TopoInfo().ID)] = intf
 	}
 	p := egress.Propagator{
-		Extender: &beaconing.DefaultExtender{
+		Extender: &egress.DefaultExtender{
 			IA:         topo.IA(),
 			MTU:        topo.MTU(),
 			Signer:     testSigner(t, priv, topo.IA()),
@@ -614,7 +613,7 @@ func TestPropagatorAddsIrec(t *testing.T) {
 				intfMap[uint32(intf.TopoInfo().ID)] = intf
 			}
 			p := egress.Propagator{
-				Extender: &beaconing.DefaultExtender{
+				Extender: &egress.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
 					Signer:     testSigner(t, priv, topo.IA()),

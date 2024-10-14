@@ -411,7 +411,7 @@ func realMain(ctx context.Context) error {
 			Verifier:   verifier,
 			Interfaces: intfs,
 			Rewriter:   nc.AddressRewriter(),
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -538,7 +538,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeCore,
 			Intfs:          intfs,
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -559,7 +559,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeCoreR,
 			Intfs:          intfs,
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -580,7 +580,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeUp,
 			Intfs:          intfs,
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -601,7 +601,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeDown,
 			Intfs:          intfs,
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -628,7 +628,7 @@ func realMain(ctx context.Context) error {
 		}
 		originator = &egress.BasicOriginator{
 			OriginatePerIntfGroup: true,
-			Extender: &beaconing.DefaultExtender{
+			Extender: &egress.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -665,7 +665,7 @@ func realMain(ctx context.Context) error {
 			return intfs.Filtered(propagationFilter)
 		},
 		Writers: writers,
-		Extender: &beaconing.DefaultExtender{
+		Extender: &egress.DefaultExtender{
 			IA:     topo.IA(),
 			Signer: signer,
 			MAC:    macGen,
@@ -1059,12 +1059,26 @@ func realMain(ctx context.Context) error {
 		},
 		SegmentRegister: beaconinggrpc.Registrar{Dialer: dialer},
 		BeaconStore:     beaconStore,
-		Inspector:       inspector,
-		Metrics:         metrics,
-		DRKeyEngine:     drkeyEngine,
-		MACGen:          macGen,
-		NextHopper:      topo,
-		StaticInfo:      func() *beaconing.StaticInfoCfg { return staticInfo },
+		SignerGen: beaconing.SignerGenFunc(func(ctx context.Context) ([]beaconing.Signer, error) {
+			signers, err := signer.SignerGen.Generate(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if len(signers) == 0 {
+				return nil, nil
+			}
+			r := make([]beaconing.Signer, 0, len(signers))
+			for _, s := range signers {
+				r = append(r, s)
+			}
+			return r, nil
+		}),
+		Inspector:   inspector,
+		Metrics:     metrics,
+		DRKeyEngine: drkeyEngine,
+		MACGen:      macGen,
+		NextHopper:  topo,
+		StaticInfo:  func() *beaconing.StaticInfoCfg { return staticInfo },
 
 		OriginationInterval:       globalCfg.BS.OriginationInterval.Duration,
 		PropagationInterval:       globalCfg.BS.PropagationInterval.Duration,

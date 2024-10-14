@@ -4,7 +4,8 @@ go_library(
     name = "go_default_library",
     srcs = [
         "doc.go",
-        "extending.go",
+        "extender.go",
+        "handler.go",
         "originator.go",
         "propagator.go",
         "staticinfo_config.go",
