@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"sync"
 	"testing"
@@ -72,7 +73,7 @@ func TestRegistrarRun(t *testing.T) {
 
 			segStore := mock_egress.NewMockSegmentStore(mctrl)
 			writer := &egress.LocalWriter{
-				Extender: &egress.DefaultExtender{
+				Extender: &beaconing.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
 					Signer:     testSigner(t, priv, topo.IA()),
@@ -143,7 +144,7 @@ func TestRegistrarRun(t *testing.T) {
 			intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
 			rpc := mock_egress.NewMockRPC(mctrl)
 			writer := &egress.RemoteWriter{
-				Extender: &egress.DefaultExtender{
+				Extender: &beaconing.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
 					Signer:     testSigner(t, priv, topo.IA()),
@@ -231,7 +232,7 @@ func TestRegistrarRun(t *testing.T) {
 		segStore := mock_egress.NewMockSegmentStore(mctrl)
 
 		writer := &egress.LocalWriter{
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:         topo.IA(),
 				MTU:        topo.MTU(),
 				Signer:     testSigner(t, priv, topo.IA()),

@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"github.com/scionproto/scion/control/beaconing"
 	"hash"
 	"net"
 	"net/netip"
@@ -99,7 +100,7 @@ func TestOriginatorRun(t *testing.T) {
 		senderFactory := mock_egress.NewMockSenderFactory(mctrl)
 		bo := egress.BasicOriginator{
 			OriginatePerIntfGroup: true,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:         topo.IA(),
 				Signer:     signer,
 				MAC:        macFactory,
@@ -173,7 +174,7 @@ func TestOriginatorRun(t *testing.T) {
 		senderFactory := mock_egress.NewMockSenderFactory(mctrl)
 		bo := egress.BasicOriginator{
 			OriginatePerIntfGroup: true,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:         topo.IA(),
 				Signer:     signer,
 				MAC:        macFactory,
@@ -237,7 +238,7 @@ func TestOriginatorRun(t *testing.T) {
 		senderFactory := mock_egress.NewMockSenderFactory(mctrl)
 		bo := egress.BasicOriginator{
 			OriginatePerIntfGroup: false,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:         topo.IA(),
 				Signer:     signer,
 				MAC:        macFactory,

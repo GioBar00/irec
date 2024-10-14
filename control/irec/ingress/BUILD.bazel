@@ -22,7 +22,6 @@ go_library(
         "//control/beacon:go_default_library",
         "//control/config:go_default_library",
         "//control/ifstate:go_default_library",
-        "//control/irec/egress:go_default_library",
         "//control/irec/ingress/storage:go_default_library",
         "//pkg/addr:go_default_library",
         "//pkg/grpc:go_default_library",

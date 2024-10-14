@@ -56,7 +56,6 @@ type TasksConfig struct {
 	BeaconSenderFactory   beaconing.SenderFactory
 	SegmentRegister       beaconing.RPC
 	BeaconStore           Store
-	SignerGen             beaconing.SignerGen
 	Inspector             trust.Inspector
 	Metrics               *Metrics
 	DRKeyEngine           *drkey.ServiceEngine
@@ -173,20 +172,12 @@ func (t *TasksConfig) extender(
 
 	return &beaconing.DefaultExtender{
 		IA:         ia,
-		SignerGen:  t.SignerGen,
 		MAC:        t.MACGen,
 		Intfs:      t.AllInterfaces,
 		MTU:        mtu,
 		MaxExpTime: func() uint8 { return maxExp() },
-		StaticInfo: t.StaticInfo,
 		Task:       task,
 		EPIC:       t.EPIC,
-		SegmentExpirationDeficient: func() metrics.Gauge {
-			if t.Metrics == nil {
-				return nil
-			}
-			return metrics.NewPromGauge(t.Metrics.SegmentExpirationDeficient)
-		}(),
 	}
 }
 

@@ -1,4 +1,4 @@
-package egress_test
+package beaconing_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
+	"github.com/scionproto/scion/control/beaconing"
 	"hash"
 	mrand "math/rand"
 	"testing"
@@ -28,7 +29,7 @@ import (
 )
 
 func TestDefaultExtenderExtend(t *testing.T) {
-	topo, err := topology.FromJSONFile(topoNonCore)
+	topo, err := topology.FromJSONFile(egress.topoNonCore)
 	require.NoError(t, err)
 
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -81,13 +82,13 @@ func TestDefaultExtenderExtend(t *testing.T) {
 			mctrl := gomock.NewController(t)
 			defer mctrl.Finish()
 			// Setup interfaces with active parent, child and one peer interface.
-			intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+			intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 			for _, peer := range tc.peers {
 				intfs.Get(peer).Activate(peerRemoteIfs[peer])
 			}
-			ext := &egress.DefaultExtender{
+			ext := &beaconing.DefaultExtender{
 				IA:     topo.IA(),
-				Signer: testSigner(t, priv, topo.IA()),
+				Signer: egress.testSigner(t, priv, topo.IA()),
 				MAC: func() hash.Hash {
 					mac, err := scrypto.InitMac(make([]byte, 16))
 					require.NoError(t, err)
@@ -110,7 +111,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 			}
 			assert.NoError(t, pseg.Validate(seg.ValidateBeacon))
 
-			err = pseg.VerifyASEntry(context.Background(), segVerifier{pubKey: pub}, 0)
+			err = pseg.VerifyASEntry(context.Background(), egress.segVerifier{pubKey: pub}, 0)
 			require.NoError(t, err)
 
 			t.Run("parsable", func(t *testing.T) {
@@ -156,11 +157,11 @@ func TestDefaultExtenderExtend(t *testing.T) {
 	t.Run("the maximum expiration time is respected", func(t *testing.T) {
 		mctrl := gomock.NewController(t)
 		defer mctrl.Finish()
-		intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+		intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 		require.NoError(t, err)
-		ext := &egress.DefaultExtender{
+		ext := &beaconing.DefaultExtender{
 			IA:     topo.IA(),
-			Signer: testSigner(t, priv, topo.IA()),
+			Signer: egress.testSigner(t, priv, topo.IA()),
 			MAC: func() hash.Hash {
 				mac, err := scrypto.InitMac(make([]byte, 16))
 				require.NoError(t, err)
@@ -181,7 +182,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 	})
 	t.Run("segment is not extended on error", func(t *testing.T) {
 		defaultSigner := func(t *testing.T) seg.Signer {
-			return testSigner(t, priv, topo.IA())
+			return egress.testSigner(t, priv, topo.IA())
 		}
 		testCases := map[string]struct {
 			Signer          func(t *testing.T) seg.Signer
@@ -224,10 +225,10 @@ func TestDefaultExtenderExtend(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				mctrl := gomock.NewController(t)
 				defer mctrl.Finish()
-				intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
-				ext := &egress.DefaultExtender{
+				intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
+				ext := &beaconing.DefaultExtender{
 					IA:     topo.IA(),
-					Signer: testSigner(t, priv, topo.IA()),
+					Signer: egress.testSigner(t, priv, topo.IA()),
 					MAC: func() hash.Hash {
 						mac, err := scrypto.InitMac(make([]byte, 16))
 						require.NoError(t, err)
@@ -249,11 +250,11 @@ func TestDefaultExtenderExtend(t *testing.T) {
 	t.Run("IREC extension gets added", func(t *testing.T) {
 		mctrl := gomock.NewController(t)
 		defer mctrl.Finish()
-		intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+		intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 		require.NoError(t, err)
-		ext := &egress.DefaultExtender{
+		ext := &beaconing.DefaultExtender{
 			IA:     topo.IA(),
-			Signer: testSigner(t, priv, topo.IA()),
+			Signer: egress.testSigner(t, priv, topo.IA()),
 			MAC: func() hash.Hash {
 				mac, err := scrypto.InitMac(make([]byte, 16))
 				require.NoError(t, err)
