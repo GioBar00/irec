@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/scionproto/scion/control/irec/racjob"
 	"time"
 
 	"github.com/scionproto/scion/private/procperf"
@@ -38,7 +39,7 @@ type Handler struct {
 	Dialer     *libgrpc.QUICDialer
 	Peers      []uint16
 
-	RacHandler RacJobHandler
+	RacHandler racjob.RacJobHandler
 }
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {

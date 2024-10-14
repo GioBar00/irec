@@ -1,4 +1,4 @@
-package ingress
+package racjob
 
 import (
 	"container/heap"
@@ -11,13 +11,17 @@ import (
 	"github.com/scionproto/scion/pkg/log"
 )
 
-var _ RacJobHandler = (*JobHandler)(nil)
-
 const (
 	defaultAgeingFactor    = 1.0
 	defaultPullBasedFactor = 1.0
 	defaultGroupSizeFactor = 1.0
 )
+
+type RacJobHandler interface {
+	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
+	UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr)
+	MakeRacJobValid(ctx context.Context, racJob *beacon.RacJobAttr)
+}
 
 type RacJob struct {
 	RacJobAttr              *beacon.RacJobAttr

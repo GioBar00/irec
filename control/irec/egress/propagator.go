@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/control/irec/ingress"
+	"github.com/scionproto/scion/control/irec/racjob"
 	"net"
 	"sync"
 	"time"
@@ -46,7 +46,7 @@ type Propagator struct {
 	SenderFactory         SenderFactory
 	Writers               []Writer
 	Originator            *PullBasedOriginator
-	RacHandler            ingress.RacJobHandler
+	RacHandler            racjob.RacJobHandler
 }
 
 func (p *Propagator) RequestPullBasedOrigination(ctx context.Context, request *cppb.PullPathsRequest) (*cppb.PropagationRequestResponse, error) {

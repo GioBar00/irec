@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/scionproto/scion/control/irec/racjob"
 	"net/http"
 	_ "net/http/pprof"
 	"net/netip"
@@ -391,10 +392,10 @@ func realMain(ctx context.Context) error {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
 
-	jobHandler := ingress.JobHandler{
+	jobHandler := racjob.JobHandler{
 		SeenIsdAs:         make(map[addr.IA]struct{}),
-		RacJobByMapKey:    make(map[ingress.MapKey]*ingress.RacJob),
-		QueueItemByMapKey: make(map[ingress.MapKey]*ingress.PriorityQueueItem),
+		RacJobByMapKey:    make(map[racjob.MapKey]*racjob.RacJob),
+		QueueItemByMapKey: make(map[racjob.MapKey]*racjob.PriorityQueueItem),
 	}
 
 	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
