@@ -648,7 +648,7 @@ func realMain(ctx context.Context) error {
 	}
 
 	es := &egress.Propagator{
-
+		RacHandler: &jobHandler,
 		Originator: &egress.PullBasedOriginator{BasicOriginator: originator},
 		Dialer: &libgrpc.QUICDialer{
 			Rewriter: nc.AddressRewriter(),

@@ -88,6 +88,34 @@ type JobHandler struct {
 	pullRacJobs   PriorityQueue
 }
 
+func (j *JobHandler) MakeRacJobValid(ctx context.Context, racJob *beacon.RacJobAttr) {
+	j.Lock()
+	defer j.Unlock()
+	mapKey := MapKey{
+		IsdAs:           racJob.IsdAs,
+		IntfGroup:       racJob.IntfGroup,
+		AlgHash:         string(racJob.AlgHash),
+		AlgId:           racJob.AlgId,
+		PullBased:       racJob.PullBased,
+		PullTargetIsdAs: racJob.PullTargetIsdAs,
+	}
+	log.FromCtx(ctx).Debug("MakeRacJobValid", "RacJob", racJob)
+	if _, ok := j.QueueItemByMapKey[mapKey]; !ok {
+		if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
+			racJob.Valid = true
+			racJob.LastExecuted = racJob.LastExecuted.Add(-1 * time.Minute)
+			queueItem := &PriorityQueueItem{RacJob: racJob}
+			if racJob.RacJobAttr.PullBased {
+				heap.Push(&j.pullRacJobs, queueItem)
+			} else {
+				heap.Push(&j.normalRacJobs, queueItem)
+			}
+		} else {
+			log.FromCtx(ctx).Debug("Error: Trying to validate non-existent RacJob", "RacJob", racJob)
+		}
+	}
+}
+
 func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr) {
 	j.Lock()
 	defer j.Unlock()

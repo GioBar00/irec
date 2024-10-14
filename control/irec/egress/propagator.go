@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/scionproto/scion/control/irec/ingress"
 	"net"
 	"sync"
 	"time"
@@ -45,6 +46,7 @@ type Propagator struct {
 	SenderFactory         SenderFactory
 	Writers               []Writer
 	Originator            *PullBasedOriginator
+	RacHandler            ingress.RacJobHandler
 }
 
 func (p *Propagator) RequestPullBasedOrigination(ctx context.Context, request *cppb.PullPathsRequest) (*cppb.PropagationRequestResponse, error) {
@@ -226,6 +228,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			wg.Add(len(ebcn.EgressIntfs))
 		}
 
+		destIAs := make(map[addr.IA]struct{})
+		succDestIAs := make(map[addr.IA]struct{})
+
 		for _, ebcn := range egressBeacons {
 			beaconHash := ebcn.BeaconHash
 			for _, intfId := range ebcn.EgressIntfs {
@@ -253,6 +258,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 						continue
 					}
 					senderByIntf[intfId] = sender
+					if _, ok := destIAs[intf.TopoInfo().IA]; !ok {
+						destIAs[intf.TopoInfo().IA] = struct{}{}
+					}
 				}
 				timeSenderE := time.Now()
 				pp.AddDurationT(timeSenderS, timeSenderE) // 0
@@ -316,6 +324,9 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					} else {
 						intf.Propagate(time.Now(), "")
 					}
+					if _, ok := succDestIAs[intf.TopoInfo().IA]; !ok {
+						succDestIAs[intf.TopoInfo().IA] = struct{}{}
+					}
 					timeIntfPropagateE := time.Now()
 					pp.AddDurationT(timeIntfPropagateS, timeIntfPropagateE) // 4
 					//log.Info("DB; Expiry updated", "time", timeUpdateE.Sub(timeUpdateS))
@@ -326,6 +337,26 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		wg.Wait()
 		for _, sender := range senderByIntf {
 			sender.Close()
+		}
+
+		for destIA := range destIAs {
+			if _, ok := succDestIAs[destIA]; !ok {
+				start := beacons[0].Segment.FirstIA()
+				var intfGroup uint16
+				algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
+				var algorithmId uint32
+				if beacons[0].Segment.ASEntries[0].Extensions.Irec != nil {
+					intfGroup = beacons[0].Segment.ASEntries[0].Extensions.Irec.InterfaceGroup
+					algorithmHash = beacons[0].Segment.ASEntries[0].Extensions.Irec.AlgorithmHash
+					algorithmId = beacons[0].Segment.ASEntries[0].Extensions.Irec.AlgorithmId
+				}
+				p.RacHandler.MakeRacJobValid(ctx, &beacon.RacJobAttr{
+					IsdAs:     start,
+					IntfGroup: intfGroup,
+					AlgHash:   algorithmHash,
+					AlgId:     algorithmId,
+				})
+			}
 		}
 	}()
 
