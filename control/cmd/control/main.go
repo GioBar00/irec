@@ -386,7 +386,7 @@ func realMain(ctx context.Context) error {
 		}
 	}
 
-	staticInfoEG, err := beaconing.ParseStaticInfoCfg(globalCfg.General.StaticInfoConfig())
+	staticInfoEG, err := egress.ParseStaticInfoCfg(globalCfg.General.StaticInfoConfig())
 	if err != nil {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
@@ -421,7 +421,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Dialer: &libgrpc.QUICDialer{
@@ -548,7 +548,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.CoreRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -569,7 +569,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.CoreRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -590,7 +590,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.UpRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -611,7 +611,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.DownRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			RPC: beaconinggrpc.Registrar{Dialer: dialer},
@@ -638,7 +638,7 @@ func realMain(ctx context.Context) error {
 					return db.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
-				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			SenderFactory: &egress.BeaconSenderFactory{Dialer: dialer},
@@ -675,7 +675,7 @@ func realMain(ctx context.Context) error {
 				return db.MaxExpTime(beacon.PropPolicy)
 			},
 			Task:       "propagator",
-			StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
+			StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
 			EPIC:       false,
 		},
 		Interfaces:        intfMap,

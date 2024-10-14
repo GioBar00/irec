@@ -97,7 +97,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 				Intfs:      intfs,
 				MTU:        1337,
 				MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-				StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
+				StaticInfo: func() *egress.StaticInfoCfg { return nil },
 			}
 			pseg, err := seg.CreateSegment(time.Time{}, 0)
 			require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 			Intfs:      intfs,
 			MTU:        1337,
 			MaxExpTime: func() uint8 { return 1 },
-			StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
+			StaticInfo: func() *egress.StaticInfoCfg { return nil },
 		}
 		require.NoError(t, err)
 		pseg, err := seg.CreateSegment(time.Now(), uint16(mrand.Int()))
@@ -237,7 +237,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 					Intfs:      intfs,
 					MTU:        1337,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-					StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
+					StaticInfo: func() *egress.StaticInfoCfg { return nil },
 				}
 				pseg, err := seg.CreateSegment(time.Now(), uint16(mrand.Int()))
 				require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestDefaultExtenderExtend(t *testing.T) {
 			Intfs:      intfs,
 			MTU:        1337,
 			MaxExpTime: func() uint8 { return 1 },
-			StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
+			StaticInfo: func() *egress.StaticInfoCfg { return nil },
 		}
 		require.NoError(t, err)
 		pseg, err := seg.CreateSegment(time.Now(), uint16(mrand.Int()))

@@ -1,4 +1,4 @@
-package beaconing
+package egress
 
 import (
 	"encoding/json"
