@@ -163,7 +163,7 @@ func TestPropagatorRunNonCore(t *testing.T) {
 					Intfs:      intfs,
 					MAC:        macFactory,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-					StaticInfo: func() *egress.StaticInfoCfg { return nil },
+					StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{
@@ -356,7 +356,7 @@ func TestPropagatorRunCore(t *testing.T) {
 					Intfs:      intfs,
 					MAC:        macFactory,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-					StaticInfo: func() *egress.StaticInfoCfg { return nil },
+					StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{
@@ -453,7 +453,7 @@ func TestPullBasedCore(t *testing.T) {
 			MTU:        topo.MTU(),
 			MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
 			Task:       "Test",
-			StaticInfo: func() *egress.StaticInfoCfg { return nil },
+			StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
 			EPIC:       false,
 		},
 		SenderFactory: senderFactory,
@@ -478,7 +478,7 @@ func TestPullBasedCore(t *testing.T) {
 			Intfs:      intfs,
 			MAC:        macFactory,
 			MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-			StaticInfo: func() *egress.StaticInfoCfg { return nil },
+			StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
 		},
 		Core: topo.Core(),
 		Pather: &addrutil.Pather{
@@ -621,7 +621,7 @@ func TestPropagatorAddsIrec(t *testing.T) {
 					Intfs:      intfs,
 					MAC:        macFactory,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
-					StaticInfo: func() *egress.StaticInfoCfg { return nil },
+					StaticInfo: func() *beaconing.StaticInfoCfg { return nil },
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{

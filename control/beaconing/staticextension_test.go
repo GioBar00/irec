@@ -15,12 +15,12 @@
 package beaconing_test
 
 import (
+	"github.com/scionproto/scion/control/beaconing"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/pkg/private/common"
 	"github.com/scionproto/scion/pkg/private/util"
 	"github.com/scionproto/scion/pkg/segment/extensions/staticinfo"

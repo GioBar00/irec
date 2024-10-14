@@ -3,7 +3,6 @@ package beaconing
 import (
 	"context"
 	"encoding/binary"
-	"github.com/scionproto/scion/control/irec/egress"
 	"hash"
 	"time"
 
@@ -49,7 +48,7 @@ type DefaultExtender struct {
 	// Task contains an identifier specific to the task that uses the extender.
 	Task string
 	// StaticInfo contains the configuration used for the StaticInfo Extension.
-	StaticInfo func() *egress.StaticInfoCfg
+	StaticInfo func() *StaticInfoCfg
 	// EPIC defines whether the EPIC authenticators should be added when the segment is extended.
 	EPIC bool
 }
