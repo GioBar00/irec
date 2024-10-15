@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"strconv"
 	"testing"
@@ -166,7 +167,7 @@ func TestPropagatorRunNonCore(t *testing.T) {
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{
-					NextHopper: topoWrap{topo},
+					NextHopper: beaconing.topoWrap{topo},
 				},
 				Local:             topo.IA(),
 				AllInterfaces:     intfs,
@@ -177,14 +178,14 @@ func TestPropagatorRunNonCore(t *testing.T) {
 				Interfaces:    intfMap,
 				SenderFactory: senderFactory,
 				Store:         storage,
-				Writers:       []egress.Writer{writer},
+				Writers:       []beaconing.Writer{writer},
 			}
 			g := graph.NewDefaultGraph(mctrl)
 
 			bcns := make([]*cppb.EgressBeacon, 0, len(test.beacons))
 			for _, bcn := range test.beacons {
 				bcns = append(bcns, &cppb.EgressBeacon{
-					PathSeg:     seg.PathSegmentToPB(testBeacon(g, bcn.desc, false).Segment),
+					PathSeg:     seg.PathSegmentToPB(beaconing.testBeacon(g, bcn.desc, false).Segment),
 					InIfId:      bcn.inIntfId,
 					EgressIntfs: bcn.egressIntf, // The second and third egress interface are not a core or child link and should be ignored.
 				})
@@ -359,7 +360,7 @@ func TestPropagatorRunCore(t *testing.T) {
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{
-					NextHopper: topoWrap{topo},
+					NextHopper: beaconing.topoWrap{topo},
 				},
 				Local:             topo.IA(),
 				AllInterfaces:     intfs,
@@ -370,14 +371,14 @@ func TestPropagatorRunCore(t *testing.T) {
 				Interfaces:    intfMap,
 				SenderFactory: senderFactory,
 				Store:         storage,
-				Writers:       []egress.Writer{writer},
+				Writers:       []beaconing.Writer{writer},
 			}
 			g := graph.NewDefaultGraph(mctrl)
 
 			bcns := make([]*cppb.EgressBeacon, 0, len(test.beacons))
 			for _, bcn := range test.beacons {
 				bcns = append(bcns, &cppb.EgressBeacon{
-					PathSeg:     seg.PathSegmentToPB(testBeacon(g, bcn.desc, false).Segment),
+					PathSeg:     seg.PathSegmentToPB(beaconing.testBeacon(g, bcn.desc, false).Segment),
 					InIfId:      bcn.inIntfId,
 					EgressIntfs: bcn.egressIntf, // The second and third egress interface are not a core or child link and should be ignored.
 				})
@@ -481,7 +482,7 @@ func TestPullBasedCore(t *testing.T) {
 		},
 		Core: topo.Core(),
 		Pather: &addrutil.Pather{
-			NextHopper: topoWrap{topo},
+			NextHopper: beaconing.topoWrap{topo},
 		},
 		Local:             topo.IA(),
 		AllInterfaces:     intfs,
@@ -492,7 +493,7 @@ func TestPullBasedCore(t *testing.T) {
 		Interfaces:    intfMap,
 		SenderFactory: senderFactory,
 		Store:         storage,
-		Writers:       []egress.Writer{writer},
+		Writers:       []beaconing.Writer{writer},
 		Originator:    &pbo,
 	}
 	pathRequest := &cppb.PullPathsRequest{
@@ -624,7 +625,7 @@ func TestPropagatorAddsIrec(t *testing.T) {
 				},
 				Core: topo.Core(),
 				Pather: &addrutil.Pather{
-					NextHopper: topoWrap{topo},
+					NextHopper: beaconing.topoWrap{topo},
 				},
 				Local:             topo.IA(),
 				AllInterfaces:     intfs,
@@ -635,14 +636,14 @@ func TestPropagatorAddsIrec(t *testing.T) {
 				Interfaces:    intfMap,
 				SenderFactory: senderFactory,
 				Store:         storage,
-				Writers:       []egress.Writer{writer},
+				Writers:       []beaconing.Writer{writer},
 			}
 			g := graph.NewDefaultGraph(mctrl)
 
 			bcns := make([]*cppb.EgressBeacon, 0, len(test.beacons))
 			for _, bcn := range test.beacons {
 				bcns = append(bcns, &cppb.EgressBeacon{
-					PathSeg:     seg.PathSegmentToPB(testBeacon(g, bcn.desc, true).Segment),
+					PathSeg:     seg.PathSegmentToPB(beaconing.testBeacon(g, bcn.desc, true).Segment),
 					InIfId:      bcn.inIntfId,
 					EgressIntfs: bcn.egressIntf, // The second and third egress interface are not a core or child link and should be ignored.
 				})
@@ -716,11 +717,11 @@ func TestHashing(t *testing.T) {
 	g := graph.NewDefaultGraph(mctrl)
 	hashes := make([][]byte, 0, len(beacons))
 	for _, desc := range beacons {
-		hash := egress.HashBeacon(testBeacon(g, desc, false).Segment)
+		hash := egress.HashBeacon(beaconing.testBeacon(g, desc, false).Segment)
 		require.NotContains(t, hashes, hash)
 		hashes = append(hashes, hash)
 	}
-	alteredBeacon := testBeacon(g, []uint16{graph.If_130_B_120_A, graph.If_120_X_111_B}, false).Segment
+	alteredBeacon := beaconing.testBeacon(g, []uint16{graph.If_130_B_120_A, graph.If_120_X_111_B}, false).Segment
 	alteredBeacon.Info.SegmentID = uint16(100)
 	require.NotContains(t, hashes, egress.HashBeacon(alteredBeacon))
 	hashes = append(hashes, egress.HashBeacon(alteredBeacon))

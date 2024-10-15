@@ -357,7 +357,7 @@ func realMain(ctx context.Context) error {
 	// IREC
 	// IREC
 
-	ingressDB, err := storage.NewIngressStorage(globalCfg.IngressDB, topo.IA())
+	ingressDB, err := storage.NewIngressDB(globalCfg.IngressDB, topo.IA())
 	if err != nil {
 		return serrors.WrapStr("initializing beacon storage", err)
 	}
@@ -366,11 +366,22 @@ func realMain(ctx context.Context) error {
 	//	Driver:       string(storage.BackendSqlite),
 	//	QueriesTotal: libmetrics.NewPromCounter(metrics.BeaconDBQueriesTotal),
 	//})
-	policies, err := cs.LoadNonCorePolicies(globalCfg.BS.Policies)
-	if err != nil {
-		return serrors.WrapStr("policies", err)
+	var corePolicies *beacon.CorePolicies
+	var policies *beacon.Policies
+	if topo.Core() {
+		cp, err := cs.LoadCorePolicies(globalCfg.BS.Policies)
+		if err != nil {
+			return serrors.WrapStr("core policies", err)
+		}
+		corePolicies = &cp
+	} else {
+		p, err := cs.LoadNonCorePolicies(globalCfg.BS.Policies)
+		if err != nil {
+			return serrors.WrapStr("policies", err)
+		}
+		policies = &p
 	}
-	db, err := storage2.NewIngressDB(policies, ingressDB)
+	ingressStore, err := storage2.NewIngressStore(corePolicies, policies, ingressDB)
 	if err != nil {
 		return serrors.WrapStr("initializing beacon store", err)
 	}
@@ -393,6 +404,131 @@ func realMain(ctx context.Context) error {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
 
+	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
+
+	internalErr := libmetrics.NewPromCounter(metrics.BeaconingRegistrarInternalErrorsTotal)
+	registered := libmetrics.NewPromCounter(metrics.BeaconingRegisteredTotal)
+	writers := make([]beaconing.Writer, 0)
+	if topo.Core() {
+		writers = append(writers, &beaconing.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCore.String()),
+			Registered:     registered,
+			Type:           seg.TypeCore,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return ingressStore.MaxExpTime(beacon.CoreRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+
+		r := &ingress.WriteScheduler{
+			Provider: ingressStore,
+			Intfs:    intfs,
+			Type:     seg.TypeCore,
+			Writer:   writers[0],
+			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		}
+		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+
+		writers = append(writers, &beaconing.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCoreR.String()),
+			Registered:     registered,
+			Type:           seg.TypeCoreR,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return ingressStore.MaxExpTime(beacon.CoreRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+	} else {
+		writers = append(writers, &beaconing.LocalWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeUp.String()),
+			Registered:     registered,
+			Type:           seg.TypeUp,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return ingressStore.MaxExpTime(beacon.UpRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			Store: &seghandler.DefaultStorage{PathDB: pathDB},
+		})
+
+		r := &ingress.WriteScheduler{
+			Provider: ingressStore,
+			Intfs:    intfs,
+			Type:     seg.TypeUp,
+			Writer:   writers[0],
+			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		}
+		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+
+		writers = append(writers, &beaconing.RemoteWriter{
+			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeDown.String()),
+			Registered:     registered,
+			Type:           seg.TypeDown,
+			Intfs:          intfs,
+			Extender: &egress.DefaultExtender{
+				IA:     topo.IA(),
+				Signer: signer,
+				MAC:    macGen,
+				Intfs:  intfs,
+				MTU:    topo.MTU(),
+				MaxExpTime: func() uint8 {
+					return ingressStore.MaxExpTime(beacon.DownRegPolicy)
+				},
+				Task:       "propagator",
+				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				EPIC:       false,
+			},
+			RPC: beaconinggrpc.Registrar{Dialer: dialer},
+			Pather: addrutil.Pather{
+				NextHopper: topo,
+			},
+		})
+
+		r = &ingress.WriteScheduler{
+			Provider: ingressStore,
+			Intfs:    intfs,
+			Type:     seg.TypeDown,
+			Writer:   writers[1],
+			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		}
+		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+	}
+
+	for _, w := range writers {
+
+	}
+
 	jobHandler := racjob.JobHandler{
 		SeenIsdAs:         make(map[addr.IA]struct{}),
 		RacJobByMapKey:    make(map[racjob.MapKey]*racjob.RacJob),
@@ -400,7 +536,6 @@ func realMain(ctx context.Context) error {
 		ExecutingRacJobs:  make(map[racjob.MapKey]*racjob.RacJob),
 	}
 
-	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)
 	is := &ingress.IngressServer{
 		RacHandler: &jobHandler,
 		IncomingHandler: ingress.Handler{
@@ -409,8 +544,8 @@ func realMain(ctx context.Context) error {
 				NextHopper: topo,
 			},
 			LocalIA:    topo.IA(),
-			IngressDB:  db,
-			Peers:      egress.SortedIntfs(intfs, topology.Peer),
+			IngressDB:  ingressStore,
+			Peers:      beaconing.SortedIntfs(intfs, topology.Peer),
 			Verifier:   verifier,
 			Interfaces: intfs,
 			Rewriter:   nc.AddressRewriter(),
@@ -421,7 +556,7 @@ func realMain(ctx context.Context) error {
 				Intfs:  intfs,
 				MTU:    topo.MTU(),
 				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.PropPolicy)
+					return ingressStore.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
 				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
@@ -432,7 +567,7 @@ func realMain(ctx context.Context) error {
 				Dialer:   quicStack.Dialer,
 			},
 		},
-		IngressDB: db,
+		IngressDB: ingressStore,
 		Dialer: &libgrpc.TCPDialer{
 			SvcResolver: func(dst addr.SVC) []resolver.Address {
 				if base := dst.Base(); base != addr.SvcCS {
@@ -532,97 +667,6 @@ func realMain(ctx context.Context) error {
 		intfMap[uint32(intf.TopoInfo().ID)] = intf
 	}
 
-	internalErr := libmetrics.NewPromCounter(metrics.BeaconingRegistrarInternalErrorsTotal)
-	registered := libmetrics.NewPromCounter(metrics.BeaconingRegisteredTotal)
-	writers := make([]egress.Writer, 0)
-	if topo.Core() {
-		writers = append(writers, &egress.LocalWriter{
-			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCore.String()),
-			Registered:     registered,
-			Type:           seg.TypeCore,
-			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
-				IA:     topo.IA(),
-				Signer: signer,
-				MAC:    macGen,
-				Intfs:  intfs,
-				MTU:    topo.MTU(),
-				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.CoreRegPolicy)
-				},
-				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
-				EPIC:       false,
-			},
-			Store: &seghandler.DefaultStorage{PathDB: pathDB},
-		})
-
-		writers = append(writers, &egress.LocalWriter{
-			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCoreR.String()),
-			Registered:     registered,
-			Type:           seg.TypeCoreR,
-			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
-				IA:     topo.IA(),
-				Signer: signer,
-				MAC:    macGen,
-				Intfs:  intfs,
-				MTU:    topo.MTU(),
-				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.CoreRegPolicy)
-				},
-				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
-				EPIC:       false,
-			},
-			Store: &seghandler.DefaultStorage{PathDB: pathDB},
-		})
-	} else {
-		writers = append(writers, &egress.LocalWriter{
-			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeUp.String()),
-			Registered:     registered,
-			Type:           seg.TypeUp,
-			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
-				IA:     topo.IA(),
-				Signer: signer,
-				MAC:    macGen,
-				Intfs:  intfs,
-				MTU:    topo.MTU(),
-				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.UpRegPolicy)
-				},
-				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
-				EPIC:       false,
-			},
-			Store: &seghandler.DefaultStorage{PathDB: pathDB},
-		})
-
-		writers = append(writers, &egress.RemoteWriter{
-			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeDown.String()),
-			Registered:     registered,
-			Type:           seg.TypeDown,
-			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
-				IA:     topo.IA(),
-				Signer: signer,
-				MAC:    macGen,
-				Intfs:  intfs,
-				MTU:    topo.MTU(),
-				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.DownRegPolicy)
-				},
-				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
-				EPIC:       false,
-			},
-			RPC: beaconinggrpc.Registrar{Dialer: dialer},
-			Pather: addrutil.Pather{
-				NextHopper: topo,
-			},
-		})
-	}
 	var originator *egress.BasicOriginator
 	if topo.Core() {
 		originationFilter := func(intf *ifstate.Interface) bool {
@@ -638,7 +682,7 @@ func realMain(ctx context.Context) error {
 				Intfs:  intfs,
 				MTU:    topo.MTU(),
 				MaxExpTime: func() uint8 {
-					return db.MaxExpTime(beacon.PropPolicy)
+					return ingressStore.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
 				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
@@ -675,7 +719,7 @@ func realMain(ctx context.Context) error {
 			Intfs:  intfs,
 			MTU:    topo.MTU(),
 			MaxExpTime: func() uint8 {
-				return db.MaxExpTime(beacon.PropPolicy)
+				return ingressStore.MaxExpTime(beacon.PropPolicy)
 			},
 			Task:       "propagator",
 			StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
@@ -683,7 +727,7 @@ func realMain(ctx context.Context) error {
 		},
 		Interfaces:        intfMap,
 		PropagationFilter: propagationFilter,
-		Peers:             egress.SortedIntfs(intfs, topology.Peer),
+		Peers:             beaconing.SortedIntfs(intfs, topology.Peer),
 		SenderFactory:     &egress.BeaconSenderFactory{Dialer: dialer},
 		//SenderFactory: &egress.PoolBeaconSenderFactory{BeaconSenderFactory: &egress.BeaconSenderFactory{Dialer: dialer},
 		//PoolBeaconSenders: make(map[string]egress.PoolBeaconSender), BeaconSendersUsage: make(map[string]uint)},

@@ -1,4 +1,4 @@
-package egress_test
+package beaconing_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"sync"
 	"testing"
@@ -45,7 +46,7 @@ func TestRegistrarRun(t *testing.T) {
 		{
 			name:    "Core segment",
 			segType: seg.TypeCore,
-			fn:      topoCore,
+			fn:      beaconing.topoCore,
 			beacons: [][]uint16{
 				{graph.If_120_A_110_X},
 				{graph.If_130_B_120_A, graph.If_120_A_110_X},
@@ -54,7 +55,7 @@ func TestRegistrarRun(t *testing.T) {
 		{
 			name:          "Up segment",
 			segType:       seg.TypeUp,
-			fn:            topoNonCore,
+			fn:            beaconing.topoNonCore,
 			inactivePeers: map[uint16]bool{graph.If_111_C_121_X: true},
 			beacons: [][]uint16{
 				{graph.If_120_X_111_B},
@@ -68,16 +69,16 @@ func TestRegistrarRun(t *testing.T) {
 			defer mctrl.Finish()
 			topo, err := topology.FromJSONFile(test.fn)
 			require.NoError(t, err)
-			intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+			intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 
 			segStore := mock_egress.NewMockSegmentStore(mctrl)
-			writer := &egress.LocalWriter{
+			writer := &beaconing.LocalWriter{
 				Extender: &egress.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
-					Signer:     testSigner(t, priv, topo.IA()),
+					Signer:     egress.testSigner(t, priv, topo.IA()),
 					Intfs:      intfs,
-					MAC:        macFactory,
+					MAC:        egress.macFactory,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
 					StaticInfo: func() *egress.StaticInfoCfg { return nil },
 				},
@@ -108,7 +109,7 @@ func TestRegistrarRun(t *testing.T) {
 			for _, s := range stored {
 				assert.NoError(t, s.Segment.Validate(seg.ValidateSegment))
 				assert.NoError(t, s.Segment.VerifyASEntry(context.Background(),
-					segVerifier{pubKey: pub}, s.Segment.MaxIdx()))
+					egress.segVerifier{pubKey: pub}, s.Segment.MaxIdx()))
 				assert.Equal(t, test.segType, s.Type)
 			}
 
@@ -124,7 +125,7 @@ func TestRegistrarRun(t *testing.T) {
 		{
 			name:          "Down segment",
 			segType:       seg.TypeDown,
-			fn:            topoNonCore,
+			fn:            beaconing.topoNonCore,
 			inactivePeers: map[uint16]bool{graph.If_111_C_121_X: true},
 			beacons: [][]uint16{
 				{graph.If_120_X_111_B},
@@ -140,15 +141,15 @@ func TestRegistrarRun(t *testing.T) {
 			topo, err := topology.FromJSONFile(test.fn)
 			require.NoError(t, err)
 
-			intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+			intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 			rpc := mock_egress.NewMockRPC(mctrl)
-			writer := &egress.RemoteWriter{
+			writer := &beaconing.RemoteWriter{
 				Extender: &egress.DefaultExtender{
 					IA:         topo.IA(),
 					MTU:        topo.MTU(),
-					Signer:     testSigner(t, priv, topo.IA()),
+					Signer:     egress.testSigner(t, priv, topo.IA()),
 					Intfs:      intfs,
-					MAC:        macFactory,
+					MAC:        egress.macFactory,
 					MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
 					StaticInfo: func() *egress.StaticInfoCfg { return nil },
 				},
@@ -195,7 +196,7 @@ func TestRegistrarRun(t *testing.T) {
 
 					assert.NoError(t, pseg.Validate(seg.ValidateSegment))
 					assert.NoError(t, pseg.VerifyASEntry(context.Background(),
-						segVerifier{pubKey: pub}, pseg.MaxIdx()))
+						egress.segVerifier{pubKey: pub}, pseg.MaxIdx()))
 
 					assert.Equal(t, pseg.FirstIA(), s.Addr.IA)
 					assert.Equal(t, addr.SvcCS, s.Addr.SVC)
@@ -212,7 +213,7 @@ func TestRegistrarRun(t *testing.T) {
 						assert.Equal(t, pathHopField.ConsEgress, segHopField.ConsEgress)
 
 						nextHop := pathHopField.ConsIngress
-						a := net.UDPAddrFromAddrPort(interfaceInfos(topo)[nextHop].InternalAddr)
+						a := net.UDPAddrFromAddrPort(egress.interfaceInfos(topo)[nextHop].InternalAddr)
 						assert.Equal(t, a, s.Addr.NextHop)
 					}
 				})
@@ -224,19 +225,19 @@ func TestRegistrarRun(t *testing.T) {
 		mctrl := gomock.NewController(t)
 		defer mctrl.Finish()
 
-		topo, err := topology.FromJSONFile(topoNonCore)
+		topo, err := topology.FromJSONFile(egress.topoNonCore)
 		require.NoError(t, err)
 
-		intfs := ifstate.NewInterfaces(interfaceInfos(topo), ifstate.Config{})
+		intfs := ifstate.NewInterfaces(egress.interfaceInfos(topo), ifstate.Config{})
 		segStore := mock_egress.NewMockSegmentStore(mctrl)
 
-		writer := &egress.LocalWriter{
+		writer := &beaconing.LocalWriter{
 			Extender: &egress.DefaultExtender{
 				IA:         topo.IA(),
 				MTU:        topo.MTU(),
-				Signer:     testSigner(t, priv, topo.IA()),
+				Signer:     egress.testSigner(t, priv, topo.IA()),
 				Intfs:      intfs,
-				MAC:        macFactory,
+				MAC:        egress.macFactory,
 				MaxExpTime: func() uint8 { return beacon.DefaultMaxExpTime },
 				StaticInfo: func() *egress.StaticInfoCfg { return nil },
 			},
@@ -261,7 +262,7 @@ func TestRegistrarRun(t *testing.T) {
 					return seghandler.SegStats{}, nil
 				},
 			)
-			err = writer.Write(context.Background(), bcns, []uint16{}, false)
+			_, err = writer.Write(context.Background(), bcns, []uint16{}, false)
 			require.NoError(t, err)
 		})
 		t.Run("extended", func(t *testing.T) {
@@ -278,7 +279,7 @@ func TestRegistrarRun(t *testing.T) {
 					return seghandler.SegStats{}, nil
 				},
 			)
-			err = writer.Write(context.Background(), bcns, []uint16{}, true)
+			_, err = writer.Write(context.Background(), bcns, []uint16{}, true)
 			require.NoError(t, err)
 		})
 

@@ -808,7 +808,7 @@ func main() {
 	if os.Args[3] == "latency" || os.Args[3] == "bw" {
 
 		var policies beacon.Policies
-		db, err := storage2.NewIngressDB(policies, igdb)
+		db, err := storage2.NewIngressStore(nil, &policies, igdb)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -844,7 +844,7 @@ func main() {
 		g.Wait()
 	} else if os.Args[3] == "throughput" {
 		var policies beacon.Policies
-		db, err := storage2.NewIngressDB(policies, igdb)
+		db, err := storage2.NewIngressStore(nil, &policies, igdb)
 		if err != nil {
 			fmt.Println(err)
 			return

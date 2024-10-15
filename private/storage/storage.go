@@ -205,7 +205,7 @@ func NewBeaconStorage(c DBConfig, ia addr.IA) (BeaconDB, error) {
 	}, nil
 }
 
-func NewIngressStorage(c DBConfig, ia addr.IA) (IngressDB, error) {
+func NewIngressDB(c DBConfig, ia addr.IA) (IngressDB, error) {
 	log.Info("Connecting IngressDb", "backend", BackendSqlite, "connection", c.Connection)
 	db, err := sqliteingressdb.New(c.Connection, ia)
 	if err != nil {

@@ -66,10 +66,10 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 
 	//logger.Debug("Received beacon", "bcn", b)
 	// TODO(jvb); investigate whether the prefilter is desired.
-	//if err := h.IngressDB.PreFilter(b); err != nil {
-	//	logger.Debug("Beacon pre-filtered", "err", err)
-	//	return err
-	//}
+	if err := h.IngressDB.PreFilter(b); err != nil {
+		logger.Debug("Beacon pre-filtered", "err", err)
+		return err
+	}
 	timeValidateS := time.Now()
 	if err := h.validateASEntry(b, intf); err != nil {
 		logger.Info("Beacon validation failed", "err", err)

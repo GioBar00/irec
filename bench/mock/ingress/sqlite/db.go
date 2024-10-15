@@ -40,6 +40,11 @@ type Backend struct {
 	*executor
 }
 
+func (b *Backend) CandidateBeacons(ctx context.Context, setSize int, usage beacon.Usage, src addr.IA, bestSetSize int) ([]beacon.Beacon, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 // New returns a new SQLite backend opening a database at the given path. If
 // no database exists a new database is be created. If the schema version of the
 // stored database is different from the one in schema.go, an error is returned.

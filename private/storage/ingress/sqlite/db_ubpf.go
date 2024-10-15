@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -779,4 +780,61 @@ func (e *executor) insertNewBeacon(
 	// err = e.makeRacJobValid(ctx, tx, start.ISD(), start.AS(), intfGroup, algorithmHash, algorithmId, pullBased, pullBasedTargetIsd, pullBasedTargetAs)
 
 	return err
+}
+
+func (e *executor) CandidateBeacons(ctx context.Context, setSize int, usage beacon.Usage, src addr.IA, bestSetSize int) ([]beacon.Beacon, error) {
+	e.Lock()
+	defer e.Unlock()
+
+	srcCond := ""
+	if !src.IsZero() {
+		srcCond = strings.Join([]string{"AND b.StartIsd = ", strconv.Itoa(int(src.ISD())), " AND b.StartAs = ", strconv.Itoa(int(src.AS()))}, "")
+	}
+	query := `
+SELECT DISTINCT b1.Beacon, b1.InIntfID
+FROM Beacons AS b1
+WHERE
+b1.RowID IN (SELECT DISTINCT b.RowID
+	FROM Beacons AS b, (
+		SELECT DISTINCT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId
+		FROM Beacons
+		WHERE (Usage & ?1) == ?1
+		AND PullBased = 0
+		?2
+	) AS bb
+	WHERE (b.Usage & ?1) == ?1
+		AND b.PullBased = 0
+		AND b.StartIsd = bb.StartIsd
+		AND b.StartAs = bb.StartAs
+		AND b.StartIntfGroup = bb.StartIntfGroup
+		AND b.AlgorithmHash = bb.AlgorithmHash
+		AND b.AlgorithmId = bb.AlgorithmId
+	ORDER BY b.LastUpdated DESC
+	LIMIT ?3)
+--ORDER BY b1.LastUpdated DESC
+--LIMIT ?4
+`
+	rows, err := e.db.QueryContext(ctx, query, usage, usage, srcCond, strconv.Itoa(bestSetSize), strconv.Itoa(setSize))
+	if err != nil {
+		return nil, serrors.WrapStr("selecting beacons", err, "query", query)
+	}
+	defer rows.Close()
+
+	beacons := make([]beacon.Beacon, 0, setSize)
+	for rows.Next() {
+		var rawBeacon sql.RawBytes
+		var inIfID uint16
+		if err = rows.Scan(&rawBeacon, &inIfID); err != nil {
+			return nil, db.NewReadError(beacon.ErrReadingRows, err)
+		}
+		s, err := beacon.UnpackBeacon(rawBeacon)
+		if err != nil {
+			return nil, db.NewDataError(beacon.ErrParse, err)
+		}
+		beacons = append(beacons, beacon.Beacon{Segment: s, InIfID: inIfID})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return beacons, nil
 }

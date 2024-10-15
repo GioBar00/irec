@@ -7,6 +7,7 @@ package mock_egress_storage
 import (
 	context "context"
 	"github.com/scionproto/scion/control/ifstate"
+	"github.com/scionproto/scion/control/irec/egress/storage"
 	reflect "reflect"
 	"time"
 
@@ -17,6 +18,26 @@ import (
 type MockEgressDB struct {
 	ctrl     *gomock.Controller
 	recorder *MockEgressDBMockRecorder
+}
+
+func (m *MockEgressDB) UpdateExpiry(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockEgressDB) DeleteBeacon(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockEgressDB) BeaconsThatShouldBePropagated(ctx context.Context, beacons []storage.EgressBeacon, expiry time.Time) ([]storage.EgressBeacon, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockEgressDB) GetDBSize(ctx context.Context) (int, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 // MockSenderFactoryMockRecorder is the mock recorder for MockSenderFactory.

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -45,7 +46,7 @@ type Propagator struct {
 	PropagationFilter     func(*ifstate.Interface) bool
 	Peers                 []uint16
 	SenderFactory         SenderFactory
-	Writers               []Writer
+	Writers               []beaconing.Writer
 	Originator            *PullBasedOriginator
 	RacHandler            racjob.RacJobHandler
 }
@@ -128,45 +129,6 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			err := p.HandlePullBasedRequest(ctx, &bcn)
 			if err != nil {
 				log.Error("Error occurred during processing of pull-based beacon targeted at this AS", "err", err)
-			}
-		}()
-	}
-	// Write the beacons to path servers in a separate goroutine
-	for _, writer := range p.Writers {
-		if writer.WriterType() == seg.TypeCoreR {
-			continue
-		}
-		//wg.Add(1)
-		beaconIndexes := beaconIndexes
-		writer := writer
-		go func() {
-			defer log.HandlePanic()
-			//defer wg.Done()
-			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
-			pp.SetNumBeacons(uint32(len(beaconIndexes)))
-			timeWriterS := time.Now()
-			// make a copy of the beacons array as the writer has side effects for beacon
-			beaconsCopy := make([]beacon.Beacon, len(beaconIndexes))
-			// convert to proto and back to beacon to avoid side effects
-			for _, i := range beaconIndexes {
-				segment, err := seg.BeaconFromPB(request.Beacon[i].PathSeg)
-				if err != nil {
-					log.Error("Could not parse beacon segment", "err", err)
-					continue
-				}
-				beaconsCopy[i] = beacon.Beacon{Segment: segment, InIfID: uint16(request.Beacon[i].InIfId)}
-			}
-			log.Info("RP; Writing to SegStore", "First IA", beaconsCopy[0].Segment.FirstIA())
-			stats, err := writer.Write(context.Background(), beaconsCopy, p.Peers, true)
-			if err != nil {
-				log.Error("Could not write beacon to path servers", "err", err)
-				return
-			}
-			timeWriterE := time.Now()
-
-			if stats.Count > 0 {
-				pp.AddDurationT(timeWriterS, timeWriterE)
-				pp.Write()
 			}
 		}()
 	}
@@ -284,7 +246,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					}
 					timeExtendS := time.Now()
 					// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
-					peers := SortedIntfs(p.AllInterfaces, topology.Peer)
+					peers := beaconing.SortedIntfs(p.AllInterfaces, topology.Peer)
 					if segment.ASEntries[0].Extensions.Irec != nil {
 						err = p.Extender.Extend(ctx, segment, uint16(request.Beacon[ebcn.Index].InIfId),
 							intf.TopoInfo().ID, true,

@@ -4,6 +4,7 @@ package storage
 
 import (
 	"context"
+	seg "github.com/scionproto/scion/pkg/segment"
 	"time"
 
 	"github.com/scionproto/scion/control/beacon"
@@ -34,12 +35,16 @@ type IngressStore interface {
 	GetAndMarkBeacons(ctx context.Context, req *cppb.RACBeaconRequest) ([][]byte, []*cppb.IRECBeaconUnopt, error)
 	BeaconSources(ctx context.Context, ignoreIntfGroup bool) ([]*cppb.RACBeaconSource, error)
 	PreFilter(b beacon.Beacon) error
+
+	SegmentsToRegister(ctx context.Context, segType seg.Type) ([]beacon.Beacon, error)
 }
 
 // Beaconstore
 type Store struct {
 	baseStore
-	policies beacon.Policies
+	core         bool
+	policies     *beacon.Policies
+	corePolicies *beacon.CorePolicies
 }
 
 func (s *Store) GetBeaconsByRowIDs(ctx context.Context, ids []int64) ([]*cppb.EgressBeacon, error) {
@@ -50,19 +55,86 @@ func (s *Store) GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBea
 	return s.db.GetBeaconByRowID(ctx, id)
 }
 
-// NewBeaconStore creates a new beacon store for the ingress gateway
-func NewIngressDB(policies beacon.Policies, db DB) (*Store, error) {
-	policies.InitDefaults()
-	if err := policies.Validate(); err != nil {
+func (s *Store) MaxExpTime(policyType beacon.PolicyType) uint8 {
+	switch policyType {
+	case beacon.UpRegPolicy:
+		return *s.policies.UpReg.MaxExpTime
+	case beacon.DownRegPolicy:
+		return *s.policies.DownReg.MaxExpTime
+	case beacon.PropPolicy:
+		return *s.policies.Prop.MaxExpTime
+	}
+	return beacon.DefaultMaxExpTime
+}
+
+func (s *Store) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
+	return s.db.GetRacJobs(ctx, ignoreIntfGroup)
+}
+
+func (s *Store) GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
+	return s.db.GetBeaconRacJob(ctx, racJob.RowID, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30))
+}
+
+func (s *Store) SegmentsToRegister(ctx context.Context, segType seg.Type) ([]beacon.Beacon, error) {
+	if s.core {
+		// seg.TypeCoreR managed by Propagator
+		if segType != seg.TypeCore {
+			return nil, serrors.New("Unsupported segment type", "type", segType)
+		}
+		return s.getBeacons(ctx, &s.corePolicies.CoreReg)
+	} else {
+		switch segType {
+		case seg.TypeDown:
+			return s.getBeacons(ctx, &s.policies.DownReg)
+		case seg.TypeUp:
+			return s.getBeacons(ctx, &s.policies.UpReg)
+		default:
+			return nil, serrors.New("Unsupported segment type", "type", segType)
+		}
+	}
+}
+
+// getBeacons fetches the candidate beacons from the database and serves the
+// best beacons according to the policy.
+func (s *Store) getBeacons(ctx context.Context, policy *beacon.Policy) ([]beacon.Beacon, error) {
+	beacons, err := s.db.CandidateBeacons(ctx, policy.CandidateSetSize,
+		beacon.UsageFromPolicyType(policy.Type), 0, policy.BestSetSize)
+	if err != nil {
 		return nil, err
 	}
-	s := &Store{
-		baseStore: baseStore{
-			db: db,
-		},
-		policies: policies,
+	return beacons, nil
+}
+
+// NewBeaconStore creates a new beacon store for the ingress gateway
+func NewIngressStore(corePolicies *beacon.CorePolicies, policies *beacon.Policies, db DB) (*Store, error) {
+	var s *Store
+	if corePolicies != nil {
+		corePolicies.InitDefaults()
+		if err := corePolicies.Validate(); err != nil {
+			return nil, err
+		}
+		s = &Store{
+			baseStore: baseStore{
+				db: db,
+			},
+			corePolicies: corePolicies,
+			core:         true,
+		}
+		s.baseStore.usager = s.corePolicies
+	} else if policies != nil {
+		policies.InitDefaults()
+		if err := policies.Validate(); err != nil {
+			return nil, err
+		}
+		s = &Store{
+			baseStore: baseStore{
+				db: db,
+			},
+			policies: policies,
+			core:     false,
+		}
+		s.baseStore.usager = s.policies
 	}
-	s.baseStore.usager = &s.policies
 	return s, nil
 }
 
@@ -83,6 +155,8 @@ type DB interface {
 	GetAndMarkBeacons(ctx context.Context, maximum uint32, algHash []byte, algID uint32, originAS addr.IA, originIntfGroup uint32, ignoreIntfGroup bool, marker uint32) ([][]byte, []*cppb.IRECBeaconUnopt, error)
 	BeaconSources(ctx context.Context, ignoreIntfGroup bool) ([]*cppb.RACBeaconSource, error)
 	InsertBeacon(ctx context.Context, b beacon.Beacon, usage beacon.Usage) (beacon.InsertStats, error)
+
+	CandidateBeacons(ctx context.Context, setSize int, usage beacon.Usage, src addr.IA, bestSetSize int) ([]beacon.Beacon, error)
 
 	MarkBeacons(ctx context.Context, ids []int64) error
 	GetBeaconJob(ctx context.Context, maximum uint32, ignoreIntfGroup bool, fetchExpirationTime time.Time) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error)
@@ -182,24 +256,4 @@ func (s *baseStore) GetBeaconsJob(ctx context.Context, request *cppb.RACBeaconRe
 
 func (s *baseStore) GetValidRacJobs(ctx context.Context) ([]*beacon.RacJobAttr, error) {
 	return s.db.GetValidRacJobs(ctx)
-}
-
-func (s *Store) MaxExpTime(policyType beacon.PolicyType) uint8 {
-	switch policyType {
-	case beacon.UpRegPolicy:
-		return *s.policies.UpReg.MaxExpTime
-	case beacon.DownRegPolicy:
-		return *s.policies.DownReg.MaxExpTime
-	case beacon.PropPolicy:
-		return *s.policies.Prop.MaxExpTime
-	}
-	return beacon.DefaultMaxExpTime
-}
-
-func (s *Store) GetRacJobs(ctx context.Context, ignoreIntfGroup bool) ([]*beacon.RacJobMetadata, error) {
-	return s.db.GetRacJobs(ctx, ignoreIntfGroup)
-}
-
-func (s *Store) GetBeaconRacJob(ctx context.Context, request *cppb.RACBeaconRequest, racJob *beacon.RacJobMetadata) ([][]byte, []*cppb.IRECBeaconUnopt, []byte, []int64, error) {
-	return s.db.GetBeaconRacJob(ctx, racJob.RowID, request.Maximum, request.IgnoreIntfGroup, time.Now().Add(time.Second*30))
 }

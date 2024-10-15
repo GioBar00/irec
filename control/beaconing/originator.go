@@ -138,12 +138,12 @@ func (o *Originator) needBeacon(active []*ifstate.Interface) []*ifstate.Interfac
 	return stale
 }
 
-func (o *Originator) logSummary(logger log.Logger, s *summary) {
+func (o *Originator) logSummary(logger log.Logger, s *Summary) {
 	if o.Tick.Passed() {
 		logger.Debug("Originated beacons", "egress_interfaces", s.IfIDs())
 		return
 	}
-	if s.count > 0 {
+	if s.Count > 0 {
 		logger.Debug("Originated beacons on stale interfaces", "egress_interfaces", s.IfIDs())
 	}
 }
@@ -153,7 +153,7 @@ type beaconOriginator struct {
 	*Originator
 	intf      *ifstate.Interface
 	timestamp time.Time
-	summary   *summary
+	summary   *Summary
 }
 
 // originateBeacon originates a beacon on the given ifID.
