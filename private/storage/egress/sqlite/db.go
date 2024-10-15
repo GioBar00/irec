@@ -17,8 +17,6 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -202,24 +200,13 @@ func (e *executor) isBeaconAlreadyPropagated(ctx context.Context, beaconHash []b
 	return true, rowID, nil
 }
 
-func (e *executor) DeleteEgressBeacon(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) error {
+func (e *executor) DeleteBeacon(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) error {
 	e.Lock()
 	defer e.Unlock()
 	query := "DELETE FROM Beacons WHERE BeaconHash=? AND EgressIntf=?"
 	_, err := e.db.ExecContext(ctx, query, beaconHash, intf.TopoInfo().ID)
 	if err != nil {
-		return db.NewWriteError("deleting beacon intf", err)
-	}
-	return nil
-}
-
-func (e *executor) DeleteEgressBeacons(ctx context.Context, beaconHashes []*[]byte, intf *ifstate.Interface) error {
-	e.Lock()
-	defer e.Unlock()
-	query := "DELETE FROM Beacons WHERE EgressIntf=? AND BeaconHash IN ("
-	_, err := e.db.ExecContext(ctx, query+strings.Trim(strings.Join(strings.Fields(fmt.Sprint(beaconHashes)), ","), "[]")+")", intf.TopoInfo().ID)
-	if err != nil {
-		return db.NewWriteError("deleting beacons intf", err)
+		return db.NewWriteError("deleting beacon hash", err)
 	}
 	return nil
 }

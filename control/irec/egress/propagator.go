@@ -222,66 +222,57 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 
 		ctx := context.Background()
 
-		type Beacon struct {
-			Index      int
-			BeaconHash *[]byte
-		}
+		senderByIntf := make(map[uint32]Sender)
 
-		beaconIndexesByIntf := make(map[*ifstate.Interface][]Beacon)
 		for _, ebcn := range egressBeacons {
-			for _, intfId := range ebcn.EgressIntfs {
-				intf := p.Interfaces[intfId]
-				if intf.TopoInfo().ID != uint16(intfId) {
-					log.Error("Interface ID mismatch", "intfId", intfId, "topoId", intf.TopoInfo().ID)
-					continue
-				}
-				beaconIndexesByIntf[intf] = append(beaconIndexesByIntf[intf], Beacon{Index: ebcn.Index, BeaconHash: ebcn.BeaconHash})
-			}
+			wg.Add(len(ebcn.EgressIntfs))
 		}
 
 		failed := false
-		senderFailed := false
 
-		senders := []Sender{}
-		for intf, bcns := range beaconIndexesByIntf {
-			timeSenderS := time.Now()
-			senderCtx, cancel := context.WithTimeout(context.Background(), defaultNewSenderTimeout)
-			defer cancel()
-			sender, err := p.SenderFactory.NewSender(
-				senderCtx,
-				intf.TopoInfo().IA,
-				intf.TopoInfo().ID,
-				net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
-			)
-			if err != nil {
-				log.Error("Creating sender failed", "err", err)
-				bcnsHashes := make([]*[]byte, len(bcns))
-				for i, bcn := range bcns {
-					bcnsHashes[i] = bcn.BeaconHash
+		for _, ebcn := range egressBeacons {
+			beaconHash := ebcn.BeaconHash
+			for _, intfId := range ebcn.EgressIntfs {
+				bcnId := procperf.GetFullId(beacons[ebcn.Index].Segment.GetLoggingID(), beacons[ebcn.Index].Segment.Info.SegmentID)
+				pp := procperf.GetNew(procperf.PropagatedBcn, bcnId)
+				pp.SetData(fmt.Sprintf("%d", request.JobID))
+				intf := p.Interfaces[intfId]
+				if intf.TopoInfo().ID != uint16(intfId) {
+					log.Error("Interface ID mismatch", "intfId", intfId, "topoId", intf.TopoInfo().ID)
+					wg.Done()
+					continue
 				}
-				err = p.Store.DeleteEgressBeacons(ctx, bcnsHashes, intf)
-				if err != nil {
-					log.Error("Beacon DB Propagation Delete failed on sender creation fail", "err", err)
+				timeSenderS := time.Now()
+				sender, ok := senderByIntf[intfId]
+				if !ok {
+					senderCtx, cancel := context.WithTimeout(context.Background(), defaultNewSenderTimeout)
+					defer cancel()
+					sender, err = p.SenderFactory.NewSender(
+						senderCtx,
+						intf.TopoInfo().IA,
+						intf.TopoInfo().ID,
+						net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
+					)
+					if err != nil {
+						log.Error("Creating sender failed", "err", err)
+						wg.Done()
+						err = p.Store.DeleteBeacon(ctx, *beaconHash, intf)
+						if err != nil {
+							log.Error("Beacon DB Propagation Delete failed on sender creation fail", "err", err)
+						}
+						continue
+					}
+					senderByIntf[intfId] = sender
 				}
-				senderFailed = true
-				failed = true
-				continue
-			}
-			senders = append(senders, sender)
-			timeSenderE := time.Now()
-			wg.Add(len(bcns))
-			for _, bcn := range bcns {
-				bcn := bcn
+				timeSenderE := time.Now()
+				pp.AddDurationT(timeSenderS, timeSenderE) // 0
+				beaconHash := beaconHash
+				ebcn := ebcn
 				go func() {
 					defer log.HandlePanic()
 					defer wg.Done()
-					bcnId := procperf.GetFullId(beacons[bcn.Index].Segment.GetLoggingID(), beacons[bcn.Index].Segment.Info.SegmentID)
-					pp := procperf.GetNew(procperf.PropagatedBcn, bcnId)
-					pp.SetData(fmt.Sprintf("%d", request.JobID))
 					defer pp.Write()
-					// Add Sender time divided by number of beacons
-					pp.AddDuration(timeSenderE.Sub(timeSenderS).Seconds() / float64(len(bcns))) // 0
-					segment, err := seg.BeaconFromPB(request.Beacon[bcn.Index].PathSeg)
+					segment, err := seg.BeaconFromPB(request.Beacon[ebcn.Index].PathSeg)
 					if err != nil {
 						log.Error("Could not parse beacon segment", "err", err)
 						return
@@ -290,7 +281,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 					peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 					if segment.ASEntries[0].Extensions.Irec != nil {
-						err = p.Extender.Extend(ctx, segment, beacons[bcn.Index].InIfID,
+						err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
 							intf.TopoInfo().ID, true,
 							&irec.Irec{
 								AlgorithmHash:  segment.ASEntries[0].Extensions.Irec.AlgorithmHash,
@@ -300,7 +291,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 							peers)
 					} else {
 						// Otherwise, default values.
-						err = p.Extender.Extend(ctx, segment, beacons[bcn.Index].InIfID,
+						err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
 							intf.TopoInfo().ID, false, nil, peers)
 					}
 					if err != nil {
@@ -318,28 +309,29 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 							"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
 							err)
 						success = false
-						failed = true
 					}
 					timeSendE := time.Now()
 					pp.AddDurationT(timeSendS, timeSendE) // 2
 					timeUpdateS := time.Now()
 					if !success {
-						err = p.Store.DeleteEgressBeacon(ctx, *bcn.BeaconHash, intf)
+						err = p.Store.DeleteBeacon(ctx, *beaconHash, intf)
 						if err != nil {
 							log.Error("Beacon DB Propagation Delete failed", "err", err)
 							return
 						}
 					} else {
 						// Mark beacon as propagated in egress db with the real expiry time
-						err = p.Store.UpdateExpiry(ctx, *bcn.BeaconHash, intf, time.Now().Add(time.Hour))
+						err = p.Store.UpdateExpiry(ctx, *beaconHash, intf, time.Now().Add(time.Hour))
 						if err != nil {
 							log.Error("Beacon DB Propagation Mark failed", "err", err)
 							return
 						}
 					}
+
 					timeUpdateE := time.Now()
 					pp.AddDurationT(timeUpdateS, timeUpdateE) // 3
 					if !success {
+						failed = true
 						return
 					}
 					timeIntfPropagateS := time.Now()
@@ -350,146 +342,20 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					}
 					timeIntfPropagateE := time.Now()
 					pp.AddDurationT(timeIntfPropagateS, timeIntfPropagateE) // 4
+					//log.Info("DB; Expiry updated", "time", timeUpdateE.Sub(timeUpdateS))
+					//log.Info("BCN; Beacon sent", "extend", timeExtendE.Sub(timeExtendS), "sender", timeSenderE.Sub(timeSenderS), "send", timeSendE.Sub(timeSendS), "update expiry", timeUpdateE.Sub(timeUpdateS), "intf", timeIntfPropagateE.Sub(timeIntfPropagateS))
 				}()
 			}
 		}
 		wg.Wait()
-
-		for _, sender := range senders {
+		for _, sender := range senderByIntf {
 			sender.Close()
 		}
-		p.RacHandler.MarkRacJob(ctx, beacon.RacJobAttrFrom(beacons[0].Segment), failed, senderFailed)
 
-		//senderByIntf := make(map[uint32]Sender)
-		//
-		//failed := false
-		//
-		//for _, ebcn := range egressBeacons {
-		//	beaconHash := ebcn.BeaconHash
-		//	for _, intfId := range ebcn.EgressIntfs {
-		//		bcnId := procperf.GetFullId(beacons[ebcn.Index].Segment.GetLoggingID(), beacons[ebcn.Index].Segment.Info.SegmentID)
-		//		pp := procperf.GetNew(procperf.PropagatedBcn, bcnId)
-		//		pp.SetData(fmt.Sprintf("%d", request.JobID))
-		//		intf := p.Interfaces[intfId]
-		//		if intf.TopoInfo().ID != uint16(intfId) {
-		//			log.Error("Interface ID mismatch", "intfId", intfId, "topoId", intf.TopoInfo().ID)
-		//			wg.Done()
-		//			continue
-		//		}
-		//		timeSenderS := time.Now()
-		//		sender, ok := senderByIntf[intfId]
-		//		if !ok {
-		//			senderCtx, cancel := context.WithTimeout(context.Background(), defaultNewSenderTimeout)
-		//			defer cancel()
-		//			sender, err = p.SenderFactory.NewSender(
-		//				senderCtx,
-		//				intf.TopoInfo().IA,
-		//				intf.TopoInfo().ID,
-		//				net.UDPAddrFromAddrPort(intf.TopoInfo().InternalAddr),
-		//			)
-		//			if err != nil {
-		//				log.Error("Creating sender failed", "err", err)
-		//				wg.Done()
-		//				err = p.Store.DeleteEgressBeacon(ctx, *beaconHash, intf)
-		//				if err != nil {
-		//					log.Error("Beacon DB Propagation Delete failed on sender creation fail", "err", err)
-		//				}
-		//				continue
-		//			}
-		//			senderByIntf[intfId] = sender
-		//		}
-		//		timeSenderE := time.Now()
-		//		pp.AddDurationT(timeSenderS, timeSenderE) // 0
-		//		beaconHash := beaconHash
-		//		ebcn := ebcn
-		//		go func() {
-		//			defer log.HandlePanic()
-		//			defer wg.Done()
-		//			defer pp.Write()
-		//			segment, err := seg.BeaconFromPB(request.Beacon[ebcn.Index].PathSeg)
-		//			if err != nil {
-		//				log.Error("Could not parse beacon segment", "err", err)
-		//				return
-		//			}
-		//			timeExtendS := time.Now()
-		//			// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
-		//			peers := SortedIntfs(p.AllInterfaces, topology.Peer)
-		//			if segment.ASEntries[0].Extensions.Irec != nil {
-		//				err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
-		//					intf.TopoInfo().ID, true,
-		//					&irec.Irec{
-		//						AlgorithmHash:  segment.ASEntries[0].Extensions.Irec.AlgorithmHash,
-		//						InterfaceGroup: 0,
-		//						AlgorithmId:    segment.ASEntries[0].Extensions.Irec.AlgorithmId,
-		//					},
-		//					peers)
-		//			} else {
-		//				// Otherwise, default values.
-		//				err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
-		//					intf.TopoInfo().ID, false, nil, peers)
-		//			}
-		//			if err != nil {
-		//				log.Error("Extending failed", "err", err)
-		//				return
-		//			}
-		//			timeExtendE := time.Now()
-		//			pp.AddDurationT(timeExtendS, timeExtendE) // 1
-		//			nextId := procperf.GetFullId(segment.GetLoggingID(), segment.Info.SegmentID)
-		//			pp.SetNextID(nextId)
-		//			success := true
-		//			timeSendS := time.Now()
-		//			if err := sender.Send(ctx, segment); err != nil {
-		//				log.Error("Sending beacon failed", "dstIA", intf.TopoInfo().IA,
-		//					"dstId", intf.TopoInfo().ID, "dstNH", intf.TopoInfo().InternalAddr, "err",
-		//					err)
-		//				success = false
-		//			}
-		//			timeSendE := time.Now()
-		//			pp.AddDurationT(timeSendS, timeSendE) // 2
-		//			timeUpdateS := time.Now()
-		//			if !success {
-		//				err = p.Store.DeleteEgressBeacon(ctx, *beaconHash, intf)
-		//				if err != nil {
-		//					log.Error("Beacon DB Propagation Delete failed", "err", err)
-		//					return
-		//				}
-		//			} else {
-		//				// Mark beacon as propagated in egress db with the real expiry time
-		//				err = p.Store.UpdateExpiry(ctx, *beaconHash, intf, time.Now().Add(time.Hour))
-		//				if err != nil {
-		//					log.Error("Beacon DB Propagation Mark failed", "err", err)
-		//					return
-		//				}
-		//			}
-		//
-		//			timeUpdateE := time.Now()
-		//			pp.AddDurationT(timeUpdateS, timeUpdateE) // 3
-		//			if !success {
-		//				failed = true
-		//				return
-		//			}
-		//			timeIntfPropagateS := time.Now()
-		//			if segment.ASEntries[0].Extensions.Irec != nil {
-		//				intf.Propagate(time.Now(), HashToString(segment.ASEntries[0].Extensions.Irec.AlgorithmHash))
-		//			} else {
-		//				intf.Propagate(time.Now(), "")
-		//			}
-		//			timeIntfPropagateE := time.Now()
-		//			pp.AddDurationT(timeIntfPropagateS, timeIntfPropagateE) // 4
-		//			//log.Info("DB; Expiry updated", "time", timeUpdateE.Sub(timeUpdateS))
-		//			//log.Info("BCN; Beacon sent", "extend", timeExtendE.Sub(timeExtendS), "sender", timeSenderE.Sub(timeSenderS), "send", timeSendE.Sub(timeSendS), "update expiry", timeUpdateE.Sub(timeUpdateS), "intf", timeIntfPropagateE.Sub(timeIntfPropagateS))
-		//		}()
-		//	}
-		//}
-		//wg.Wait()
-		//for _, sender := range senderByIntf {
-		//	sender.Close()
-		//}
-		//
-		//if failed {
-		//	log.Error("FAILED")
-		//	p.RacHandler.MakeRacJobValid(ctx, beacon.RacJobAttrFrom(beacons[0].Segment))
-		//}
+		if failed {
+			log.Error("FAILED")
+			p.RacHandler.MakeRacJobValid(ctx, beacon.RacJobAttrFrom(beacons[0].Segment))
+		}
 	}()
 
 	// print db size
