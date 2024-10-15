@@ -20,7 +20,7 @@ const (
 type RacJobHandler interface {
 	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
 	UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr)
-	MakeRacJobValid(ctx context.Context, racJobAttr *beacon.RacJobAttr)
+	MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr, failed int32, total int32)
 }
 
 type RacJob struct {
@@ -29,6 +29,7 @@ type RacJob struct {
 	Valid                   bool
 	LastExecuted            time.Time
 	MinPullBasedHyperPeriod time.Time
+	Executing               bool
 }
 
 func (r *RacJob) Equal(r2 *RacJob) bool {
@@ -98,6 +99,7 @@ type JobHandler struct {
 	SeenIsdAs         map[addr.IA]struct{}
 	RacJobByMapKey    map[MapKey]*RacJob
 	QueueItemByMapKey map[MapKey]*PriorityQueueItem
+	ExecutingRacJobs  map[MapKey]*RacJob
 
 	normalRacJobs PriorityQueue
 	pullRacJobs   PriorityQueue
@@ -113,20 +115,30 @@ func (j *JobHandler) addRacJobToQueue(ctx context.Context, racJob *RacJob) {
 	j.QueueItemByMapKey[MapKeyFrom(racJob.RacJobAttr)] = queueItem
 }
 
-func (j *JobHandler) MakeRacJobValid(ctx context.Context, racJobAttr *beacon.RacJobAttr) {
+func (j *JobHandler) MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr, failed int32, total int32) {
 	j.Lock()
 	defer j.Unlock()
 	mapKey := MapKeyFrom(racJobAttr)
-	log.FromCtx(ctx).Debug("MakeRacJobValid", "RacJob", racJobAttr)
-	if _, ok := j.QueueItemByMapKey[mapKey]; !ok {
-		if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
-			racJob.Valid = true
-			//racJob.LastExecuted = racJob.LastExecuted.Add(-1 * time.Minute)
-			j.addRacJobToQueue(ctx, racJob)
+	if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
+		log.FromCtx(ctx).Debug("MarkRacJob", "RacJobAttr", racJobAttr, "Failed", failed, "Total", total)
+		if _, ok := j.ExecutingRacJobs[mapKey]; ok {
+			delete(j.ExecutingRacJobs, mapKey)
+			racJob.Executing = false
 		} else {
-			log.FromCtx(ctx).Info("Error: Trying to validate non-existent RacJob", "RacJob", racJob)
+			log.FromCtx(ctx).Debug("RacJob not executing", "RacJobAttr", racJobAttr)
+			return // Already added to queue
 		}
-		return
+		if failed > 0 || racJob.Valid {
+			racJob.Valid = true
+			if failed > 0 {
+				duration := time.Duration(60*failed/total) * time.Second
+				racJob.LastExecuted = racJob.LastExecuted.Add(-duration)
+				log.FromCtx(ctx).Debug("Decreased LastExecuted", "RacJobAttr", racJobAttr, "Duration", duration)
+			}
+			j.addRacJobToQueue(ctx, racJob)
+		}
+	} else {
+		log.FromCtx(ctx).Info("Error: Trying to validate non-existent RacJob", "RacJobAttr", racJobAttr)
 	}
 }
 
@@ -173,12 +185,28 @@ func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr
 		}
 	}
 	racJob.Valid = true
-	j.addRacJobToQueue(ctx, racJob)
+	if !racJob.Executing {
+		j.addRacJobToQueue(ctx, racJob)
+	}
+}
+
+func (j *JobHandler) checkExecutingRacJobs(ctx context.Context) {
+	for mapKey, racJob := range j.ExecutingRacJobs {
+		if time.Since(racJob.LastExecuted) >= 10*time.Second {
+			log.FromCtx(ctx).Info("RacJob Execution Timeout", "RacJobAttr", racJob.RacJobAttr)
+			delete(j.ExecutingRacJobs, mapKey)
+			racJob.Executing = false
+			racJob.Valid = true
+			racJob.LastExecuted = time.Now().Add(-1 * time.Minute)
+			j.addRacJobToQueue(ctx, racJob)
+		}
+	}
 }
 
 func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) {
 	j.Lock()
 	defer j.Unlock()
+	j.checkExecutingRacJobs(ctx)
 	if j.normalRacJobs.Len() == 0 && j.pullRacJobs.Len() == 0 {
 		return nil, nil
 	}
@@ -200,9 +228,12 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	racJob.LastExecuted = time.Now()
 	racJob.Valid = false
 	racJob.NotFetchCount = 0
-	delete(j.QueueItemByMapKey, MapKeyFrom(racJob.RacJobAttr))
+	racJob.Executing = true
+	mapKey := MapKeyFrom(racJob.RacJobAttr)
+	delete(j.QueueItemByMapKey, mapKey)
+	j.ExecutingRacJobs[mapKey] = racJob
 
-	log.FromCtx(ctx).Info("Selected RacJob", "RacJob", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
+	log.FromCtx(ctx).Info("Selected RacJob", "RacJobAttr", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
 
 	return racJob.RacJobAttr, nil
 }

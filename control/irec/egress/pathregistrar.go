@@ -199,7 +199,7 @@ func (r *LocalWriter) Write(
 			if r.Intfs.Get(b.InIfID) == nil {
 				continue
 			}
-			//logger.Debug("terminating beacon")
+			logger.Debug("Terminating beacon", "First IA", b.Segment.FirstIA())
 			err := r.Extender.Extend(ctx, b.Segment, b.InIfID, 0, false, nil, peers)
 
 			if err != nil {
@@ -211,7 +211,7 @@ func (r *LocalWriter) Write(
 		toRegister = append(toRegister, &seg.Meta{Type: r.Type, Segment: b.Segment})
 		beacons[b.Segment.GetLoggingID()] = b
 	}
-	log.Info("Registering Beacons locally.")
+	//log.Info("Registering Beacons locally.")
 	if len(toRegister) == 0 {
 		return WriteStats{}, nil
 	}

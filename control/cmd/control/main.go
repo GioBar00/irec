@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/scionproto/scion/control/irec/racjob"
 	"net/http"
 	_ "net/http/pprof"
 	"net/netip"
@@ -32,6 +31,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/scionproto/scion/control/irec/racjob"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -396,6 +397,7 @@ func realMain(ctx context.Context) error {
 		SeenIsdAs:         make(map[addr.IA]struct{}),
 		RacJobByMapKey:    make(map[racjob.MapKey]*racjob.RacJob),
 		QueueItemByMapKey: make(map[racjob.MapKey]*racjob.PriorityQueueItem),
+		ExecutingRacJobs:  make(map[racjob.MapKey]*racjob.RacJob),
 	}
 
 	signer := cs.NewSigner(topo.IA(), trustDB, globalCfg.General.ConfigDir)

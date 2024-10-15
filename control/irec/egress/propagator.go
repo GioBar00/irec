@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/scionproto/scion/control/irec/racjob"
@@ -153,6 +154,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}
 				beaconsCopy[i] = beacon.Beacon{Segment: segment, InIfID: uint16(request.Beacon[i].InIfId)}
 			}
+			log.Info("RP; Writing to SegStore", "First IA", beaconsCopy[0].Segment.FirstIA())
 			stats, err := writer.Write(context.Background(), beaconsCopy, p.Peers, true)
 			if err != nil {
 				log.Error("Could not write beacon to path servers", "err", err)
@@ -208,7 +210,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	egressBeacons, err = p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons, time.Now().Add(2*defaultNewSenderTimeout))
 	if err != nil {
 		log.Error("Could not filter beacons to be propagated", "err", err)
-		return &cppb.PropagationRequestResponse{}, err
+		egressBeacons = []storage.EgressBeacon{}
 	}
 	timeDBFilterE := time.Now()
 	ppT.AddDurationT(timeDBFilterS, timeDBFilterE) // 2
@@ -228,7 +230,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			wg.Add(len(ebcn.EgressIntfs))
 		}
 
-		failed := false
+		var failedNum atomic.Int32
 
 		for _, ebcn := range egressBeacons {
 			beaconHash := ebcn.BeaconHash
@@ -260,6 +262,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 						if err != nil {
 							log.Error("Beacon DB Propagation Delete failed on sender creation fail", "err", err)
 						}
+						failedNum.Add(1)
 						continue
 					}
 					senderByIntf[intfId] = sender
@@ -281,7 +284,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					// If the Origin-AS used Irec, we copy the algorithmID and hash from the first as entry
 					peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 					if segment.ASEntries[0].Extensions.Irec != nil {
-						err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
+						err = p.Extender.Extend(ctx, segment, uint16(request.Beacon[ebcn.Index].InIfId),
 							intf.TopoInfo().ID, true,
 							&irec.Irec{
 								AlgorithmHash:  segment.ASEntries[0].Extensions.Irec.AlgorithmHash,
@@ -291,7 +294,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 							peers)
 					} else {
 						// Otherwise, default values.
-						err = p.Extender.Extend(ctx, segment, beacons[ebcn.Index].InIfID,
+						err = p.Extender.Extend(ctx, segment, uint16(request.Beacon[ebcn.Index].InIfId),
 							intf.TopoInfo().ID, false, nil, peers)
 					}
 					if err != nil {
@@ -331,7 +334,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 					timeUpdateE := time.Now()
 					pp.AddDurationT(timeUpdateS, timeUpdateE) // 3
 					if !success {
-						failed = true
+						failedNum.Add(1)
 						return
 					}
 					timeIntfPropagateS := time.Now()
@@ -347,15 +350,13 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 				}()
 			}
 		}
+		log.Info("RP; Beacon propagation waiting", "First IA", beacons[0].Segment.FirstIA())
 		wg.Wait()
 		for _, sender := range senderByIntf {
 			sender.Close()
 		}
 
-		if failed {
-			log.Error("FAILED")
-			p.RacHandler.MakeRacJobValid(ctx, beacon.RacJobAttrFrom(beacons[0].Segment))
-		}
+		p.RacHandler.MarkRacJob(ctx, beacon.RacJobAttrFrom(beacons[0].Segment), failedNum.Load(), int32(totalNumber))
 	}()
 
 	// print db size
