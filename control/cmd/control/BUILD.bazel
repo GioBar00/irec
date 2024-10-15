@@ -20,6 +20,7 @@ go_library(
         "//control/ifstate:go_default_library",
         "//control/irec/egress:go_default_library",
         "//control/irec/ingress:go_default_library",
+        "//control/irec/racjob:go_default_library",
         "//control/irec/ingress/storage:go_default_library",
         "//control/mgmtapi:go_default_library",
         "//control/onehop:go_default_library",

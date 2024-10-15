@@ -20,7 +20,7 @@ const (
 type RacJobHandler interface {
 	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
 	UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr)
-	MakeRacJobValid(ctx context.Context, racJob *beacon.RacJobAttr)
+	MakeRacJobValid(ctx context.Context, racJobAttr *beacon.RacJobAttr)
 }
 
 type RacJob struct {
@@ -29,6 +29,10 @@ type RacJob struct {
 	Valid                   bool
 	LastExecuted            time.Time
 	MinPullBasedHyperPeriod time.Time
+}
+
+func (r *RacJob) Equal(r2 *RacJob) bool {
+	return r.RacJobAttr.Equal(r2.RacJobAttr)
 }
 
 type MapKey struct {
@@ -40,8 +44,15 @@ type MapKey struct {
 	PullTargetIsdAs addr.IA
 }
 
-func (r *RacJob) Equal(r2 *RacJob) bool {
-	return r.RacJobAttr.Equal(r2.RacJobAttr)
+func MapKeyFrom(racJobAttr *beacon.RacJobAttr) MapKey {
+	return MapKey{
+		IsdAs:           racJobAttr.IsdAs,
+		IntfGroup:       racJobAttr.IntfGroup,
+		AlgHash:         string(racJobAttr.AlgHash),
+		AlgId:           racJobAttr.AlgId,
+		PullBased:       racJobAttr.PullBased,
+		PullTargetIsdAs: racJobAttr.PullTargetIsdAs,
+	}
 }
 
 type PriorityQueueItem struct {
@@ -92,45 +103,37 @@ type JobHandler struct {
 	pullRacJobs   PriorityQueue
 }
 
-func (j *JobHandler) MakeRacJobValid(ctx context.Context, racJob *beacon.RacJobAttr) {
+func (j *JobHandler) addRacJobToQueue(ctx context.Context, racJob *RacJob) {
+	queueItem := &PriorityQueueItem{RacJob: racJob}
+	if racJob.RacJobAttr.PullBased {
+		heap.Push(&j.pullRacJobs, queueItem)
+	} else {
+		heap.Push(&j.normalRacJobs, queueItem)
+	}
+	j.QueueItemByMapKey[MapKeyFrom(racJob.RacJobAttr)] = queueItem
+}
+
+func (j *JobHandler) MakeRacJobValid(ctx context.Context, racJobAttr *beacon.RacJobAttr) {
 	j.Lock()
 	defer j.Unlock()
-	mapKey := MapKey{
-		IsdAs:           racJob.IsdAs,
-		IntfGroup:       racJob.IntfGroup,
-		AlgHash:         string(racJob.AlgHash),
-		AlgId:           racJob.AlgId,
-		PullBased:       racJob.PullBased,
-		PullTargetIsdAs: racJob.PullTargetIsdAs,
-	}
-	log.FromCtx(ctx).Debug("MakeRacJobValid", "RacJob", racJob)
+	mapKey := MapKeyFrom(racJobAttr)
+	log.FromCtx(ctx).Debug("MakeRacJobValid", "RacJob", racJobAttr)
 	if _, ok := j.QueueItemByMapKey[mapKey]; !ok {
 		if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
 			racJob.Valid = true
-			racJob.LastExecuted = racJob.LastExecuted.Add(-1 * time.Minute)
-			queueItem := &PriorityQueueItem{RacJob: racJob}
-			if racJob.RacJobAttr.PullBased {
-				heap.Push(&j.pullRacJobs, queueItem)
-			} else {
-				heap.Push(&j.normalRacJobs, queueItem)
-			}
+			//racJob.LastExecuted = racJob.LastExecuted.Add(-1 * time.Minute)
+			j.addRacJobToQueue(ctx, racJob)
 		} else {
-			log.FromCtx(ctx).Debug("Error: Trying to validate non-existent RacJob", "RacJob", racJob)
+			log.FromCtx(ctx).Info("Error: Trying to validate non-existent RacJob", "RacJob", racJob)
 		}
+		return
 	}
 }
 
 func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr) {
 	j.Lock()
 	defer j.Unlock()
-	mapKey := MapKey{
-		IsdAs:           beacon.RacJobAttr.IsdAs,
-		IntfGroup:       beacon.RacJobAttr.IntfGroup,
-		AlgHash:         string(beacon.RacJobAttr.AlgHash),
-		AlgId:           beacon.RacJobAttr.AlgId,
-		PullBased:       beacon.RacJobAttr.PullBased,
-		PullTargetIsdAs: beacon.RacJobAttr.PullTargetIsdAs,
-	}
+	mapKey := MapKeyFrom(beacon.RacJobAttr)
 	// check if in Queue
 	queueItem, ok := j.QueueItemByMapKey[mapKey]
 	if ok {
@@ -170,14 +173,7 @@ func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr
 		}
 	}
 	racJob.Valid = true
-	queueItem = &PriorityQueueItem{RacJob: racJob}
-	// add to queue
-	if beacon.RacJobAttr.PullBased {
-		heap.Push(&j.pullRacJobs, queueItem)
-	} else {
-		heap.Push(&j.normalRacJobs, queueItem)
-	}
-	j.QueueItemByMapKey[mapKey] = queueItem
+	j.addRacJobToQueue(ctx, racJob)
 }
 
 func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) {
@@ -204,6 +200,7 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	racJob.LastExecuted = time.Now()
 	racJob.Valid = false
 	racJob.NotFetchCount = 0
+	delete(j.QueueItemByMapKey, MapKeyFrom(racJob.RacJobAttr))
 
 	log.FromCtx(ctx).Info("Selected RacJob", "RacJob", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
 

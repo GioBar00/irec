@@ -4,7 +4,6 @@ go_library(
     name = "go_default_library",
     srcs = [
         "handler.go",
-        "racjob.go",
         "ingress_server.go",
         "ingress_server_notiming.go",
         "ingress_server_timing.go",

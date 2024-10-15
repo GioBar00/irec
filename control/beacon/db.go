@@ -55,11 +55,54 @@ type RacJobAttr struct {
 	PullTargetIsdAs addr.IA
 }
 
+func RacJobAttrFrom(s *seg.PathSegment) *RacJobAttr {
+	start := s.FirstIA()
+	var intfGroup uint16
+	algorithmHash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9} // Fallback RAC.
+	var algorithmId uint32
+	var pullBased bool
+	var pullBasedTarget addr.IA
+	if s.ASEntries[0].Extensions.Irec != nil {
+		intfGroup = s.ASEntries[0].Extensions.Irec.InterfaceGroup
+		algorithmHash = s.ASEntries[0].Extensions.Irec.AlgorithmHash
+		algorithmId = s.ASEntries[0].Extensions.Irec.AlgorithmId
+		pullBased = s.ASEntries[0].Extensions.Irec.PullBased
+		if !s.ASEntries[0].Extensions.Irec.PullBasedTarget.IsZero() {
+			pullBasedTarget, _ = addr.IAFrom(s.ASEntries[0].Extensions.Irec.PullBasedTarget.ISD(), s.ASEntries[0].Extensions.Irec.PullBasedTarget.AS())
+		}
+	}
+	return &RacJobAttr{
+		IsdAs:           start,
+		IntfGroup:       intfGroup,
+		AlgHash:         algorithmHash,
+		AlgId:           algorithmId,
+		PullBased:       pullBased,
+		PullTargetIsdAs: pullBasedTarget,
+	}
+}
+
 type BeaconAttr struct {
 	RacJobAttr           *RacJobAttr
 	PullBasedMinBeacons  uint32
 	PullBasedPeriod      time.Time
 	PullBasedHyperPeriod time.Time
+}
+
+func BeaconAttrFrom(s *seg.PathSegment) *BeaconAttr {
+	var pullBasedMinBeacons uint32 // todo(jvb): lower limit must be able to be set by AS owner.
+	pullBasedPeriod := time.Now()  // todo(jvb): Upper limit must be able to be set by AS owner
+	pullBasedHyperPeriod := time.Now()
+	if s.ASEntries[0].Extensions.Irec != nil {
+		pullBasedMinBeacons = s.ASEntries[0].Extensions.Irec.PullBasedMinBeacons
+		pullBasedPeriod = time.Now().Add(s.ASEntries[0].Extensions.Irec.PullBasedPeriod)
+		pullBasedHyperPeriod = time.Now().Add(s.ASEntries[0].Extensions.Irec.PullBasedHyperPeriod)
+	}
+	return &BeaconAttr{
+		RacJobAttr:           RacJobAttrFrom(s),
+		PullBasedMinBeacons:  pullBasedMinBeacons,
+		PullBasedPeriod:      pullBasedPeriod,
+		PullBasedHyperPeriod: pullBasedHyperPeriod,
+	}
 }
 
 func (a RacJobAttr) Equal(attr *RacJobAttr) bool {

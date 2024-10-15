@@ -200,6 +200,17 @@ func (e *executor) isBeaconAlreadyPropagated(ctx context.Context, beaconHash []b
 	return true, rowID, nil
 }
 
+func (e *executor) DeleteBeacon(ctx context.Context, beaconHash []byte, intf *ifstate.Interface) error {
+	e.Lock()
+	defer e.Unlock()
+	query := "DELETE FROM Beacons WHERE BeaconHash=? AND EgressIntf=?"
+	_, err := e.db.ExecContext(ctx, query, beaconHash, intf.TopoInfo().ID)
+	if err != nil {
+		return db.NewWriteError("deleting beacon hash", err)
+	}
+	return nil
+}
+
 func (e *executor) UpdateExpiry(ctx context.Context, beaconHash []byte, intf *ifstate.Interface, expiry time.Time) error {
 	e.Lock()
 	defer e.Unlock()
