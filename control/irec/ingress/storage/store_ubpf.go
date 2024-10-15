@@ -56,13 +56,22 @@ func (s *Store) GetBeaconByRowID(ctx context.Context, id int64) (*cppb.EgressBea
 }
 
 func (s *Store) MaxExpTime(policyType beacon.PolicyType) uint8 {
-	switch policyType {
-	case beacon.UpRegPolicy:
-		return *s.policies.UpReg.MaxExpTime
-	case beacon.DownRegPolicy:
-		return *s.policies.DownReg.MaxExpTime
-	case beacon.PropPolicy:
-		return *s.policies.Prop.MaxExpTime
+	if s.core {
+		switch policyType {
+		case beacon.CoreRegPolicy:
+			return *s.corePolicies.CoreReg.MaxExpTime
+		case beacon.PropPolicy:
+			return *s.corePolicies.Prop.MaxExpTime
+		}
+	} else {
+		switch policyType {
+		case beacon.UpRegPolicy:
+			return *s.policies.UpReg.MaxExpTime
+		case beacon.DownRegPolicy:
+			return *s.policies.DownReg.MaxExpTime
+		case beacon.PropPolicy:
+			return *s.policies.Prop.MaxExpTime
+		}
 	}
 	return beacon.DefaultMaxExpTime
 }
