@@ -90,7 +90,7 @@ func (p *Propagator) run(ctx context.Context) error {
 	if len(intfs) == 0 {
 		return nil
 	}
-	peers := sortedIntfs(p.AllInterfaces, topology.Peer)
+	peers := SortedIntfs(p.AllInterfaces, topology.Peer)
 
 	beacons, err := p.beaconsPerInterface(ctx, intfs)
 	if err != nil {
@@ -295,7 +295,7 @@ func (p *propagator) Propagate(ctx context.Context) error {
 				id = b.Segment.GetLoggingID()
 			}
 
-			if err := p.extender.Extend(ctx, b.Segment, b.InIfID, egress, p.peers); err != nil {
+			if err := p.extender.Extend(ctx, b.Segment, b.InIfID, egress, false, nil, p.peers); err != nil {
 				logger.Error("Unable to extend beacon",
 					"egress_interface", egress,
 					"beacon.ingress_interface", b.InIfID,

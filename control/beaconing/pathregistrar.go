@@ -2,7 +2,6 @@ package beaconing
 
 import (
 	"context"
-	"github.com/scionproto/scion/control/irec/egress"
 	"net"
 	"strconv"
 	"sync"
@@ -72,7 +71,7 @@ type RemoteWriter struct {
 	// Intfs gives access to the interfaces this CS beacons over.
 	Intfs *ifstate.Interfaces
 	// Extender is used to terminate the beacon.
-	Extender egress.Extender
+	Extender Extender
 	// Type is the type of segment that is handled by this writer.
 	Type seg.Type
 	// RPC is used to send the segment to a remote.
@@ -143,7 +142,7 @@ type LocalWriter struct {
 	// Store is used to store the terminated segments.
 	Store SegmentStore
 	// Extender is used to terminate the beacon.
-	Extender egress.Extender
+	Extender Extender
 	// Intfs gives access to the interfaces this CS beacons over.
 	Intfs *ifstate.Interfaces
 }

@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/scionproto/scion/control/beaconing"
+	"github.com/scionproto/scion/control/irec/egress"
 	"github.com/scionproto/scion/pkg/private/common"
 	"github.com/scionproto/scion/pkg/private/util"
 	"github.com/scionproto/scion/pkg/segment/extensions/staticinfo"
@@ -88,14 +88,14 @@ var (
 	note = "asdf"
 )
 
-func getTestConfigData() *beaconing.StaticInfoCfg {
+func getTestConfigData() *egress.StaticInfoCfg {
 
 	w := func(d time.Duration) util.DurWrap {
 		return util.DurWrap{Duration: d}
 	}
 
-	return &beaconing.StaticInfoCfg{
-		Latency: map[common.IfIDType]beaconing.InterfaceLatencies{
+	return &egress.StaticInfoCfg{
+		Latency: map[common.IfIDType]egress.InterfaceLatencies{
 			1: {
 				Inter: w(latency_inter_1),
 				Intra: map[common.IfIDType]util.DurWrap{
@@ -129,7 +129,7 @@ func getTestConfigData() *beaconing.StaticInfoCfg {
 				},
 			},
 		},
-		Bandwidth: map[common.IfIDType]beaconing.InterfaceBandwidths{
+		Bandwidth: map[common.IfIDType]egress.InterfaceBandwidths{
 			1: {
 				Inter: bandwidth_inter_1,
 				Intra: map[common.IfIDType]uint64{
@@ -163,19 +163,19 @@ func getTestConfigData() *beaconing.StaticInfoCfg {
 				},
 			},
 		},
-		LinkType: map[common.IfIDType]beaconing.LinkType{
-			1: beaconing.LinkType(link_type_1),
-			2: beaconing.LinkType(link_type_2),
-			3: beaconing.LinkType(link_type_3),
-			5: beaconing.LinkType(link_type_5),
+		LinkType: map[common.IfIDType]egress.LinkType{
+			1: egress.LinkType(link_type_1),
+			2: egress.LinkType(link_type_2),
+			3: egress.LinkType(link_type_3),
+			5: egress.LinkType(link_type_5),
 		},
-		Geo: map[common.IfIDType]beaconing.InterfaceGeodata{
+		Geo: map[common.IfIDType]egress.InterfaceGeodata{
 			1: {geo_1.Longitude, geo_1.Latitude, geo_1.Address},
 			2: {geo_2.Longitude, geo_2.Latitude, geo_2.Address},
 			3: {geo_3.Longitude, geo_3.Latitude, geo_3.Address},
 			5: {geo_5.Longitude, geo_5.Latitude, geo_5.Address},
 		},
-		Hops: map[common.IfIDType]beaconing.InterfaceHops{
+		Hops: map[common.IfIDType]egress.InterfaceHops{
 			1: {
 				Intra: map[common.IfIDType]uint32{
 					2: hops_intra_1_2,
@@ -212,7 +212,7 @@ func getTestConfigData() *beaconing.StaticInfoCfg {
 // TestParsing tests whether or not ParseStaticInfoCfg works properly.
 func TestParsing(t *testing.T) {
 	expected := getTestConfigData()
-	actual, err := beaconing.ParseStaticInfoCfg("testdata/testconfigfile.json")
+	actual, err := egress.ParseStaticInfoCfg("testdata/testconfigfile.json")
 	assert.NoError(t, err, "error occurred during parsing")
 	assert.Equal(t, expected, actual)
 }

@@ -399,7 +399,7 @@ func realMain(ctx context.Context) error {
 		}
 	}
 
-	staticInfoEG, err := egress.ParseStaticInfoCfg(globalCfg.General.StaticInfoConfig())
+	staticInfoEG, err := beaconing.ParseStaticInfoCfg(globalCfg.General.StaticInfoConfig())
 	if err != nil {
 		log.Info("No static info file found. Static info settings disabled.", "err", err)
 	}
@@ -415,7 +415,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeCore,
 			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -425,7 +425,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.CoreRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -445,7 +445,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeCoreR,
 			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -455,7 +455,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.CoreRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -466,7 +466,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeUp,
 			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -476,7 +476,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.UpRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
@@ -496,7 +496,7 @@ func realMain(ctx context.Context) error {
 			Registered:     registered,
 			Type:           seg.TypeDown,
 			Intfs:          intfs,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -506,7 +506,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.DownRegPolicy)
 				},
 				Task:       "propagator",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			RPC: beaconinggrpc.Registrar{Dialer: dialer},
@@ -523,10 +523,6 @@ func realMain(ctx context.Context) error {
 			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
 		}
 		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
-	}
-
-	for _, w := range writers {
-
 	}
 
 	jobHandler := racjob.JobHandler{
@@ -549,7 +545,7 @@ func realMain(ctx context.Context) error {
 			Verifier:   verifier,
 			Interfaces: intfs,
 			Rewriter:   nc.AddressRewriter(),
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -559,7 +555,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			Dialer: &libgrpc.QUICDialer{
@@ -675,7 +671,7 @@ func realMain(ctx context.Context) error {
 		}
 		originator = &egress.BasicOriginator{
 			OriginatePerIntfGroup: true,
-			Extender: &egress.DefaultExtender{
+			Extender: &beaconing.DefaultExtender{
 				IA:     topo.IA(),
 				Signer: signer,
 				MAC:    macGen,
@@ -685,7 +681,7 @@ func realMain(ctx context.Context) error {
 					return ingressStore.MaxExpTime(beacon.PropPolicy)
 				},
 				Task:       "originator_core",
-				StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+				StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 				EPIC:       false,
 			},
 			SenderFactory: &egress.BeaconSenderFactory{Dialer: dialer},
@@ -712,7 +708,7 @@ func realMain(ctx context.Context) error {
 			return intfs.Filtered(propagationFilter)
 		},
 		Writers: writers,
-		Extender: &egress.DefaultExtender{
+		Extender: &beaconing.DefaultExtender{
 			IA:     topo.IA(),
 			Signer: signer,
 			MAC:    macGen,
@@ -722,7 +718,7 @@ func realMain(ctx context.Context) error {
 				return ingressStore.MaxExpTime(beacon.PropPolicy)
 			},
 			Task:       "propagator",
-			StaticInfo: func() *egress.StaticInfoCfg { return staticInfoEG },
+			StaticInfo: func() *beaconing.StaticInfoCfg { return staticInfoEG },
 			EPIC:       false,
 		},
 		Interfaces:        intfMap,
@@ -1106,20 +1102,20 @@ func realMain(ctx context.Context) error {
 		},
 		SegmentRegister: beaconinggrpc.Registrar{Dialer: dialer},
 		BeaconStore:     beaconStore,
-		SignerGen: beaconing.SignerGenFunc(func(ctx context.Context) ([]beaconing.Signer, error) {
-			signers, err := signer.SignerGen.Generate(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if len(signers) == 0 {
-				return nil, nil
-			}
-			r := make([]beaconing.Signer, 0, len(signers))
-			for _, s := range signers {
-				r = append(r, s)
-			}
-			return r, nil
-		}),
+		// SignerGen: beaconing.SignerGenFunc(func(ctx context.Context) ([]beaconing.Signer, error) {
+		// 	signers, err := signer.SignerGen.Generate(ctx)
+		// 	if err != nil {
+		// 		return nil, err
+		// 	}
+		// 	if len(signers) == 0 {
+		// 		return nil, nil
+		// 	}
+		// 	r := make([]beaconing.Signer, 0, len(signers))
+		// 	for _, s := range signers {
+		// 		r = append(r, s)
+		// 	}
+		// 	return r, nil
+		// }),
 		Inspector:   inspector,
 		Metrics:     metrics,
 		DRKeyEngine: drkeyEngine,

@@ -6,11 +6,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/scionproto/scion/control/beaconing"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/scionproto/scion/control/beaconing"
 
 	"github.com/scionproto/scion/control/irec/racjob"
 	"github.com/scionproto/scion/private/procperf"
@@ -42,7 +43,7 @@ type Propagator struct {
 	AllInterfaces         *ifstate.Interfaces
 	PropagationInterfaces func() []*ifstate.Interface
 	Interfaces            map[uint32]*ifstate.Interface
-	Extender              Extender
+	Extender              beaconing.Extender
 	PropagationFilter     func(*ifstate.Interface) bool
 	Peers                 []uint16
 	SenderFactory         SenderFactory

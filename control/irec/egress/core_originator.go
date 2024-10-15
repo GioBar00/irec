@@ -30,7 +30,7 @@ type OriginationAlgorithm struct {
 
 // Originator originates beacons. It should only be used by core ASes.
 type BasicOriginator struct {
-	Extender              Extender
+	Extender              beaconing.Extender
 	SenderFactory         SenderFactory
 	IA                    addr.IA
 	Intfs                 []*ifstate.Interface

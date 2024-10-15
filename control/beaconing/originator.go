@@ -205,7 +205,7 @@ func (o *beaconOriginator) createBeacon(ctx context.Context) (*seg.PathSegment, 
 		return nil, serrors.WrapStr("creating segment", err)
 	}
 
-	if err := o.Extender.Extend(ctx, beacon, 0, o.intf.TopoInfo().ID, nil); err != nil {
+	if err := o.Extender.Extend(ctx, beacon, 0, o.intf.TopoInfo().ID, false, nil, []uint16{}); err != nil {
 		return nil, serrors.WrapStr("extending segment", err)
 	}
 	return beacon, nil

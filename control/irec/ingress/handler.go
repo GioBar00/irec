@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"time"
 
+	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/irec/racjob"
 
 	"github.com/scionproto/scion/private/procperf"
@@ -35,7 +36,7 @@ type Handler struct {
 	Verifier   infra.Verifier
 	Interfaces *ifstate.Interfaces
 	Rewriter   *infraenv.AddressRewriter
-	Extender   *egress.DefaultExtender
+	Extender   *beaconing.DefaultExtender
 	Pather     *addrutil.Pather
 	Dialer     *libgrpc.QUICDialer
 	Peers      []uint16

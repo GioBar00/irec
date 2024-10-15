@@ -26,14 +26,13 @@ import (
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/experimental/hiddenpath"
-	"github.com/scionproto/scion/pkg/metrics"
+
+	//"github.com/scionproto/scion/pkg/metrics"
 	seg "github.com/scionproto/scion/pkg/segment"
 	"github.com/scionproto/scion/pkg/snet"
-	"github.com/scionproto/scion/pkg/snet/addrutil"
 	"github.com/scionproto/scion/private/pathdb"
 	"github.com/scionproto/scion/private/periodic"
 	"github.com/scionproto/scion/private/revcache"
-	"github.com/scionproto/scion/private/segment/seghandler"
 	"github.com/scionproto/scion/private/trust"
 )
 
@@ -56,10 +55,10 @@ type TasksConfig struct {
 	BeaconSenderFactory   beaconing.SenderFactory
 	SegmentRegister       beaconing.RPC
 	BeaconStore           Store
-	SignerGen             beaconing.SignerGen
-	Inspector             trust.Inspector
-	Metrics               *Metrics
-	DRKeyEngine           *drkey.ServiceEngine
+	//SignerGen             beaconing.SignerGen
+	Inspector   trust.Inspector
+	Metrics     *Metrics
+	DRKeyEngine *drkey.ServiceEngine
 
 	MACGen     func() hash.Hash
 	StaticInfo func() *beaconing.StaticInfoCfg
@@ -97,71 +96,71 @@ func (t *TasksConfig) SegmentWriters() []*periodic.Runner {
 func (t *TasksConfig) segmentWriter(segType seg.Type,
 	policyType beacon.PolicyType) *periodic.Runner {
 
-	var internalErr, registered metrics.Counter
-	if t.Metrics != nil {
-		internalErr = metrics.NewPromCounter(t.Metrics.BeaconingRegistrarInternalErrorsTotal)
-		registered = metrics.NewPromCounter(t.Metrics.BeaconingRegisteredTotal)
-	}
-	var writer beaconing.Writer
-	switch {
-	case segType != seg.TypeDown:
-		writer = &beaconing.LocalWriter{
-			InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
-			Registered:     registered,
-			Type:           segType,
-			Intfs:          t.AllInterfaces,
-			Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
-				return t.BeaconStore.MaxExpTime(policyType)
-			}),
-			Store: &seghandler.DefaultStorage{PathDB: t.PathDB},
-		}
+	// var internalErr, registered metrics.Counter
+	// if t.Metrics != nil {
+	// 	internalErr = metrics.NewPromCounter(t.Metrics.BeaconingRegistrarInternalErrorsTotal)
+	// 	registered = metrics.NewPromCounter(t.Metrics.BeaconingRegisteredTotal)
+	// }
+	// var writer beaconing.Writer
+	// switch {
+	// case segType != seg.TypeDown:
+	// 	writer = &beaconing.LocalWriter{
+	// 		InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
+	// 		Registered:     registered,
+	// 		Type:           segType,
+	// 		Intfs:          t.AllInterfaces,
+	// 		Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
+	// 			return t.BeaconStore.MaxExpTime(policyType)
+	// 		}),
+	// 		Store: &seghandler.DefaultStorage{PathDB: t.PathDB},
+	// 	}
 
-	case t.HiddenPathRegistrationCfg != nil:
-		writer = &hiddenpath.BeaconWriter{
-			InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
-			Registered:     registered,
-			Intfs:          t.AllInterfaces,
-			Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
-				return t.BeaconStore.MaxExpTime(policyType)
-			}),
-			RPC: t.HiddenPathRegistrationCfg.RPC,
-			Pather: addrutil.Pather{
-				NextHopper: t.NextHopper,
-			},
-			RegistrationPolicy: t.HiddenPathRegistrationCfg.Policy,
-			AddressResolver: hiddenpath.RegistrationResolver{
-				Router:     t.HiddenPathRegistrationCfg.Router,
-				Discoverer: t.HiddenPathRegistrationCfg.Discoverer,
-			},
-		}
-	default:
-		writer = &beaconing.RemoteWriter{
-			InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
-			Registered:     registered,
-			Type:           segType,
-			Intfs:          t.AllInterfaces,
-			Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
-				return t.BeaconStore.MaxExpTime(policyType)
-			}),
-			RPC: t.SegmentRegister,
-			Pather: addrutil.Pather{
-				NextHopper: t.NextHopper,
-			},
-		}
-	}
-	r := &beaconing.WriteScheduler{
-		Provider: t.BeaconStore,
-		Intfs:    t.AllInterfaces,
-		Type:     segType,
-		Writer:   writer,
-		Tick:     beaconing.NewTick(t.RegistrationInterval),
-	}
+	// case t.HiddenPathRegistrationCfg != nil:
+	// 	writer = &hiddenpath.BeaconWriter{
+	// 		InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
+	// 		Registered:     registered,
+	// 		Intfs:          t.AllInterfaces,
+	// 		Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
+	// 			return t.BeaconStore.MaxExpTime(policyType)
+	// 		}),
+	// 		RPC: t.HiddenPathRegistrationCfg.RPC,
+	// 		Pather: addrutil.Pather{
+	// 			NextHopper: t.NextHopper,
+	// 		},
+	// 		RegistrationPolicy: t.HiddenPathRegistrationCfg.Policy,
+	// 		AddressResolver: hiddenpath.RegistrationResolver{
+	// 			Router:     t.HiddenPathRegistrationCfg.Router,
+	// 			Discoverer: t.HiddenPathRegistrationCfg.Discoverer,
+	// 		},
+	// 	}
+	// default:
+	// 	writer = &beaconing.RemoteWriter{
+	// 		InternalErrors: metrics.CounterWith(internalErr, "seg_type", segType.String()),
+	// 		Registered:     registered,
+	// 		Type:           segType,
+	// 		Intfs:          t.AllInterfaces,
+	// 		Extender: t.extender("registrar", t.IA, t.MTU, func() uint8 {
+	// 			return t.BeaconStore.MaxExpTime(policyType)
+	// 		}),
+	// 		RPC: t.SegmentRegister,
+	// 		Pather: addrutil.Pather{
+	// 			NextHopper: t.NextHopper,
+	// 		},
+	// 	}
+	// }
+	// r := &egress.WriteScheduler{
+	// 	Provider: t.BeaconStore,
+	// 	Intfs:    t.AllInterfaces,
+	// 	Type:     segType,
+	// 	Writer:   writer,
+	// 	Tick:     beaconing.NewTick(t.RegistrationInterval),
+	// }
 	// The period of the task is short because we want to retry quickly
 	// if we fail fast. So during one interval we'll make as many attempts
 	// as we can until we succeed. After succeeding, the task does nothing
 	// until the end of the interval. The interval itself is used as a
 	// timeout. If we fail slow we give up at the end of the cycle.
-	return periodic.Start(r, 500*time.Millisecond, t.RegistrationInterval)
+	return periodic.Start(&periodic.Func{}, 500*time.Millisecond, t.RegistrationInterval)
 }
 
 func (t *TasksConfig) extender(
@@ -172,8 +171,8 @@ func (t *TasksConfig) extender(
 ) beaconing.Extender {
 
 	return &beaconing.DefaultExtender{
-		IA:         ia,
-		SignerGen:  t.SignerGen,
+		IA: ia,
+		//SignerGen:  t.SignerGen,
 		MAC:        t.MACGen,
 		Intfs:      t.AllInterfaces,
 		MTU:        mtu,
@@ -181,12 +180,12 @@ func (t *TasksConfig) extender(
 		StaticInfo: t.StaticInfo,
 		Task:       task,
 		EPIC:       t.EPIC,
-		SegmentExpirationDeficient: func() metrics.Gauge {
-			if t.Metrics == nil {
-				return nil
-			}
-			return metrics.NewPromGauge(t.Metrics.SegmentExpirationDeficient)
-		}(),
+		// SegmentExpirationDeficient: func() metrics.Gauge {
+		// 	if t.Metrics == nil {
+		// 		return nil
+		// 	}
+		// 	return metrics.NewPromGauge(t.Metrics.SegmentExpirationDeficient)
+		// }(),
 	}
 }
 
