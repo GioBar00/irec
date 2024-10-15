@@ -20,6 +20,7 @@ const (
 type RacJobHandler interface {
 	GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error)
 	UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr)
+	PreMarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr)
 	MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr, failed int32, total int32)
 }
 
@@ -29,7 +30,7 @@ type RacJob struct {
 	Valid                   bool
 	LastExecuted            time.Time
 	MinPullBasedHyperPeriod time.Time
-	Executing               bool
+	Executing               int
 }
 
 func (r *RacJob) Equal(r2 *RacJob) bool {
@@ -120,12 +121,12 @@ func (j *JobHandler) MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAt
 	defer j.Unlock()
 	mapKey := MapKeyFrom(racJobAttr)
 	if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
-		log.FromCtx(ctx).Debug("MarkRacJob", "RacJobAttr", racJobAttr, "Failed", failed, "Total", total)
+		log.FromCtx(ctx).Debug("RJ; Marking RacJob", "RacJobAttr", racJobAttr, "Failed", failed, "Total", total)
 		if _, ok := j.ExecutingRacJobs[mapKey]; ok {
 			delete(j.ExecutingRacJobs, mapKey)
-			racJob.Executing = false
+			racJob.Executing = 0
 		} else {
-			log.FromCtx(ctx).Debug("RacJob not executing", "RacJobAttr", racJobAttr)
+			log.FromCtx(ctx).Debug("RJ; RacJob not executing when Marking", "RacJobAttr", racJobAttr)
 			return // Already added to queue
 		}
 		if failed > 0 || racJob.Valid {
@@ -133,12 +134,26 @@ func (j *JobHandler) MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAt
 			if failed > 0 {
 				duration := time.Duration(60*failed/total) * time.Second
 				racJob.LastExecuted = racJob.LastExecuted.Add(-duration)
-				log.FromCtx(ctx).Debug("Decreased LastExecuted", "RacJobAttr", racJobAttr, "Duration", duration)
 			}
 			j.addRacJobToQueue(ctx, racJob)
 		}
 	} else {
-		log.FromCtx(ctx).Info("Error: Trying to validate non-existent RacJob", "RacJobAttr", racJobAttr)
+		log.FromCtx(ctx).Error("RJ; Marking non-existent RacJob", "RacJobAttr", racJobAttr)
+	}
+}
+
+func (j *JobHandler) PreMarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr) {
+	j.Lock()
+	defer j.Unlock()
+	mapKey := MapKeyFrom(racJobAttr)
+	if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
+		if _, ok := j.ExecutingRacJobs[mapKey]; ok {
+			racJob.Executing = 2
+		} else {
+			log.FromCtx(ctx).Debug("RJ; RacJob not executing when PreMarking", "RacJobAttr", racJobAttr)
+		}
+	} else {
+		log.FromCtx(ctx).Error("RJ; PreMarking non-existent RacJob", "RacJobAttr", racJobAttr)
 	}
 }
 
@@ -185,17 +200,17 @@ func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr
 		}
 	}
 	racJob.Valid = true
-	if !racJob.Executing {
+	if racJob.Executing == 0 {
 		j.addRacJobToQueue(ctx, racJob)
 	}
 }
 
 func (j *JobHandler) checkExecutingRacJobs(ctx context.Context) {
 	for mapKey, racJob := range j.ExecutingRacJobs {
-		if time.Since(racJob.LastExecuted) >= 10*time.Second {
-			log.FromCtx(ctx).Info("RacJob Execution Timeout", "RacJobAttr", racJob.RacJobAttr)
+		if racJob.Executing == 1 && time.Since(racJob.LastExecuted) >= 30*time.Second {
+			log.FromCtx(ctx).Info("RJ; RacJob Execution Timeout", "RacJobAttr", racJob.RacJobAttr)
 			delete(j.ExecutingRacJobs, mapKey)
-			racJob.Executing = false
+			racJob.Executing = 0
 			racJob.Valid = true
 			racJob.LastExecuted = time.Now().Add(-1 * time.Minute)
 			j.addRacJobToQueue(ctx, racJob)
@@ -228,12 +243,12 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	racJob.LastExecuted = time.Now()
 	racJob.Valid = false
 	racJob.NotFetchCount = 0
-	racJob.Executing = true
+	racJob.Executing = 1
 	mapKey := MapKeyFrom(racJob.RacJobAttr)
 	delete(j.QueueItemByMapKey, mapKey)
 	j.ExecutingRacJobs[mapKey] = racJob
 
-	log.FromCtx(ctx).Info("Selected RacJob", "RacJobAttr", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
+	log.FromCtx(ctx).Info("RJ; Selected RacJob", "RacJobAttr", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
 
 	return racJob.RacJobAttr, nil
 }

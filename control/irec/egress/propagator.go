@@ -116,6 +116,8 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	}
 	timeParsingE := time.Now()
 	ppT.AddDurationT(timeParsingS, timeParsingE) // 0
+	racJobAttr := beacon.RacJobAttrFrom(beacons[0].Segment)
+	p.RacHandler.PreMarkRacJob(ctx, racJobAttr)
 	// handle pull based beacons separately
 	for _, bcn := range pullBasedBeacons {
 		bcn := bcn
@@ -134,12 +136,12 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		if writer.WriterType() == seg.TypeCoreR {
 			continue
 		}
-		wg.Add(1)
+		//wg.Add(1)
 		beaconIndexes := beaconIndexes
 		writer := writer
 		go func() {
 			defer log.HandlePanic()
-			defer wg.Done()
+			//defer wg.Done()
 			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
 			pp.SetNumBeacons(uint32(len(beaconIndexes)))
 			timeWriterS := time.Now()
@@ -356,7 +358,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 			sender.Close()
 		}
 
-		p.RacHandler.MarkRacJob(ctx, beacon.RacJobAttrFrom(beacons[0].Segment), failedNum.Load(), int32(totalNumber))
+		p.RacHandler.MarkRacJob(ctx, racJobAttr, failedNum.Load(), int32(totalNumber))
 	}()
 
 	// print db size

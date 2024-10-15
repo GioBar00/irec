@@ -347,6 +347,9 @@ date --rfc-3339=seconds >> $output_file
 # Wait for the monitor server function to finish
 wait $MONITOR_PID
 
+# Sleep for 5 minutes before killing the server
+sleep 5m
+
 # Kill the server
 kill $SERVER_PID
 """
