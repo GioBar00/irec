@@ -80,7 +80,7 @@ CREATE INDEX NoFetchIndex ON Beacons(FetchStatus, PullBased);
 CREATE INDEX ExpireIndex ON Beacons(ExpirationTime);
 CREATE INDEX FullIDIndex ON Beacons(FullID);
 CREATE INDEX BeaconJobIndex ON Beacons(StartIsd, StartAs, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, StartIntfGroup, FetchStatus);
-CREATE INDEX BeaconPathIndex ON Beacons(StartIsd, StartAs, AlgorithmHash, AlgorithmId, PullBased, Usage, LastUpdated DESC);
+CREATE INDEX BeaconPathIndex ON Beacons (PullBased, Usage, StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId, HopsLength, LastUpdated DESC);
 CREATE INDEX RacJobsIndex ON RacJobs(StartIsd, StartAs, AlgorithmHash, AlgorithmId, PullBased, PullBasedTargetIsd, PullBasedTargetAs, StartIntfGroup);
 CREATE INDEX ValidIndex ON RacJobs(Valid);
 CREATE INDEX AlgorithmIndex ON Algorithm(AlgorithmHash);`

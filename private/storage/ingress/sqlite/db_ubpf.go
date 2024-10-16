@@ -783,44 +783,52 @@ func (e *executor) insertNewBeacon(
 }
 
 func (e *executor) CandidateBeacons(ctx context.Context, setSize int, usage beacon.Usage, src addr.IA, bestSetSize int) ([]beacon.Beacon, error) {
-	e.Lock()
-	defer e.Unlock()
+	e.RLock()
+	defer e.RUnlock()
 
 	srcCond := ""
 	if !src.IsZero() {
-		srcCond = strings.Join([]string{"AND b.StartIsd = ", strconv.Itoa(int(src.ISD())), " AND b.StartAs = ", strconv.Itoa(int(src.AS()))}, "")
+		srcCond = ` AND StartIsd = ?4 AND StartAs = ?5`
 	}
+
+	allUsageVals := []string{}
+	for i := usage; i <= beacon.UsageMax; i++ {
+		allUsageVals = append(allUsageVals, strconv.Itoa(int(i)))
+	}
+	usageStr := strings.Join(allUsageVals, ", ")
+
 	query := `
-SELECT DISTINCT b1.Beacon, b1.InIntfID
-FROM Beacons AS b1
-WHERE
-b1.RowID IN (SELECT DISTINCT b.RowID
-	FROM Beacons AS b, (
-		SELECT DISTINCT StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId
-		FROM Beacons
-		WHERE (Usage & ?1) == ?1
-		AND PullBased = 0
-		?2
-	) AS bb
-	WHERE (b.Usage & ?1) == ?1
-		AND b.PullBased = 0
-		AND b.StartIsd = bb.StartIsd
-		AND b.StartAs = bb.StartAs
-		AND b.StartIntfGroup = bb.StartIntfGroup
-		AND b.AlgorithmHash = bb.AlgorithmHash
-		AND b.AlgorithmId = bb.AlgorithmId
-	ORDER BY b.LastUpdated DESC
-	LIMIT ?3)
---ORDER BY b1.LastUpdated DESC
---LIMIT ?4
+WITH FilteredBeacons AS (
+    SELECT *
+    FROM Beacons
+    WHERE PullBased = 0
+      AND Usage IN ( ` + usageStr + ` )
+` + srcCond + `
+),
+RankedPerGroup AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY StartIsd, StartAs, StartIntfGroup, AlgorithmHash, AlgorithmId
+            ORDER BY HopsLength ASC, LastUpdated DESC
+        ) AS rn_group
+    FROM FilteredBeacons
+),
+BestPerGroup AS (
+    SELECT *
+    FROM RankedPerGroup
+    WHERE rn_group <= ?3
+)
+SELECT Beacon, InIntfID
+FROM BestPerGroup;
 `
-	rows, err := e.db.QueryContext(ctx, query, usage, usage, srcCond, strconv.Itoa(bestSetSize), strconv.Itoa(setSize))
+	rows, err := e.db.QueryContext(ctx, query, strconv.Itoa(setSize), strconv.Itoa(bestSetSize), src.ISD(), src.AS())
 	if err != nil {
 		return nil, serrors.WrapStr("selecting beacons", err, "query", query)
 	}
 	defer rows.Close()
 
-	beacons := make([]beacon.Beacon, 0, setSize)
+	beacons := make([]beacon.Beacon, 0)
 	for rows.Next() {
 		var rawBeacon sql.RawBytes
 		var inIfID uint16

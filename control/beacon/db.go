@@ -153,6 +153,9 @@ const (
 	UsageCoreReg Usage = 0x04
 	// UsageProp indicates the beacon is allowed to be propagated.
 	UsageProp Usage = 0x08
+
+	// UsageMax is the highest possible usage flag.
+	UsageMax Usage = UsageUpReg | UsageDownReg | UsageCoreReg | UsageProp
 )
 
 // Usage indicates what the beacon is allowed to be used for according to the policies.

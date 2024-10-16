@@ -2,6 +2,8 @@ package ingress
 
 import (
 	"context"
+	"time"
+
 	"github.com/scionproto/scion/control/beaconing"
 	"github.com/scionproto/scion/control/ifstate"
 	"github.com/scionproto/scion/pkg/log"
@@ -9,7 +11,6 @@ import (
 	"github.com/scionproto/scion/private/periodic"
 	"github.com/scionproto/scion/private/procperf"
 	"github.com/scionproto/scion/private/topology"
-	"time"
 )
 
 var _ periodic.Task = (*WriteScheduler)(nil)
@@ -69,6 +70,7 @@ func (r *WriteScheduler) run(ctx context.Context) error {
 		return err
 	}
 	timeWriterE := time.Now()
+	log.FromCtx(ctx).Debug("Wrote beacons", "seg_type", r.Type, "count", len(segments), "countStat", stats.Count, "timeFetch", timeGetE.Sub(timeGetS).Seconds(), "timeWrite", timeWriterE.Sub(timeWriterS).Seconds())
 	pp.AddDurationT(timeWriterS, timeWriterE)
 	r.logSummary(ctx, &beaconing.Summary{Count: stats.Count, Srcs: stats.StartIAs})
 	if stats.Count > 0 {

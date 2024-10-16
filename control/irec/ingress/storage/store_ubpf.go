@@ -4,8 +4,9 @@ package storage
 
 import (
 	"context"
-	seg "github.com/scionproto/scion/pkg/segment"
 	"time"
+
+	seg "github.com/scionproto/scion/pkg/segment"
 
 	"github.com/scionproto/scion/control/beacon"
 	"github.com/scionproto/scion/pkg/addr"

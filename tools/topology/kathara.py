@@ -199,7 +199,7 @@ class KatharaLabGenerator(object):
                 elif dev_id.startswith("sd"):
                     self.device_info[dev_id]["startup"] += f'/app/daemon --config /{self.config_dir}/sd.toml &\n'
                     self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
-                    self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{FULL_CONN_SH} &\n'
+                    #self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{FULL_CONN_SH} &\n'
                     self.device_info[dev_id]["startup"] += "sleep 2s\n"
                     # self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
                     self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{FULL_CONN_SH} &\n'
