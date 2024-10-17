@@ -817,7 +817,7 @@ RankedPerGroup AS (
 BestPerGroup AS (
     SELECT *
     FROM RankedPerGroup
-    WHERE rn_group <= ?3
+    WHERE rn_group <= ?2
 )
 SELECT Beacon, InIntfID
 FROM BestPerGroup;
