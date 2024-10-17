@@ -42,6 +42,7 @@ type Handler struct {
 	Peers      []uint16
 
 	RacHandler racjob.RacJobHandler
+	Writers    []beaconing.Writer
 }
 
 func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.UDPAddr) error {
@@ -127,10 +128,40 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	timeInsertE := time.Now()
 	pp.AddDurationT(timeInsertS, timeInsertE) // 4
 
+	// Write the beacons to path servers in a separate goroutine
+	for _, writer := range h.Writers {
+		if writer.WriterType() == seg.TypeCoreR {
+			continue
+		}
+		writer := writer
+		go func() {
+			defer log.HandlePanic()
+			//defer wg.Done()
+			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
+			pp.SetNumBeacons(1)
+			timeWriterS := time.Now()
+			segment, err := seg.BeaconFromPB(seg.PathSegmentToPB(b.Segment))
+			if err != nil {
+				log.Error("Could not parse beacon segment", "err", err)
+				return
+			}
+			bcn := beacon.Beacon{Segment: segment, InIfID: b.InIfID}
+			stats, err := writer.Write(context.Background(), []beacon.Beacon{bcn}, h.Peers, true)
+			if err != nil {
+				log.Error("Could not write beacon to path servers", "err", err)
+				return
+			}
+			timeWriterE := time.Now()
+
+			if stats.Count > 0 {
+				pp.AddDurationT(timeWriterS, timeWriterE)
+				pp.Write()
+			}
+		}()
+	}
+
 	timeUpdateRacJobS := time.Now()
-
 	beaconAttr := beacon.BeaconAttrFrom(b.Segment)
-
 	h.RacHandler.UpdateRacJob(ctx, beaconAttr)
 	timeUpdateRacJobE := time.Now()
 	pp.AddDurationT(timeUpdateRacJobS, timeUpdateRacJobE) // 5

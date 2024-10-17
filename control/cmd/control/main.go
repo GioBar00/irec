@@ -431,14 +431,14 @@ func realMain(ctx context.Context) error {
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
 		})
 
-		r := &ingress.WriteScheduler{
-			Provider: ingressStore,
-			Intfs:    intfs,
-			Type:     seg.TypeCore,
-			Writer:   writers[0],
-			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
-		}
-		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+		// r := &ingress.WriteScheduler{
+		// 	Provider: ingressStore,
+		// 	Intfs:    intfs,
+		// 	Type:     seg.TypeCore,
+		// 	Writer:   writers[0],
+		// 	Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		// }
+		// periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
 
 		writers = append(writers, &beaconing.LocalWriter{
 			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeCoreR.String()),
@@ -482,14 +482,14 @@ func realMain(ctx context.Context) error {
 			Store: &seghandler.DefaultStorage{PathDB: pathDB},
 		})
 
-		r := &ingress.WriteScheduler{
-			Provider: ingressStore,
-			Intfs:    intfs,
-			Type:     seg.TypeUp,
-			Writer:   writers[0],
-			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
-		}
-		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+		// r := &ingress.WriteScheduler{
+		// 	Provider: ingressStore,
+		// 	Intfs:    intfs,
+		// 	Type:     seg.TypeUp,
+		// 	Writer:   writers[0],
+		// 	Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		// }
+		// periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
 
 		writers = append(writers, &beaconing.RemoteWriter{
 			InternalErrors: libmetrics.CounterWith(internalErr, "seg_type", seg.TypeDown.String()),
@@ -515,14 +515,14 @@ func realMain(ctx context.Context) error {
 			},
 		})
 
-		r = &ingress.WriteScheduler{
-			Provider: ingressStore,
-			Intfs:    intfs,
-			Type:     seg.TypeDown,
-			Writer:   writers[1],
-			Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
-		}
-		periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
+		// r = &ingress.WriteScheduler{
+		// 	Provider: ingressStore,
+		// 	Intfs:    intfs,
+		// 	Type:     seg.TypeDown,
+		// 	Writer:   writers[1],
+		// 	Tick:     periodic.NewTick(globalCfg.BS.RegistrationInterval.Duration),
+		// }
+		// periodic.Start(r, 500*time.Millisecond, globalCfg.BS.RegistrationInterval.Duration)
 	}
 
 	jobHandler := racjob.JobHandler{
@@ -535,6 +535,7 @@ func realMain(ctx context.Context) error {
 	is := &ingress.IngressServer{
 		RacHandler: &jobHandler,
 		IncomingHandler: ingress.Handler{
+			Writers:    writers,
 			RacHandler: &jobHandler,
 			Pather: &addrutil.Pather{
 				NextHopper: topo,
