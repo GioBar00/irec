@@ -28,6 +28,7 @@ type RacJob struct {
 	RacJobAttr              *beacon.RacJobAttr
 	NotFetchCount           uint32
 	Valid                   bool
+	FirstReceivedBeacon     time.Time
 	LastExecuted            time.Time
 	MinPullBasedHyperPeriod time.Time
 	Executing               int
@@ -106,7 +107,8 @@ type JobHandler struct {
 	pullRacJobs   PriorityQueue
 }
 
-func (j *JobHandler) addRacJobToQueue(ctx context.Context, racJob *RacJob) {
+func (j *JobHandler) pushRacJobToQueue(ctx context.Context, racJob *RacJob) {
+	racJob.Valid = true
 	queueItem := &PriorityQueueItem{RacJob: racJob}
 	if racJob.RacJobAttr.PullBased {
 		heap.Push(&j.pullRacJobs, queueItem)
@@ -114,6 +116,23 @@ func (j *JobHandler) addRacJobToQueue(ctx context.Context, racJob *RacJob) {
 		heap.Push(&j.normalRacJobs, queueItem)
 	}
 	j.QueueItemByMapKey[MapKeyFrom(racJob.RacJobAttr)] = queueItem
+}
+
+func (j *JobHandler) popRacJobFromQueue(ctx context.Context, pullBased bool) *RacJob {
+	var racJob *RacJob
+	if !pullBased {
+		racJob = heap.Pop(&j.normalRacJobs).(*PriorityQueueItem).RacJob
+	} else {
+		racJob = heap.Pop(&j.pullRacJobs).(*PriorityQueueItem).RacJob
+	}
+	racJob.LastExecuted = time.Now()
+	racJob.Valid = false
+	racJob.NotFetchCount = 0
+	racJob.Executing = 1
+	mapKey := MapKeyFrom(racJob.RacJobAttr)
+	delete(j.QueueItemByMapKey, mapKey)
+	j.ExecutingRacJobs[mapKey] = racJob
+	return racJob
 }
 
 func (j *JobHandler) MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAttr, failed int32, total int32) {
@@ -130,12 +149,11 @@ func (j *JobHandler) MarkRacJob(ctx context.Context, racJobAttr *beacon.RacJobAt
 			return // Already added to queue
 		}
 		if failed > 0 || racJob.Valid {
-			racJob.Valid = true
 			if failed > 0 {
 				duration := time.Duration(60*failed/total) * time.Second
 				racJob.LastExecuted = racJob.LastExecuted.Add(-duration)
 			}
-			j.addRacJobToQueue(ctx, racJob)
+			j.pushRacJobToQueue(ctx, racJob)
 		}
 	} else {
 		log.FromCtx(ctx).Error("RJ; Marking non-existent RacJob", "RacJobAttr", racJobAttr)
@@ -186,8 +204,10 @@ func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr
 	racJob, ok := j.RacJobByMapKey[mapKey]
 	if !ok {
 		timeShift = timeShift - 1*time.Minute
-		racJob = &RacJob{RacJobAttr: beacon.RacJobAttr, LastExecuted: time.Now().Add(timeShift), MinPullBasedHyperPeriod: beacon.PullBasedHyperPeriod}
+		racJob = &RacJob{RacJobAttr: beacon.RacJobAttr, LastExecuted: time.Now().Add(timeShift), MinPullBasedHyperPeriod: beacon.PullBasedHyperPeriod, FirstReceivedBeacon: time.Now()}
 		j.RacJobByMapKey[mapKey] = racJob
+	} else if !racJob.Valid {
+		racJob.FirstReceivedBeacon = time.Now()
 	}
 	racJob.NotFetchCount++
 	// Check if Valid
@@ -195,13 +215,9 @@ func (j *JobHandler) UpdateRacJob(ctx context.Context, beacon *beacon.BeaconAttr
 		if beacon.PullBasedHyperPeriod.Before(racJob.MinPullBasedHyperPeriod) {
 			racJob.MinPullBasedHyperPeriod = beacon.PullBasedHyperPeriod
 		}
-		if racJob.NotFetchCount < beacon.PullBasedMinBeacons || !racJob.MinPullBasedHyperPeriod.Before(time.Now()) {
-			return
+		if racJob.NotFetchCount >= beacon.PullBasedMinBeacons && racJob.MinPullBasedHyperPeriod.Before(time.Now()) {
+			j.pushRacJobToQueue(ctx, racJob)
 		}
-	}
-	racJob.Valid = true
-	if racJob.Executing == 0 {
-		j.addRacJobToQueue(ctx, racJob)
 	}
 }
 
@@ -211,9 +227,16 @@ func (j *JobHandler) checkExecutingRacJobs(ctx context.Context) {
 			log.FromCtx(ctx).Info("RJ; RacJob Execution Timeout", "RacJobAttr", racJob.RacJobAttr)
 			delete(j.ExecutingRacJobs, mapKey)
 			racJob.Executing = 0
-			racJob.Valid = true
 			racJob.LastExecuted = time.Now().Add(-1 * time.Minute)
-			j.addRacJobToQueue(ctx, racJob)
+			j.pushRacJobToQueue(ctx, racJob)
+		}
+	}
+}
+
+func (j *JobHandler) checkForValidJobs(ctx context.Context) {
+	for _, racJob := range j.RacJobByMapKey {
+		if !racJob.Valid && racJob.Executing == 0 && time.Since(racJob.FirstReceivedBeacon) >= 5*time.Second {
+			j.pushRacJobToQueue(ctx, racJob)
 		}
 	}
 }
@@ -225,29 +248,14 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	if j.normalRacJobs.Len() == 0 && j.pullRacJobs.Len() == 0 {
 		return nil, nil
 	}
-	var normal bool
+	var pullBased bool
 	// choose random queue
-	if j.pullRacJobs.Len() == 0 {
-		normal = true
-	} else if j.normalRacJobs.Len() == 0 {
-		normal = false
+	if j.normalRacJobs.Len() > 0 && j.pullRacJobs.Len() > 0 {
+		pullBased = time.Now().UnixNano()%5 == 0
 	} else {
-		normal = time.Now().UnixNano()%5 == 0
+		pullBased = j.pullRacJobs.Len() > 0
 	}
-	var racJob *RacJob
-	if normal {
-		racJob = heap.Pop(&j.normalRacJobs).(*PriorityQueueItem).RacJob
-	} else {
-		racJob = heap.Pop(&j.pullRacJobs).(*PriorityQueueItem).RacJob
-	}
-	racJob.LastExecuted = time.Now()
-	racJob.Valid = false
-	racJob.NotFetchCount = 0
-	racJob.Executing = 1
-	mapKey := MapKeyFrom(racJob.RacJobAttr)
-	delete(j.QueueItemByMapKey, mapKey)
-	j.ExecutingRacJobs[mapKey] = racJob
-
+	racJob := j.popRacJobFromQueue(ctx, pullBased)
 	log.FromCtx(ctx).Info("RJ; Selected RacJob", "RacJobAttr", racJob.RacJobAttr, "RemainingNormal", j.normalRacJobs.Len(), "RemainingPull", j.pullRacJobs.Len())
 
 	return racJob.RacJobAttr, nil
