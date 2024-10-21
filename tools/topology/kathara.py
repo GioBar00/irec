@@ -192,21 +192,25 @@ class KatharaLabGenerator(object):
 
                 if dev_id.startswith("br"):
                     self.device_info[dev_id]["startup"] += f'/app/router --config /{self.config_dir}/br.toml &\n'
+                    continue
                 elif dev_id.startswith("cs"):
-                    self.device_info[dev_id]["startup"] += f'/app/control --config /{self.config_dir}/cs.toml &\n'
+                    #self.device_info[dev_id]["startup"] += f'/app/control --config /{self.config_dir}/cs.toml &\n'
+                    continue
                 elif dev_id.startswith("rac"):
-                    self.device_info[dev_id]["startup"] += f'/app/rac --config /{self.config_dir}/rac.toml &\n'
+                    #self.device_info[dev_id]["startup"] += f'/app/rac --config /{self.config_dir}/rac.toml &\n'
+                    continue
                 elif dev_id.startswith("sd"):
                     self.device_info[dev_id]["startup"] += f'/app/daemon --config /{self.config_dir}/sd.toml &\n'
-                    self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
+                    #self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
                     self.device_info[dev_id]["startup"] += f'chmod +x /{self.config_dir}/{FULL_CONN_SH} &\n'
-                    self.device_info[dev_id]["startup"] += "sleep 2s\n"
+                    #self.device_info[dev_id]["startup"] += "sleep 2s\n"
                     # self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{CRON_SCRIPT_FILE} &\n'
-                    self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{FULL_CONN_SH} &\n'
+                    #self.device_info[dev_id]["startup"] += f'/{self.config_dir}/{FULL_CONN_SH} &\n'
                 
                     # Add shutdown commands: Clean scmp_path logs from shared folder
                     # self.device_info[dev_id]["shutdown"] += f'pkill -f {CRON_SCRIPT_FILE}\n'
                     # self.device_info[dev_id]["shutdown"] += f'bash -l -c "rm -f /shared/$(hostname).prom"\n'
+                    continue
 
     def _add_enviroment_variables(self):
         for topo_id, _ in self.args.topo_dicts.items():
