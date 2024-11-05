@@ -95,6 +95,7 @@ const defaultNewSenderTimeout = 30 * time.Second
 
 func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.PropagationRequest) (*cppb.PropagationRequestResponse, error) {
 	var wg sync.WaitGroup
+	var wgWrite sync.WaitGroup
 	var err error
 	ppT := procperf.GetNew(procperf.Propagated, fmt.Sprintf("%d", request.JobID))
 	defer ppT.Write()
@@ -118,8 +119,91 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	}
 	timeParsingE := time.Now()
 	ppT.AddDurationT(timeParsingS, timeParsingE) // 0
+	// Write the beacons to path servers in a separate goroutine
+	wgWrite.Add(1)
+	go func() {
+		defer log.HandlePanic()
+		defer wgWrite.Done()
+
+		ctx := context.Background()
+
+		// prepare the beacons for writing
+		var beaconsToWrite []beacon.Beacon
+		for _, i := range beaconIndexes {
+			segment, err := seg.BeaconFromPB(request.Beacon[i].PathSeg)
+			if err != nil {
+				log.Error("Could not parse beacon segment", "err", err)
+				continue
+			}
+			b := beacon.Beacon{Segment: segment, InIfID: uint16(request.Beacon[i].InIfId)}
+			// TODO: Fix intf check with writers interfaces
+			err = p.Extender.Extend(ctx, b.Segment, b.InIfID, 0, false, nil, p.Peers)
+			if err != nil {
+				log.FromCtx(ctx).Error("Unable to terminate beacon", "beacon", b, "err", err)
+				continue
+			}
+			beaconsToWrite = append(beaconsToWrite, b)
+		}
+		for _, writer := range p.Writers {
+			if writer.WriterType() == seg.TypeCoreR {
+				continue
+			}
+			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
+			pp.SetNumBeacons(uint32(len(beaconIndexes)))
+			timeWriterS := time.Now()
+			//log.Info("RP; Writing to SegStore", "First IA", beaconsCopy[0].Segment.FirstIA())
+			stats, err := writer.Write(context.Background(), beaconsToWrite, p.Peers, false)
+			if err != nil {
+				log.Error("Could not write beacon to path servers", "err", err)
+				continue
+			}
+			timeWriterE := time.Now()
+
+			if stats.Count > 0 {
+				pp.AddDurationT(timeWriterS, timeWriterE)
+				pp.Write()
+			}
+		}
+	}()
+	// for _, writer := range p.Writers {
+	// 	if writer.WriterType() == seg.TypeCoreR {
+	// 		continue
+	// 	}
+	// 	//wg.Add(1)
+	// 	beaconIndexes := beaconIndexes
+	// 	writer := writer
+	// 	go func() {
+	// 		defer log.HandlePanic()
+	// 		//defer wg.Done()
+	// 		pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
+	// 		pp.SetNumBeacons(uint32(len(beaconIndexes)))
+	// 		timeWriterS := time.Now()
+	// 		// make a copy of the beacons array as the writer has side effects for beacon
+	// 		beaconsCopy := make([]beacon.Beacon, len(beaconIndexes))
+	// 		// convert to proto and back to beacon to avoid side effects
+	// 		for _, i := range beaconIndexes {
+	// 			segment, err := seg.BeaconFromPB(request.Beacon[i].PathSeg)
+	// 			if err != nil {
+	// 				log.Error("Could not parse beacon segment", "err", err)
+	// 				continue
+	// 			}
+	// 			beaconsCopy[i] = beacon.Beacon{Segment: segment, InIfID: uint16(request.Beacon[i].InIfId)}
+	// 		}
+	// 		//log.Info("RP; Writing to SegStore", "First IA", beaconsCopy[0].Segment.FirstIA())
+	// 		stats, err := writer.Write(context.Background(), beaconsCopy, p.Peers, true)
+	// 		if err != nil {
+	// 			log.Error("Could not write beacon to path servers", "err", err)
+	// 			return
+	// 		}
+	// 		timeWriterE := time.Now()
+
+	// 		if stats.Count > 0 {
+	// 			pp.AddDurationT(timeWriterS, timeWriterE)
+	// 			pp.Write()
+	// 		}
+	// 	}()
+	// }
 	racJobAttr := beacon.RacJobAttrFrom(beacons[0].Segment)
-	p.RacHandler.PreMarkRacJob(ctx, racJobAttr)
 	// handle pull based beacons separately
 	for _, bcn := range pullBasedBeacons {
 		bcn := bcn
@@ -175,10 +259,11 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 	egressBeacons, err = p.Store.BeaconsThatShouldBePropagated(ctx, egressBeacons, time.Now().Add(2*defaultNewSenderTimeout))
 	if err != nil {
 		log.Error("Could not filter beacons to be propagated", "err", err)
-		egressBeacons = []storage.EgressBeacon{}
+		return &cppb.PropagationRequestResponse{}, err
 	}
 	timeDBFilterE := time.Now()
 	ppT.AddDurationT(timeDBFilterS, timeDBFilterE) // 2
+	p.RacHandler.PreMarkRacJob(ctx, racJobAttr)
 	totalNumberFiltered = 0
 	for _, ebcn := range egressBeacons {
 		totalNumberFiltered += len(ebcn.EgressIntfs)
@@ -320,7 +405,7 @@ func (p *Propagator) RequestPropagation(ctx context.Context, request *cppb.Propa
 		for _, sender := range senderByIntf {
 			sender.Close()
 		}
-
+		wgWrite.Wait()
 		p.RacHandler.MarkRacJob(ctx, racJobAttr, failedNum.Load(), int32(totalNumber))
 	}()
 

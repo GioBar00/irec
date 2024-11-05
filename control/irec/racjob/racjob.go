@@ -161,6 +161,7 @@ func (j *JobHandler) PreMarkRacJob(ctx context.Context, racJobAttr *beacon.RacJo
 	if racJob, ok := j.RacJobByMapKey[mapKey]; ok {
 		if _, ok := j.ExecutingRacJobs[mapKey]; ok {
 			racJob.Executing = 2
+			log.FromCtx(ctx).Debug("PreMarking RacJob", "RacJobAttr", racJobAttr)
 		} else {
 			log.FromCtx(ctx).Debug("RacJob not executing when PreMarking", "RacJobAttr", racJobAttr)
 		}
@@ -224,6 +225,13 @@ func (j *JobHandler) checkExecutingRacJobs(ctx context.Context) {
 			racJob.LastExecuted = time.Now().Add(-1 * time.Minute)
 			j.pushRacJobToQueue(ctx, racJob)
 		}
+		// if racJob.Executing == 2 && time.Since(racJob.LastExecuted) >= 5*time.Minute {
+		// 	log.FromCtx(ctx).Info("RacJob PreMark Timeout", "RacJobAttr", racJob.RacJobAttr)
+		// 	delete(j.ExecutingRacJobs, mapKey)
+		// 	racJob.Executing = 0
+		// 	racJob.LastExecuted = time.Now().Add(-1 * time.Minute)
+		// 	j.pushRacJobToQueue(ctx, racJob)
+		// }
 	}
 }
 
@@ -240,7 +248,7 @@ func (j *JobHandler) GetRacJob(ctx context.Context) (*beacon.RacJobAttr, error) 
 	defer j.Unlock()
 	j.checkExecutingRacJobs(ctx)
 	j.checkForValidJobs(ctx)
-	if j.normalRacJobs.Len() == 0 && j.pullRacJobs.Len() == 0 {
+	if j.normalRacJobs.Len() == 0 && j.pullRacJobs.Len() == 0 || len(j.ExecutingRacJobs) >= 15 {
 		return nil, nil
 	}
 	var pullBased bool

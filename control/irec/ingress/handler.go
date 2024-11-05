@@ -68,10 +68,6 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 
 	//logger.Debug("Received beacon", "bcn", b)
 	// TODO(jvb); investigate whether the prefilter is desired.
-	if err := h.IngressDB.PreFilter(b); err != nil {
-		logger.Debug("Beacon pre-filtered", "err", err)
-		return err
-	}
 	timeValidateS := time.Now()
 	if err := h.validateASEntry(b, intf); err != nil {
 		logger.Info("Beacon validation failed", "err", err)
@@ -129,36 +125,36 @@ func (h Handler) HandleBeacon(ctx context.Context, b beacon.Beacon, peer *snet.U
 	pp.AddDurationT(timeInsertS, timeInsertE) // 4
 
 	// Write the beacons to path servers in a separate goroutine
-	for _, writer := range h.Writers {
-		if writer.WriterType() == seg.TypeCoreR {
-			continue
-		}
-		writer := writer
-		go func() {
-			defer log.HandlePanic()
-			//defer wg.Done()
-			pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
-			pp.SetNumBeacons(1)
-			timeWriterS := time.Now()
-			segment, err := seg.BeaconFromPB(seg.PathSegmentToPB(b.Segment))
-			if err != nil {
-				log.Error("Could not parse beacon segment", "err", err)
-				return
-			}
-			bcn := beacon.Beacon{Segment: segment, InIfID: b.InIfID}
-			stats, err := writer.Write(context.Background(), []beacon.Beacon{bcn}, h.Peers, true)
-			if err != nil {
-				log.Error("Could not write beacon to path servers", "err", err)
-				return
-			}
-			timeWriterE := time.Now()
+	// for _, writer := range h.Writers {
+	// 	if writer.WriterType() == seg.TypeCoreR {
+	// 		continue
+	// 	}
+	// 	writer := writer
+	// 	go func() {
+	// 		defer log.HandlePanic()
+	// 		//defer wg.Done()
+	// 		pp := procperf.GetNew(procperf.Written, writer.WriterType().String())
+	// 		pp.SetNumBeacons(1)
+	// 		timeWriterS := time.Now()
+	// 		segment, err := seg.BeaconFromPB(seg.PathSegmentToPB(b.Segment))
+	// 		if err != nil {
+	// 			log.Error("Could not parse beacon segment", "err", err)
+	// 			return
+	// 		}
+	// 		bcn := beacon.Beacon{Segment: segment, InIfID: b.InIfID}
+	// 		stats, err := writer.Write(context.Background(), []beacon.Beacon{bcn}, h.Peers, true)
+	// 		if err != nil {
+	// 			log.Error("Could not write beacon to path servers", "err", err)
+	// 			return
+	// 		}
+	// 		timeWriterE := time.Now()
 
-			if stats.Count > 0 {
-				pp.AddDurationT(timeWriterS, timeWriterE)
-				pp.Write()
-			}
-		}()
-	}
+	// 		if stats.Count > 0 {
+	// 			pp.AddDurationT(timeWriterS, timeWriterE)
+	// 			pp.Write()
+	// 		}
+	// 	}()
+	// }
 
 	timeUpdateRacJobS := time.Now()
 	beaconAttr := beacon.BeaconAttrFrom(b.Segment)
